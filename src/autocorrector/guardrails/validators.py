@@ -212,6 +212,59 @@ def detect_pii_types(text: str) -> list[str]:
     ]
 
 
+def find_pii_spans(text: str) -> list[tuple[str, int, int]]:
+    """(type, start, end) of each span PIIDetectionValidator redacts, sorted by start.
+
+    Replays the validator exactly: patterns run in order, each only if it matches
+    the original text, each substituting on the already-redacted text. Positions
+    are mapped back to ``text``; a match that swallows earlier redaction tokens
+    absorbs those spans. ``redact_spans(text, find_pii_spans(text))`` therefore
+    equals the validator's output.
+    """
+    current = text
+    # origin[i]: index in ``text`` of current[i], or -(claim id + 1) for token chars
+    origin = list(range(len(text)))
+    claims: dict[int, tuple[str, int, int]] = {}
+    next_id = 0
+    for pii_type, (pattern, token) in _PII_PATTERNS.items():
+        if not re.search(pattern, text, re.IGNORECASE):
+            continue
+        pieces: list[str] = []
+        new_origin: list[int] = []
+        pos = 0
+        for m in re.finditer(pattern, current, re.IGNORECASE):
+            starts, ends = [], []
+            for o in origin[m.start() : m.end()]:
+                if o >= 0:
+                    starts.append(o)
+                    ends.append(o + 1)
+                elif -o - 1 in claims:
+                    _, s, e = claims.pop(-o - 1)
+                    starts.append(s)
+                    ends.append(e)
+            claim_id = next_id
+            next_id += 1
+            claims[claim_id] = (pii_type, min(starts), max(ends))
+            pieces += [current[pos : m.start()], token]
+            new_origin += origin[pos : m.start()] + [-claim_id - 1] * len(token)
+            pos = m.end()
+        pieces.append(current[pos:])
+        new_origin += origin[pos:]
+        current, origin = "".join(pieces), new_origin
+    return sorted(claims.values(), key=lambda span: span[1])
+
+
+def redact_spans(text: str, spans: list[tuple[str, int, int]]) -> str:
+    """Replace each (type, start, end) span with that type's redaction token."""
+    out, pos = [], 0
+    for pii_type, start, end in sorted(spans, key=lambda span: span[1]):
+        out.append(text[pos:start])
+        out.append(_PII_PATTERNS[pii_type][1])
+        pos = end
+    out.append(text[pos:])
+    return "".join(out)
+
+
 @register_validator(name="pii-detection", data_type="string")
 class PIIDetectionValidator(Validator):
     """Detects and redacts personally identifiable information in agent output.

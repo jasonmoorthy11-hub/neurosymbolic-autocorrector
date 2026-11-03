@@ -1,14 +1,37 @@
 """Tests for Guardrails AI validators and pipeline integration."""
 
+import random
+
 import pytest
 
+from autocorrector.guardrails import validators
 from autocorrector.guardrails.telemetry import build_guard, build_pii_guard
 from autocorrector.guardrails.validators import (
     ComplianceCheckValidator,
     FactualAccuracyValidator,
+    PIIDetectionValidator,
     detect_pii_types,
+    find_pii_spans,
+    redact_spans,
 )
 from autocorrector.orchestrator.pipeline import run_autocorrection
+
+
+def _validator_redaction(text: str) -> str:
+    result = PIIDetectionValidator().validate(text)
+    return getattr(result, "fix_value", None) or text
+
+
+def _fuzz_texts(count: int, seed: int = 20261103) -> list[str]:
+    rng = random.Random(seed)
+    parts = [
+        "1234", "567", "8901", "-", ".", " ", "+1", "(", ")", "@", "a", "b.com", "x",
+        "DOB ", "born on ", "date of birth ", "/", "passport ", "account number ",
+        "routing number ", "DL #", "Main Street", "Ave", ", Columbus, OH 43215",
+        "12/31/1990", "123-45-6789", "4111 1111 1111 1111", "jo@example.com",
+    ]  # fmt: skip
+    return ["".join(rng.choice(parts) for _ in range(rng.randint(1, 12))) for _ in range(count)]
+
 
 # --- PII Detection Tests ---
 
@@ -170,6 +193,73 @@ class TestPIIDetection:
 
     def test_detect_pii_types_none(self):
         assert detect_pii_types("Your order #12345 has shipped.") == []
+
+    def test_find_pii_spans_offsets(self):
+        text = "Your SSN is 123-45-6789."
+        assert find_pii_spans(text) == [("ssn", 12, 23)]
+        assert text[12:23] == "123-45-6789"
+
+    def test_find_pii_spans_sorted_by_start(self):
+        text = "Call (555) 123-4567 or email john.doe@example.com; SSN 123-45-6789."
+        spans = find_pii_spans(text)
+        assert [t for t, _, _ in spans] == ["phone", "email", "ssn"]
+        assert [text[s:e] for _, s, e in spans] == [
+            "(555) 123-4567",
+            "john.doe@example.com",
+            "123-45-6789",
+        ]
+
+    def test_find_pii_spans_earlier_pattern_claims_overlap(self):
+        # Redaction runs in pattern order, so the bank account wins over the phone.
+        text = "Refund to account number 5551234567 today."
+        assert find_pii_spans(text) == [("bank_account", 10, 35)]
+
+    def test_find_pii_spans_every_match(self):
+        text = "Emails: a@example.com and b@example.org"
+        assert [t for t, _, _ in find_pii_spans(text)] == ["email", "email"]
+
+    def test_find_pii_spans_case_insensitive(self):
+        assert find_pii_spans("dob: 01/02/1990")[0][0] == "date_of_birth"
+
+    def test_find_pii_spans_none(self):
+        assert find_pii_spans("Your order #12345 has shipped.") == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # A later pattern's leftmost match overlaps an earlier claim; re.sub on the
+            # redacted text still finds a shorter match.
+            "1234567123456781-.a@b.comborn on 45x",
+            # A replacement token changes the lookbehind/word-boundary context.
+            "a@b.com+11234567123",
+            "Call (555) 123-4567 or email john.doe@example.com; SSN 123-45-6789.",
+            "Refund to account number 5551234567 today.",
+        ],
+    )
+    def test_find_pii_spans_rebuild_equals_validator(self, text):
+        assert redact_spans(text, find_pii_spans(text)) == _validator_redaction(text)
+
+    def test_find_pii_spans_rebuild_equals_validator_fuzz(self):
+        mismatches = [
+            t
+            for t in _fuzz_texts(3000)
+            if redact_spans(t, find_pii_spans(t)) != _validator_redaction(t)
+        ]
+        assert mismatches == []
+
+    def test_find_pii_spans_match_swallowing_a_token_absorbs_its_span(self, monkeypatch):
+        # No real pattern matches "[" or "]", so build a later pattern that does.
+        monkeypatch.setattr(
+            validators,
+            "_PII_PATTERNS",
+            {"ssn": (r"\d{3}", "[S]"), "email": (r"x\S+y", "[E]")},
+        )
+        text = "ab x123y cd"
+        assert find_pii_spans(text) == [("email", 3, 8)]
+        assert redact_spans(text, find_pii_spans(text)) == _validator_redaction(text)
+
+    def test_redact_spans_uses_type_tokens(self):
+        assert redact_spans("SSN 123-45-6789", [("ssn", 4, 15)]) == "SSN [SSN REDACTED]"
 
 
 # --- Compliance Check Tests ---

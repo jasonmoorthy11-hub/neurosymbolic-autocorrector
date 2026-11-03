@@ -3,6 +3,7 @@
 
 Usage:
     python scripts/evaluate.py                      # Run full evaluation
+    python scripts/evaluate.py --dataset heldout    # Run the blind held-out set
     python scripts/evaluate.py --category pii_leak  # Run specific category
     python scripts/evaluate.py --verbose            # Show each case result
     python scripts/evaluate.py --json               # Output JSON report
@@ -24,7 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
+    from autocorrector.evaluation.registry import DATASETS, select_dataset
+
     parser = argparse.ArgumentParser(description="Evaluate autocorrector pipeline")
+    parser.add_argument(
+        "--dataset",
+        choices=sorted(DATASETS),
+        default="golden",
+        help="Dataset to evaluate (default: golden)",
+    )
     parser.add_argument("--category", help="Run only cases in this category")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show each case result")
     parser.add_argument("--json", action="store_true", help="Output JSON report")
@@ -46,12 +55,12 @@ async def main() -> None:
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    from autocorrector.evaluation.dataset import GOLDEN_DATASET, GoldenDataset
+    from autocorrector.evaluation.dataset import GoldenDataset
     from autocorrector.evaluation.runner import run_evaluation
     from autocorrector.evaluation.scorer import format_report
     from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 
-    dataset = GOLDEN_DATASET
+    dataset, scope = select_dataset(args.dataset)
 
     # Filter by category or case ID if requested
     if args.category:
@@ -82,12 +91,13 @@ async def main() -> None:
 
     print(f"\nRunning evaluation: {dataset.name} ({len(dataset.cases)} cases)")
     print(f"Dataset breakdown: {dataset.summary}")
+    print(f"Scope: {scope}")
     print()
 
     report = await run_evaluation(dataset, kg_store=kg_store)
 
     if args.json:
-        print(json.dumps(report.model_dump(), indent=2, default=str))
+        print(json.dumps({"scope": scope, **report.model_dump()}, indent=2, default=str))
     else:
         print(format_report(report))
 

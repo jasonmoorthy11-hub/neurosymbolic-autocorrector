@@ -10,11 +10,35 @@ Implements:
 
 from __future__ import annotations
 
+import math
 import statistics
 
 from pydantic import BaseModel, Field
 
 from autocorrector.evaluation.dataset import ExpectedAction
+
+
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for k successes in n trials (default 95%).
+
+    An empty sample carries no information, so it returns (0.0, 1.0). The bounds
+    are exactly 0 at k == 0 and exactly 1 at k == n (the formula's float result
+    can land an ulp off).
+    """
+    if not 0 <= k <= n:
+        raise ValueError(f"need 0 <= k <= n, got k={k}, n={n}")
+    if z <= 0:
+        raise ValueError(f"z must be positive, got {z}")
+    if n == 0:
+        return (0.0, 1.0)
+    p = k / n
+    z2 = z * z
+    denom = 1 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)) / denom
+    low = 0.0 if k == 0 else center - half
+    high = 1.0 if k == n else center + half
+    return (low, high)
 
 
 class CaseResult(BaseModel):
@@ -50,6 +74,20 @@ class LatencyStats(BaseModel):
     max_ms: float
 
 
+class Proportion(BaseModel):
+    """k successes out of n with a 95% Wilson interval."""
+
+    k: int
+    n: int
+    ci_low: float
+    ci_high: float
+
+    @classmethod
+    def of(cls, k: int, n: int) -> Proportion:
+        low, high = wilson_interval(k, n)
+        return cls(k=k, n=n, ci_low=low, ci_high=high)
+
+
 class EvaluationReport(BaseModel):
     """Full evaluation report with metrics and details."""
 
@@ -78,6 +116,10 @@ class EvaluationReport(BaseModel):
 
     # Confusion matrix: {expected: {actual: count}}
     confusion_matrix: dict[str, dict[str, int]]
+
+    # Counts and 95% Wilson intervals: accuracy, precision, recall, pii_precision,
+    # pii_recall, and the secondary agreement checks pii_flag, facts_flag, rule_ids
+    intervals: dict[str, Proportion] = Field(default_factory=dict)
 
     # Individual results
     results: list[CaseResult]
@@ -167,6 +209,20 @@ def compute_metrics(
         confusion.setdefault(expected, {})
         confusion[expected][actual] = confusion[expected].get(actual, 0) + 1
 
+    # --- Counts with 95% Wilson intervals ---
+    scored = [r for r in results if not r.error]
+    with_rules = [r for r in scored if r.expected_rule_ids]
+    intervals = {
+        "accuracy": Proportion.of(correct, total),
+        "precision": Proportion.of(tp, tp + fp),
+        "recall": Proportion.of(tp, tp + fn),
+        "pii_precision": Proportion.of(pii_tp, pii_tp + pii_fp),
+        "pii_recall": Proportion.of(pii_tp, pii_tp + pii_fn),
+        "pii_flag": Proportion.of(sum(r.pii_correct for r in scored), len(scored)),
+        "facts_flag": Proportion.of(sum(r.facts_correct for r in scored), len(scored)),
+        "rule_ids": Proportion.of(sum(r.rules_correct for r in with_rules), len(with_rules)),
+    }
+
     # --- Failures ---
     failures = [r for r in results if not r.is_correct]
 
@@ -186,9 +242,18 @@ def compute_metrics(
         latency=latency,
         category_accuracy=category_accuracy,
         confusion_matrix=confusion,
+        intervals=intervals,
         results=results,
         failures=failures,
     )
+
+
+def _ci(report: EvaluationReport, key: str) -> str:
+    """'  (k/n, 95% CI lo-hi)' for a metric, or '' if the report has no interval."""
+    iv = report.intervals.get(key)
+    if iv is None:
+        return ""
+    return f"  ({iv.k}/{iv.n}, 95% CI {iv.ci_low * 100:.1f}-{iv.ci_high * 100:.1f})"
 
 
 def format_report(report: EvaluationReport) -> str:
@@ -204,14 +269,14 @@ def format_report(report: EvaluationReport) -> str:
         f"  Errors:       {report.errors}",
         "",
         "  --- Core Metrics ---",
-        f"  Accuracy:     {report.accuracy:.1%}",
-        f"  Precision:    {report.precision:.1%}",
-        f"  Recall:       {report.recall:.1%}",
+        f"  Accuracy:     {report.accuracy:.1%}{_ci(report, 'accuracy')}",
+        f"  Precision:    {report.precision:.1%}{_ci(report, 'precision')}",
+        f"  Recall:       {report.recall:.1%}{_ci(report, 'recall')}",
         f"  F0.5:         {report.f05:.3f}",
         "",
         "  --- PII Detection ---",
-        f"  PII Precision: {report.pii_precision:.1%}",
-        f"  PII Recall:    {report.pii_recall:.1%}",
+        f"  PII Precision: {report.pii_precision:.1%}{_ci(report, 'pii_precision')}",
+        f"  PII Recall:    {report.pii_recall:.1%}{_ci(report, 'pii_recall')}",
         "",
         "  --- Latency ---",
         f"  p50:  {report.latency.p50_ms:.1f} ms",
@@ -243,6 +308,33 @@ def format_report(report: EvaluationReport) -> str:
                 f"  {f.case_id}: expected={f.expected_action.value}, "
                 f"actual={f.actual_action} | {f.error or ''}"
             )
+
+    if report.intervals:
+        lines.append("")
+        lines.append("  --- Secondary Checks (scored separately from the action) ---")
+        for label, key in (
+            ("PII flag agrees:     ", "pii_flag"),
+            ("Fact flag agrees:    ", "facts_flag"),
+            ("Expected rules found:", "rule_ids"),
+        ):
+            iv = report.intervals[key]
+            share = f"{iv.k / iv.n:.1%}" if iv.n else "n/a"
+            lines.append(f"  {label} {share}{_ci(report, key)}")
+        for r in report.results:
+            if r.error:
+                continue
+            if not r.pii_correct:
+                lines.append(f"  {r.case_id}: PII expected={r.expected_pii}, actual={r.actual_pii}")
+            if not r.facts_correct:
+                lines.append(
+                    f"  {r.case_id}: fact error expected={r.expected_facts_wrong}, "
+                    f"actual={r.actual_facts_wrong}"
+                )
+            if not r.rules_correct:
+                lines.append(
+                    f"  {r.case_id}: rules expected={r.expected_rule_ids}, "
+                    f"actual={r.actual_rule_ids}"
+                )
 
     lines.append("")
     lines.append(f"{'=' * 60}")

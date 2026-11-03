@@ -2,14 +2,83 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
 
 from autocorrector.evaluation.dataset import (
     GOLDEN_DATASET,
     ExpectedAction,
 )
 from autocorrector.evaluation.heldout import HELDOUT_DATASET
-from autocorrector.evaluation.scorer import CaseResult, compute_metrics, format_report
+from autocorrector.evaluation.registry import DATASETS, select_dataset
+from autocorrector.evaluation.scorer import (
+    CaseResult,
+    compute_metrics,
+    format_report,
+    wilson_interval,
+)
+
+Z2 = 1.96**2
+
+# --- Wilson interval ---
+
+
+class TestWilsonInterval:
+    """95% Wilson score interval for a binomial proportion."""
+
+    def test_wilson_all_successes(self):
+        low, high = wilson_interval(410, 410)
+        assert low == pytest.approx(410 / (410 + Z2), abs=1e-12)
+        assert high == 1.0
+
+    def test_wilson_no_successes(self):
+        low, high = wilson_interval(0, 10)
+        assert low == 0.0
+        assert high == pytest.approx(Z2 / (10 + Z2), abs=1e-12)
+
+    def test_wilson_half(self):
+        low, high = wilson_interval(5, 10)
+        assert low == pytest.approx(0.2365896, abs=1e-6)
+        assert high == pytest.approx(0.7634104, abs=1e-6)
+
+    def test_wilson_asymmetric(self):
+        low, high = wilson_interval(3, 10)
+        assert low == pytest.approx(0.107789, abs=1e-6)
+        assert high == pytest.approx(0.603227, abs=1e-6)
+
+    @pytest.mark.parametrize("n", range(1, 400))
+    def test_wilson_exact_endpoints(self, n):
+        # The formula rounds an ulp off 0 or 1 for many n (e.g. 5/5, 0/11, 6/6).
+        low, high = wilson_interval(0, n)
+        assert low == 0.0
+        assert high == pytest.approx(Z2 / (n + Z2), abs=1e-12)
+        low, high = wilson_interval(n, n)
+        assert high == 1.0
+        assert low == pytest.approx(n / (n + Z2), abs=1e-12)
+
+    def test_wilson_rejects_non_positive_z(self):
+        with pytest.raises(ValueError, match="z must be positive"):
+            wilson_interval(3, 10, z=0.0)
+        with pytest.raises(ValueError, match="z must be positive"):
+            wilson_interval(3, 10, z=-1.96)
+
+    def test_wilson_empty_sample_is_uninformative(self):
+        assert wilson_interval(0, 0) == (0.0, 1.0)
+
+    def test_wilson_rejects_more_successes_than_trials(self):
+        with pytest.raises(ValueError, match="need 0 <= k <= n"):
+            wilson_interval(101, 100)
+
+    def test_wilson_rejects_negative_successes(self):
+        with pytest.raises(ValueError, match="need 0 <= k <= n"):
+            wilson_interval(-1, 10)
+
 
 # --- Dataset Tests ---
 
@@ -99,6 +168,25 @@ class TestHeldoutDataset:
         }
 
 
+class TestDatasetRegistry:
+    """--dataset selection; never runs the pipeline."""
+
+    def test_select_dataset_golden_is_in_sample(self):
+        dataset, scope = select_dataset("golden")
+        assert dataset is GOLDEN_DATASET
+        assert "in-sample" in scope
+
+    def test_select_dataset_heldout_is_labelled_held_out(self):
+        dataset, scope = select_dataset("heldout")
+        assert dataset is HELDOUT_DATASET
+        assert "held-out" in scope
+
+    def test_select_dataset_unknown_name(self):
+        assert sorted(DATASETS) == ["golden", "heldout"]
+        with pytest.raises(KeyError):
+            select_dataset("bogus")
+
+
 # --- Scorer Tests ---
 
 
@@ -106,14 +194,13 @@ class TestScorer:
     """Test the scoring engine."""
 
     def _make_result(self, expected: str, actual: str, **kwargs) -> CaseResult:
+        defaults = {"case_id": "test", "latency_ms": 10.0}
         return CaseResult(
-            case_id="test",
             category="test",
             expected_action=ExpectedAction(expected),
             actual_action=actual,
             is_correct=(expected == actual),
-            latency_ms=kwargs.get("latency_ms", 10.0),
-            **{k: v for k, v in kwargs.items() if k != "latency_ms"},
+            **{**defaults, **kwargs},
         )
 
     def test_perfect_score(self):
@@ -259,6 +346,99 @@ class TestScorer:
         assert "EVALUATION REPORT" in text
         assert "Accuracy" in text
         assert "F0.5" in text
+
+    def test_intervals_core_counts(self):
+        results = [
+            self._make_result("allow", "correct"),  # FP
+            self._make_result("correct", "correct"),  # TP
+            self._make_result("correct", "allow"),  # FN
+            self._make_result("allow", "allow"),  # TN
+        ]
+        report = compute_metrics(results)
+        iv = report.intervals
+        assert (iv["accuracy"].k, iv["accuracy"].n) == (2, 4)
+        assert (iv["precision"].k, iv["precision"].n) == (1, 2)
+        assert (iv["recall"].k, iv["recall"].n) == (1, 2)
+        assert (iv["accuracy"].ci_low, iv["accuracy"].ci_high) == wilson_interval(2, 4)
+
+    def test_intervals_pii_counts(self):
+        results = [
+            self._make_result("correct", "correct", expected_pii=True, actual_pii=True),
+            self._make_result("correct", "correct", expected_pii=True, actual_pii=False),
+            self._make_result("allow", "correct", expected_pii=False, actual_pii=True),
+        ]
+        iv = compute_metrics(results).intervals
+        assert (iv["pii_precision"].k, iv["pii_precision"].n) == (1, 2)
+        assert (iv["pii_recall"].k, iv["pii_recall"].n) == (1, 2)
+
+    def test_intervals_secondary_checks(self):
+        results = [
+            self._make_result("correct", "correct", expected_rule_ids=["A"], rules_correct=True),
+            self._make_result("correct", "correct", expected_rule_ids=["B"], rules_correct=False),
+            self._make_result("allow", "allow", facts_correct=False, pii_correct=False),
+        ]
+        iv = compute_metrics(results).intervals
+        assert (iv["rule_ids"].k, iv["rule_ids"].n) == (1, 2)  # only cases expecting rules
+        assert (iv["facts_flag"].k, iv["facts_flag"].n) == (2, 3)
+        assert (iv["pii_flag"].k, iv["pii_flag"].n) == (2, 3)
+
+    def test_format_report_shows_intervals_and_secondary_misses(self):
+        results = [
+            self._make_result("correct", "correct"),
+            CaseResult(
+                case_id="RULE-MISS",
+                category="test",
+                expected_action=ExpectedAction.CORRECT,
+                actual_action="correct",
+                is_correct=True,
+                expected_rule_ids=["X"],
+                rules_correct=False,
+            ),
+        ]
+        text = format_report(compute_metrics(results))
+        assert "Precision:    100.0%  (2/2, 95% CI 34.2-100.0)" in text
+        assert "Expected rules found: 0.0%  (0/1, 95% CI 0.0-79.3)" in text
+        assert "RULE-MISS: rules expected=['X'], actual=[]" in text
+
+    def test_format_report_lists_pii_and_fact_mismatches(self):
+        results = [
+            self._make_result(
+                "correct", "correct", case_id="PII-MISS", expected_pii=True, pii_correct=False
+            ),
+            self._make_result(
+                "correct",
+                "correct",
+                case_id="FACT-MISS",
+                expected_facts_wrong=True,
+                facts_correct=False,
+            ),
+        ]
+        text = format_report(compute_metrics(results))
+        assert "PII-MISS: PII expected=True, actual=False" in text
+        assert "FACT-MISS: fact error expected=True, actual=False" in text
+        assert "PII flag agrees:      50.0%  (1/2, 95% CI" in text
+
+
+def test_evaluate_json_includes_scope():
+    repo = Path(__file__).resolve().parent.parent
+    env = {k: v for k, v in os.environ.items() if not k.endswith("API_KEY")}
+    proc = subprocess.run(
+        [sys.executable, "scripts/evaluate.py", "--case", "TN-001", "--json"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    payload = json.loads(proc.stdout[proc.stdout.index("\n{") :])
+    assert payload["scope"].startswith("self-authored, in-sample")
+    assert payload["intervals"]["accuracy"] == {
+        "k": 1,
+        "n": 1,
+        "ci_low": 0.20654329147389294,
+        "ci_high": 1.0,
+    }
 
 
 # --- Integration: Run golden dataset through pipeline ---
