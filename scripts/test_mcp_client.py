@@ -7,9 +7,12 @@ and verifies the results match expected behavior.
 import asyncio
 import json
 import sys
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 async def main():
@@ -20,8 +23,8 @@ async def main():
     server_params = StdioServerParameters(
         command=sys.executable,
         args=["-m", "autocorrector.mcp_server.server", "--stdio"],
-        cwd="/Users/jasonmoorthy/neurosymbolic-autocorrector",
-        env={"PYTHONPATH": "/Users/jasonmoorthy/neurosymbolic-autocorrector/src"},
+        cwd=str(REPO_ROOT),
+        env={"PYTHONPATH": str(REPO_ROOT / "src")},
     )
 
     print("\n[1] Connecting to MCP server via stdio...")

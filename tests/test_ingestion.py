@@ -15,6 +15,8 @@ from autocorrector.knowledge_graph.ingestion import (
     ingest_directory,
 )
 
+POLICIES_DIR = Path(__file__).resolve().parents[1] / "policies"
+
 # --- Extraction Helper Tests ---
 
 
@@ -171,9 +173,7 @@ class TestFullExtraction:
     """Test end-to-end document extraction."""
 
     def test_extract_credit_policy(self):
-        content = Path(
-            "/Users/jasonmoorthy/neurosymbolic-autocorrector/policies/credit_policy_2024_v3.2.md"
-        ).read_text()
+        content = (POLICIES_DIR / "credit_policy_2024_v3.2.md").read_text()
         policy = extract_from_markdown(content, "credit_policy_2024_v3.2.md")
 
         assert policy.name == "Credit_Policy_2024_v3.2"
@@ -182,9 +182,7 @@ class TestFullExtraction:
         assert policy.rules[0].rule_id in ("CREDIT-001", "CREDIT-002")
 
     def test_extract_refund_policy(self):
-        content = Path(
-            "/Users/jasonmoorthy/neurosymbolic-autocorrector/policies/refund_policy_2024_v2.1.md"
-        ).read_text()
+        content = (POLICIES_DIR / "refund_policy_2024_v2.1.md").read_text()
         policy = extract_from_markdown(content, "refund_policy_2024_v2.1.md")
 
         assert "Refund" in policy.name
@@ -192,9 +190,7 @@ class TestFullExtraction:
         assert any(r.rule_id == "REFUND-001" for r in policy.rules)
 
     def test_extract_standard_coverage(self):
-        content = Path(
-            "/Users/jasonmoorthy/neurosymbolic-autocorrector/policies/coverage_standard_2024.md"
-        ).read_text()
+        content = (POLICIES_DIR / "coverage_standard_2024.md").read_text()
         policy = extract_from_markdown(content, "coverage_standard_2024.md")
 
         assert len(policy.coverages) >= 3
@@ -203,9 +199,7 @@ class TestFullExtraction:
         assert any("room" in cat for cat in categories)
 
     def test_extract_premium_coverage(self):
-        content = Path(
-            "/Users/jasonmoorthy/neurosymbolic-autocorrector/policies/coverage_premium_2024.md"
-        ).read_text()
+        content = (POLICIES_DIR / "coverage_premium_2024.md").read_text()
         policy = extract_from_markdown(content, "coverage_premium_2024.md")
 
         assert len(policy.coverages) >= 2
@@ -222,15 +216,11 @@ class TestDirectoryIngestion:
     """Test batch ingestion from a directory."""
 
     async def test_ingest_policies_directory(self):
-        policies = await ingest_directory(
-            "/Users/jasonmoorthy/neurosymbolic-autocorrector/policies"
-        )
+        policies = await ingest_directory(str(POLICIES_DIR))
         assert len(policies) >= 4  # credit, refund, standard, premium
 
     async def test_ingest_extracts_rules_and_coverages(self):
-        policies = await ingest_directory(
-            "/Users/jasonmoorthy/neurosymbolic-autocorrector/policies"
-        )
+        policies = await ingest_directory(str(POLICIES_DIR))
         total_rules = sum(len(p.rules) for p in policies)
         total_coverages = sum(len(p.coverages) for p in policies)
         assert total_rules >= 3  # CREDIT-001, CREDIT-002, REFUND-001

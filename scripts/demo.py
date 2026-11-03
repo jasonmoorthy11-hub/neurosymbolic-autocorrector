@@ -2,10 +2,12 @@
 """Demo script: Run scenarios through the full autocorrection pipeline.
 
 Demonstrates the core value proposition across 15 scenarios:
-- Scenarios 1-6:  Core pipeline (credit, facts, compliant, escalation, PII, combined)
-- Scenarios 7-8:  Expanded PII (passport, bank account, driver's license, address)
-- Scenarios 9-10: Universal rules (unauthorized promises, SLA guarantees, internal disclosure)
-- Scenarios 11-15: Full pipeline runs (refund window, legal escalation, word amounts, multi-violation)
+- Part 1, scenarios 1-10 (step by step: intent -> PII -> policy/fact checks):
+  1-6 credit, facts, compliant, critical credit, PII, PII + policy;
+  7 expanded PII (passport, bank account); 8-10 universal rules
+  (unauthorized promise, SLA guarantee, internal disclosure)
+- Part 2, 5 full LangGraph pipeline runs: unauthorized credit, PII redaction
+  (SSN + address), factual error, unauthorized promise, clean output
 
 Usage:
     python scripts/demo.py
@@ -318,7 +320,7 @@ async def main():
     print("  Components: Intent Classifier + Knowledge Graph + Guardrails AI + LangGraph")
     print("  Rules: 8 (CREDIT x2, REFUND x2, ESC x1, PROMISE x1, SLA x1, DISC x1)")
     print("  PII types: 10 (SSN, card, email, phone, DOB, passport, bank, routing, DL, address)")
-    print("  Tests: 393 passing | Eval: 410/410 (100%)")
+    print("  Evaluation: run scripts/evaluate.py for current metrics")
     print(f"{'=' * 70}\n")
 
 

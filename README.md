@@ -138,8 +138,7 @@ pytest tests/test_pipeline.py       # Run specific test file
 pytest -k "test_pii"               # Run tests matching pattern
 
 # Demo
-python scripts/demo.py              # Interactive 15-scenario demo
-python scripts/demo.py --step       # Step through one at a time
+python scripts/demo.py              # 15-scenario offline demo
 
 # Evaluation
 python scripts/evaluate.py          # Run 410-case golden dataset
