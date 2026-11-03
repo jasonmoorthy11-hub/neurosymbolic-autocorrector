@@ -16,6 +16,8 @@ interface Props {
   error: string | null;
   loading: boolean;
   onRetry: () => void;
+  /** Show seconds on the time axis (replay buckets are seconds apart). */
+  fineTime?: boolean;
 }
 
 function formatCurrency(value: number): string {
@@ -24,12 +26,16 @@ function formatCurrency(value: number): string {
     : `$${value.toFixed(0)}`;
 }
 
-function formatTime(ts: string): string {
+function formatTime(ts: string, fine = false): string {
   const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(fine ? { second: "2-digit" } : {}),
+  });
 }
 
-export function AnalyticsPanel({ trends, summary, error, loading, onRetry }: Props) {
+export function AnalyticsPanel({ trends, summary, error, loading, onRetry, fineTime = false }: Props) {
   if (error) {
     return (
       <div className="panel analytics-panel">
@@ -68,7 +74,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry }: Pro
           <span className="analytics-card-value">
             {formatCurrency(summary.estimated_savings)}
           </span>
-          <span className="analytics-card-label">Estimated Savings</span>
+          <span className="analytics-card-label">Estimated Savings (illustrative)</span>
         </div>
         <div className="analytics-card analytics-card--blue">
           <span className="analytics-card-value">
@@ -80,9 +86,13 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry }: Pro
           <span className="analytics-card-value">
             {summary.p95_latency_ms.toFixed(0)}ms
           </span>
-          <span className="analytics-card-label">Worst-Case Latency</span>
+          <span className="analytics-card-label">p95 Latency</span>
         </div>
       </div>
+      <p className="muted analytics-note">
+        Savings use illustrative assumptions, not measured costs: ${summary.cost_per_violation} per
+        corrected violation, ${summary.cost_per_escalation} per escalation.
+      </p>
 
       {trends.length > 0 && (
         <div className="analytics-chart" role="img" aria-label="Event trends over time">
@@ -91,7 +101,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry }: Pro
             <LineChart data={trends}>
               <XAxis
                 dataKey="timestamp"
-                tickFormatter={formatTime}
+                tickFormatter={(ts: string) => formatTime(ts, fineTime)}
                 tick={{ fontSize: 11, fill: "#94a3b8" }}
               />
               <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
@@ -102,7 +112,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry }: Pro
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                labelFormatter={(label) => formatTime(String(label))}
+                labelFormatter={(label) => formatTime(String(label), fineTime)}
               />
               <Legend wrapperStyle={{ color: "#e2e8f0", fontSize: 12 }} />
               <Line

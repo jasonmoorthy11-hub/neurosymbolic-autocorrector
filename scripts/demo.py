@@ -20,6 +20,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from scenarios import PIPELINE_SCENARIOS, STEP_SCENARIOS
+
 from autocorrector.evaluation.dataset import GOLDEN_DATASET
 from autocorrector.guardrails.telemetry import build_pii_guard
 from autocorrector.guardrails.validators import PII_TYPES
@@ -179,131 +181,15 @@ async def main():
     print("  PART 1: Step-by-Step Component Demo")
     print("-" * 70)
 
-    # Scenario 1: Credit Approval
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 1: Credit Approval (Financial Exposure Control)",
-        "I can offer you a $200 credit for the inconvenience.",
-        {"account_tenure_days": 45, "customer_id": "CUST-001", "account_tier": "standard"},
-    )
-
-    # Scenario 2: Policy Explanation
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 2: Policy Explanation (Hallucination Prevention)",
-        "Your plan covers up to $5,000 in emergency dental work.",
-        {"plan_type": "standard_2024", "customer_id": "CUST-002"},
-    )
-
-    # Scenario 3: Compliant output
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 3: Compliant Output (No Correction Needed)",
-        "I understand your concern. Let me look into this for you right away.",
-        {"account_tenure_days": 200, "plan_type": "premium_2024"},
-    )
-
-    # Scenario 4: Critical violation
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 4: Critical Violation (Excessive Credit)",
-        "I'll apply a $1,000 credit to your account immediately.",
-        {"account_tenure_days": 30},
-    )
-
-    # Scenario 5: PII Detection (Guardrails AI)
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 5: PII Detection (Guardrails AI Safety Rail)",
-        "I've confirmed your identity. Your SSN 412-55-7890 and email"
-        " sarah.jones@gmail.com are on file.",
-        {"customer_id": "CUST-003", "account_tenure_days": 365},
-    )
-
-    # Scenario 6: PII + Policy Violation
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 6: PII + Policy Violation (Combined Guardrails)",
-        "I'll issue a $300 credit to card 4532-8765-1234-9999."
-        " Your SSN 123-45-6789 confirms identity.",
-        {"customer_id": "CUST-004", "account_tenure_days": 15},
-    )
-
-    # Scenario 7: New PII — Passport + Bank Account
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 7: Expanded PII Detection (Passport + Bank Account)",
-        "For the wire transfer: passport number AB1234567, account number: 55667788990.",
-        {"customer_id": "CUST-005", "account_tenure_days": 100},
-    )
-
-    # Scenario 8: Unauthorized Promise
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 8: Unauthorized Promise (PROMISE-001)",
-        "I promise you'll never be charged that fee again. It's permanently removed.",
-        {"customer_id": "CUST-006", "account_tenure_days": 90},
-    )
-
-    # Scenario 9: Unauthorized Timeline Guarantee
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 9: Unauthorized Timeline (SLA-001)",
-        "I guarantee this will be resolved within 24 hours.",
-        {"customer_id": "CUST-007", "account_tenure_days": 120},
-    )
-
-    # Scenario 10: Internal Process Disclosure
-    await run_scenario(
-        kg,
-        classifier,
-        "Scenario 10: Internal Disclosure (DISC-001)",
-        "Between you and me, our CRM shows your case was flagged as priority.",
-        {"customer_id": "CUST-008", "account_tenure_days": 60},
-    )
+    for scenario in STEP_SCENARIOS:
+        await run_scenario(kg, classifier, scenario.name, scenario.text, scenario.context)
 
     print("\n" + "-" * 70)
     print("  PART 2: Full LangGraph Pipeline Demo")
     print("-" * 70)
 
-    await run_pipeline_scenario(
-        "Pipeline: Unauthorized Credit",
-        "I'll go ahead and issue you a $75 credit right now.",
-        {"customer_id": "C-5678", "plan_type": "standard_2024", "account_tenure_days": 30},
-    )
-
-    await run_pipeline_scenario(
-        "Pipeline: PII Redaction (SSN + Address)",
-        "Your SSN: 987-65-4321 and address is 123 Main St, Springfield, IL 62704.",
-        {"customer_id": "C-9999", "account_tenure_days": 200},
-    )
-
-    await run_pipeline_scenario(
-        "Pipeline: Factual Error",
-        "Your Standard plan covers up to $5,000 in emergency dental procedures.",
-        {"customer_id": "C-9012", "plan_type": "standard_2024", "account_tenure_days": 365},
-    )
-
-    await run_pipeline_scenario(
-        "Pipeline: Unauthorized Promise",
-        "I guarantee you'll have lifetime access to this feature forever.",
-        {"customer_id": "C-2222", "account_tenure_days": 200},
-    )
-
-    await run_pipeline_scenario(
-        "Pipeline: Clean Output",
-        "I'd be happy to help you with that. Let me check your account details.",
-        {"customer_id": "C-1111", "account_tenure_days": 365},
-    )
+    for scenario in PIPELINE_SCENARIOS:
+        await run_pipeline_scenario(scenario.name, scenario.text, scenario.context)
 
     rule_ids = sorted(kg.rule_index())
     await kg.close()

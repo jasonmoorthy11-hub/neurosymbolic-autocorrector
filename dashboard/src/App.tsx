@@ -10,6 +10,11 @@ import { EventChart } from "./components/EventChart";
 import { AnalyticsPanel } from "./components/AnalyticsPanel";
 import { DemoControls } from "./components/DemoControls";
 import { FilterBar } from "./components/FilterBar";
+import { PipelineTrace } from "./components/PipelineTrace";
+import { ReplayBanner } from "./components/ReplayBanner";
+import { ReplayControls } from "./components/ReplayControls";
+import { ReplayFeed } from "./components/ReplayFeed";
+import { REPLAY } from "./replay/mode";
 import type { EventFilters } from "./types/api";
 import "./App.css";
 
@@ -29,20 +34,26 @@ function App() {
           Skip to main content
         </a>
 
-        {(!connected || reconnecting) && (
-          <div className="connection-banner" role="alert">
-            {reconnecting
-              ? "Reconnecting to server..."
-              : "Disconnected from server"}
-          </div>
+        {REPLAY ? (
+          <ReplayBanner />
+        ) : (
+          (!connected || reconnecting) && (
+            <div className="connection-banner" role="alert">
+              {reconnecting
+                ? "Reconnecting to server..."
+                : "Disconnected from server"}
+            </div>
+          )
         )}
 
         <header className="app-header">
           <div className="header-left">
             <h1>Neurosymbolic Autocorrector</h1>
-            <span className="header-subtitle">Real-Time Correction Dashboard</span>
+            <span className="header-subtitle">
+              {REPLAY ? "Replay of Recorded Pipeline Runs" : "Real-Time Correction Dashboard"}
+            </span>
           </div>
-          <DemoControls connected={connected} />
+          {REPLAY ? <ReplayControls /> : <DemoControls connected={connected} />}
         </header>
 
         <main id="main-content" className="app-main">
@@ -59,13 +70,15 @@ function App() {
             error={trendsError || summaryError}
             loading={trendsLoading || summaryLoading}
             onRetry={() => { refreshTrends(); refreshSummary(); }}
+            fineTime={REPLAY}
           />
 
           <FilterBar filters={filters} onChange={setFilters} />
 
           <div className="main-grid">
-            <AgentFeed events={events} />
+            {REPLAY ? <ReplayFeed /> : <AgentFeed events={events} />}
             <div className="side-panels">
+              {REPLAY && <PipelineTrace />}
               <SupervisorQueue
                 queue={queue}
                 error={queueError}

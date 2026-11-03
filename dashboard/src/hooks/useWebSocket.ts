@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { CorrectionEvent, WebSocketMessage } from "../types/api";
+import { REPLAY } from "../replay/mode";
+import { useReplayWebSocket } from "../replay/hooks";
 
 const WS_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
 const RECONNECT_DELAY = 3000;
 const PING_INTERVAL = 15000;
 
-export function useWebSocket() {
+function useLiveWebSocket() {
   const [events, setEvents] = useState<CorrectionEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,3 +97,6 @@ export function useWebSocket() {
 
   return { events, connected, error, reconnecting };
 }
+
+// Replay builds never open a WebSocket (see useApi.ts)
+export const useWebSocket = REPLAY ? useReplayWebSocket : useLiveWebSocket;

@@ -1,6 +1,6 @@
 import { Download } from "lucide-react";
 import type { EventFilters } from "../types/api";
-import { exportEvents } from "../hooks/useApi";
+import { useExport } from "../hooks/useApi";
 
 interface Props {
   filters: EventFilters;
@@ -8,6 +8,7 @@ interface Props {
 }
 
 export function FilterBar({ filters, onChange }: Props) {
+  const exportEvents = useExport();
   const update = (key: keyof EventFilters, value: string) => {
     onChange({ ...filters, [key]: value || undefined });
   };

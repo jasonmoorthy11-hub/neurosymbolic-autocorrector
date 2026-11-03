@@ -8,6 +8,17 @@ import type {
   TrendBucket,
   AnalyticsSummary,
 } from "../types/api";
+import { REPLAY } from "../replay/mode";
+import {
+  useReplayAnalyticsSummary,
+  useReplayAnalyticsTrends,
+  useReplayExport,
+  useReplayMetrics,
+  useReplayQueue,
+  useReplayQueueActions,
+  useReplayRules,
+} from "../replay/hooks";
+import { saveBlob } from "./download";
 
 const API_BASE = "";
 
@@ -26,7 +37,7 @@ async function fetchJson<T>(
   return res.json();
 }
 
-export function useMetrics(refreshInterval = 2000) {
+function useLiveMetrics(refreshInterval = 2000) {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +62,7 @@ export function useMetrics(refreshInterval = 2000) {
   return { metrics, error, loading, refresh };
 }
 
-export function useQueue(refreshInterval = 3000) {
+function useLiveQueue(refreshInterval = 3000) {
   const [queue, setQueue] = useState<SupervisorQueueItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,7 +88,7 @@ export function useQueue(refreshInterval = 3000) {
   return { queue, error, loading, refresh };
 }
 
-export function useRules() {
+function useLiveRules() {
   const [rules, setRules] = useState<RuleInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,7 +157,7 @@ export function useEvents(filters: EventFilters = {}, refreshInterval = 5000) {
   return { events, total, error, loading, refresh };
 }
 
-export function useAnalyticsTrends(hours = 24, refreshInterval = 10000) {
+function useLiveAnalyticsTrends(hours = 24, refreshInterval = 10000) {
   const [data, setData] = useState<TrendBucket[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,7 +185,7 @@ export function useAnalyticsTrends(hours = 24, refreshInterval = 10000) {
   return { data, error, loading, refresh };
 }
 
-export function useAnalyticsSummary(refreshInterval = 10000) {
+function useLiveAnalyticsSummary(refreshInterval = 10000) {
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -232,13 +243,7 @@ export async function exportEvents(format: "csv" | "json", filters: EventFilters
   const res = await fetch(`${API_BASE}/api/events/export?${params.toString()}`);
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `events.${format}`;
-  a.click();
-  URL.revokeObjectURL(url);
+  saveBlob(await res.blob(), `events.${format}`);
 }
 
 export async function startDemo(interval = 3.0) {
@@ -248,3 +253,22 @@ export async function startDemo(interval = 3.0) {
 export async function stopDemo() {
   return fetchJson<{ status: string }>("/api/demo/stop", "POST");
 }
+
+// Replay builds (VITE_REPLAY=1) read recorded runs instead of the API; REPLAY is a
+// build-time constant, so each hook resolves to one implementation for the app's life.
+export const useMetrics = REPLAY ? useReplayMetrics : useLiveMetrics;
+export const useQueue = REPLAY ? useReplayQueue : useLiveQueue;
+export const useRules = REPLAY ? useReplayRules : useLiveRules;
+export const useAnalyticsTrends = REPLAY ? useReplayAnalyticsTrends : useLiveAnalyticsTrends;
+export const useAnalyticsSummary = REPLAY ? useReplayAnalyticsSummary : useLiveAnalyticsSummary;
+
+function useLiveQueueActions() {
+  return { approve: approveEvent, reject: rejectEvent };
+}
+
+function useLiveExport() {
+  return exportEvents;
+}
+
+export const useQueueActions = REPLAY ? useReplayQueueActions : useLiveQueueActions;
+export const useExport = REPLAY ? useReplayExport : useLiveExport;

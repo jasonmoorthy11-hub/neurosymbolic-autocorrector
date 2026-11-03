@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { SupervisorQueueItem, RejectionReason } from "../types/api";
 import { ErrorAlert } from "./ErrorAlert";
-import { approveEvent, rejectEvent } from "../hooks/useApi";
+import { useQueueActions } from "../hooks/useApi";
 import { AlertCircle, Check, X } from "lucide-react";
 
 const REJECTION_REASONS: { value: RejectionReason; label: string }[] = [
@@ -37,10 +37,11 @@ export function SupervisorQueue({ queue, error, loading, onRetry, onDecision }: 
   const [actionError, setActionError] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [selectedReason, setSelectedReason] = useState<RejectionReason | "">("");
+  const { approve, reject } = useQueueActions();
 
   const handleApprove = async (eventId: string) => {
     try {
-      await approveEvent(eventId, "supervisor");
+      await approve(eventId, "supervisor");
       setActionError(null);
       onDecision?.();
     } catch (e) {
@@ -56,7 +57,7 @@ export function SupervisorQueue({ queue, error, loading, onRetry, onDecision }: 
   const handleRejectConfirm = async () => {
     if (!rejectingId) return;
     try {
-      await rejectEvent(rejectingId, "supervisor", "", selectedReason || null);
+      await reject(rejectingId, "supervisor", "", selectedReason || null);
       setActionError(null);
       setRejectingId(null);
       setSelectedReason("");

@@ -11,6 +11,8 @@ from autocorrector.models import (
     CorrectionEvent,
     DetectedIntent,
     IntentType,
+    PolicyViolation,
+    Severity,
 )
 
 
@@ -151,6 +153,30 @@ class TestQueueEndpoint:
         data = resp.json()
         assert data["total"] == 1
         assert data["queue"][0]["event_id"] == "esc1"
+
+    @pytest.mark.asyncio
+    async def test_queue_severity_is_highest_by_rank(self, client, clean_state):
+        audit = clean_state
+        violations = [
+            PolicyViolation(
+                rule_id=rule_id,
+                rule_name=rule_id,
+                description="d",
+                severity=severity,
+                source_document="doc",
+                source_section="s",
+            )
+            for rule_id, severity in (
+                ("CREDIT-001", Severity.HIGH),
+                ("CREDIT-002", Severity.CRITICAL),
+            )
+        ]
+        await audit.log_event(
+            _make_event(event_id="esc1", action=CorrectionAction.ESCALATE, violations=violations)
+        )
+
+        resp = await client.get("/api/queue")
+        assert resp.json()["queue"][0]["severity"] == "critical"
 
 
 class TestRulesEndpoint:

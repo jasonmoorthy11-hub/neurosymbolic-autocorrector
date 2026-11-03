@@ -37,6 +37,7 @@ from autocorrector.models import (
     CorrectionEvent,
     DetectedIntent,
     IntentType,
+    Severity,
 )
 from autocorrector.orchestrator.pipeline import run_autocorrection
 
@@ -476,12 +477,12 @@ async def get_supervisor_queue(request: Request):
                 agent_id=e.agent_id or "unknown",
                 original_text=e.original_text,
                 action=e.action_taken.value,
+                # Rank order (Severity is declared low -> critical), not string order
                 severity=max(
-                    (v.severity.value for v in e.violations),
-                    default="low",
-                )
-                if e.violations
-                else "low",
+                    (v.severity for v in e.violations),
+                    key=list(Severity).index,
+                    default=Severity.LOW,
+                ).value,
                 violations=[v.model_dump(mode="json") for v in e.violations],
                 status=status,
                 decision=row.get("decision"),
@@ -600,30 +601,36 @@ async def reject_event(event_id: str, body: SupervisorDecisionRequest, request: 
 @limiter.limit("60/minute")
 async def get_rules(request: Request):
     """Get active policy rules with violation counts."""
-    kg = get_kg_store()
     audit = await get_audit_store()
     all_events = await audit.get_events(limit=10000, offset=0)
-    rules_data = []
-
-    for intent_type, rules in kg._policy_rules.items():
-        for rule in rules:
-            violation_count = sum(
+    rules_data = [
+        {
+            **rule,
+            "violation_count": sum(
                 1 for e in all_events for v in e.violations if v.rule_id == rule["rule_id"]
-            )
-            rules_data.append(
-                {
-                    "rule_id": rule["rule_id"],
-                    "name": rule["rule_name"],
-                    "description": rule["description"],
-                    "severity": rule["severity"],
-                    "intent_type": intent_type,
-                    "violation_count": violation_count,
-                    "source_document": rule.get("source_document"),
-                    "source_section": rule.get("source_section"),
-                }
-            )
+            ),
+        }
+        for rule in rule_catalog(get_kg_store())
+    ]
 
     return {"rules": rules_data}
+
+
+def rule_catalog(kg: KnowledgeGraphStore) -> list[dict[str, Any]]:
+    """Active policy rules as the dashboard lists them (also recorded for the replay demo)."""
+    return [
+        {
+            "rule_id": rule["rule_id"],
+            "name": rule["rule_name"],
+            "description": rule["description"],
+            "severity": rule["severity"],
+            "intent_type": intent_type,
+            "source_document": rule.get("source_document"),
+            "source_section": rule.get("source_section"),
+        }
+        for intent_type, rules in kg._policy_rules.items()
+        for rule in rules
+    ]
 
 
 @app.get("/api/analytics/trends")
@@ -760,51 +767,61 @@ async def process_and_log(
 
 DEMO_SCENARIOS = [
     {
+        "title": "Dashboard demo: $200 credit, 30-day account",
         "text": "I can offer you a $200 credit for your trouble.",
         "context": {"account_tenure_days": 30},
         "agent_id": "agent-sarah",
     },
     {
+        "title": "Dashboard demo: Dental coverage quote",
         "text": "Your emergency dental coverage is $5,000 under the Standard plan.",
         "context": {"plan_type": "standard_2024", "account_tenure_days": 90},
         "agent_id": "agent-mike",
     },
     {
+        "title": "Dashboard demo: $750 credit",
         "text": "I'll apply a $750 credit to your account right away.",
         "context": {"account_tenure_days": 120},
         "agent_id": "agent-lisa",
     },
     {
+        "title": "Dashboard demo: SSN in a reply",
         "text": "Your SSN 123-45-6789 has been verified. Your account is fine.",
         "context": {"account_tenure_days": 90},
         "agent_id": "agent-james",
     },
     {
+        "title": "Dashboard demo: Modem troubleshooting",
         "text": "Let me check the status of your modem. Can you try restarting it?",
         "context": {"account_tenure_days": 60},
         "agent_id": "agent-sarah",
     },
     {
+        "title": "Dashboard demo: $30 credit",
         "text": "I can offer you a $30 credit for the inconvenience.",
         "context": {"account_tenure_days": 30},
         "agent_id": "agent-mike",
     },
     {
+        "title": "Dashboard demo: Emergency room coverage quote",
         "text": "Your emergency room coverage is $15,000 under the Standard plan.",
         "context": {"plan_type": "standard_2024", "account_tenure_days": 90},
         "agent_id": "agent-lisa",
     },
     {
+        "title": "Dashboard demo: $1,000 outage credit",
         "text": "I can offer you a $1,000 credit as compensation for the outage.",
         "context": {"account_tenure_days": 200},
         "agent_id": "agent-james",
     },
     {
+        "title": "Dashboard demo: Greeting",
         "text": "Thank you for contacting us. How can I help you today?",
         "context": {"account_tenure_days": 45},
         "agent_id": "agent-sarah",
     },
     {
+        "title": "Dashboard demo: Email address in a reply",
         "text": "I've sent the confirmation to john.doe@example.com. Is there anything else?",
         "context": {"account_tenure_days": 90},
         "agent_id": "agent-mike",
