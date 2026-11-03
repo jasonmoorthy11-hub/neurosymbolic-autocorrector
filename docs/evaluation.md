@@ -202,7 +202,8 @@ Rows where spans differ from the validator's redaction: 0
 - The detector is regex-only and US-format. It does well on emails, and on SSNs,
   dates of birth and routing numbers when it fires. It does poorly on international
   formats: IBAN/BBAN bank accounts (0% recall; the pattern expects digits after an
-  "account number" cue), non-US addresses (13.7% recall), and phone numbers.
+  "account number" cue), addresses (13.7% recall across all languages; the pattern
+  expects a US street format), and phone numbers.
 - Precision is partly understated by gaps in the gold labels. Seeded random samples
   of 10 false positives per type: all 10 "bank_account" ones are strings like
   `Account Number: 123456789` with no gold span. Of 10 phone ones (of 1,597), none
