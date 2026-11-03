@@ -20,10 +20,12 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from autocorrector.evaluation.dataset import GOLDEN_DATASET
 from autocorrector.guardrails.telemetry import build_pii_guard
+from autocorrector.guardrails.validators import PII_TYPES
 from autocorrector.intent_classifier.classifier import IntentClassifier
-from autocorrector.knowledge_graph.claims import apply_fact_corrections
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+from autocorrector.models import CorrectionAction
 from autocorrector.orchestrator.pipeline import run_autocorrection
 
 
@@ -99,32 +101,25 @@ async def run_scenario(
     else:
         print_field("Result", "All facts accurate", 6)
 
-    # Step 5: Correction
-    if pii_detected or violations or inaccurate:
-        # Start with PII-redacted text if needed
-        corrected = pii_result.validated_output if pii_detected else agent_output
+    # Step 5: Route through the full pipeline (allow / correct / escalate)
+    result = await run_autocorrection(agent_output, customer_context, kg_store=kg)
 
-        # Apply fact corrections (deterministic replacement of the wrong amounts)
-        corrected = apply_fact_corrections(corrected, inaccurate)
-
-        # Apply policy corrections
-        if violations:
-            corrected = await kg.generate_compliant_alternative(
-                original_text=corrected,
-                violations=[v.model_dump() for v in violations],
-                intent_type=intent.intent_type.value,
-                customer_context=customer_context,
-            )
-
+    if result.action_taken == CorrectionAction.ESCALATE:
+        print("\n  [5] Escalated: held for supervisor review, nothing sent.")
+        print("\n  Action: ESCALATE (supervisor decides)")
+    elif result.action_taken == CorrectionAction.CORRECT:
         print("\n  [5] Autocorrected Output:")
-        print(f'      "{corrected}"')
+        print(f'      "{result.corrected_text}"')
+        for edit in result.edits:
+            source = ", ".join(s for s in (edit.source_document, edit.source_section) if s)
+            print(f'      {edit.rule_id}: "{edit.before}" -> "{edit.after}" ({source})')
 
         applied = []
-        if pii_detected:
-            applied.append("PII redaction")
-        if violations:
+        if result.pii_detected:
+            applied.append("PII redaction (" + ", ".join(result.pii_types) + ")")
+        if result.validation.violations:
             applied.append("policy compliance")
-        if inaccurate:
+        if result.validation.fact_errors:
             applied.append("fact correction")
         print(f"\n  Guardrails applied: {', '.join(applied)}")
         print("  Action: CORRECT (workflow continues)")
@@ -310,14 +305,15 @@ async def main():
         {"customer_id": "C-1111", "account_tenure_days": 365},
     )
 
+    rule_ids = sorted(kg.rule_index())
     await kg.close()
 
     print(f"\n{'=' * 70}")
     print("  Demo complete. All scenarios processed.")
     print("  Components: Intent Classifier + Knowledge Graph + Guardrails AI + LangGraph")
-    print("  Rules: 8 (CREDIT x2, REFUND x2, ESC x1, PROMISE x1, SLA x1, DISC x1)")
-    print("  PII types: 10 (SSN, card, email, phone, DOB, passport, bank, routing, DL, address)")
-    print("  Evaluation: run scripts/evaluate.py for current metrics")
+    print(f"  Rules: {len(rule_ids)} ({', '.join(rule_ids)})")
+    print(f"  PII types: {len(PII_TYPES)} ({', '.join(PII_TYPES)})")
+    print(f"  Evaluation: {len(GOLDEN_DATASET.cases)} golden cases; run scripts/evaluate.py")
     print(f"{'=' * 70}\n")
 
 

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from autocorrector.knowledge_graph.claims import (
     apply_fact_corrections,
     assign_amounts,
+    fact_replacements,
     sentence_spans,
 )
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
@@ -322,3 +323,14 @@ class TestApplyFactCorrections:
             "Up to $5,000 for emergency dental.", [self._error("$5,000", "$2,500", 0, 6)]
         )
         assert fixed == "Up to $2,500 for emergency dental."
+
+    def test_fact_replacements_sorted_non_overlapping_spans(self):
+        """Each wrong claim maps to one span, in text order, overlaps dropped."""
+        text = "Up to $5,000.00 here, and $50 there."
+        errors = [
+            self._error("$50", "$40"),
+            self._error("$5,000.00", "$2,500.00", 6, 15),
+            self._error("$5,000", "$9,999", 6, 12),
+        ]
+        spans = [(s, e, err.correct_value) for s, e, err in fact_replacements(text, errors)]
+        assert spans == [(6, 15, "$2,500.00"), (26, 29, "$40")]

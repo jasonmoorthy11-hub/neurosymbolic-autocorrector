@@ -18,18 +18,60 @@ from typing import Any
 
 from cachetools import TTLCache
 
-from autocorrector.knowledge_graph.claims import assign_amounts
+from autocorrector.knowledge_graph.claims import AMOUNT_PATTERN, assign_amounts, sentence_spans
+from autocorrector.knowledge_graph.rewriter import RewriteResult, rewrite
 from autocorrector.llm_response import (
     SERVER_SIDE_FALLBACK_BETA,
     completed_text,
     supports_server_side_fallback,
 )
-from autocorrector.models import FactCheckResult, PolicyViolation, Severity
+from autocorrector.models import (
+    CorrectionEdit,
+    CorrectionTier,
+    FactCheckResult,
+    PolicyViolation,
+    Severity,
+)
 
 logger = logging.getLogger(__name__)
 
 # Default model for LLM-powered corrections
 DEFAULT_CORRECTION_LLM = "claude-opus-5-5"
+
+# Claim-assignment key for a rule's own keywords (never a coverage category name)
+_OFFER_KEY = "\0offer"
+# A coverage statement joins the category to its amount with linking words only
+_COVERAGE_LINK = (
+    r"\s+(?:coverage\s+|limit\s+|benefit\s+|maximum\s+)?(?:is|are|covers|of|pays)"
+    r"\s+(?:up\s+to\s+)?$"
+)
+# ...and ends there, apart from limit wording ("$2,500 per year.")
+_COVERAGE_TAIL = re.compile(
+    r"\s*(?:(?:per|a|each)\s+(?:calendar\s+)?(?:year|visit|month)|annually|yearly)?\s*[.!]?\s*$"
+)
+# Moving money to the customer makes an amount an offer, whatever its value
+_TRANSFER_VERB = re.compile(
+    r"\b(?:put|putting|apply|applying|add|adding|give|giving|cover|covering"
+    r"|send|sending|issue|issuing|toward|towards)\b",
+    re.IGNORECASE,
+)
+
+
+def _whole_text_result(
+    original_text: str, corrected: str, violation: dict[str, Any], tier: CorrectionTier
+) -> RewriteResult:
+    """A correction that replaces the whole message, as one edit citing ``violation``."""
+    edit = CorrectionEdit(
+        rule_id=violation.get("rule_id", ""),
+        before=original_text,
+        after=corrected,
+        start=0,
+        end=len(original_text),
+        source_document=violation.get("source_document"),
+        source_section=violation.get("source_section"),
+        tier=tier,
+    )
+    return RewriteResult(text=corrected, edits=(edit,))
 
 
 class KnowledgeGraphStore:
@@ -183,7 +225,7 @@ class KnowledgeGraphStore:
             # Step 2: Check amount threshold
             amount_threshold = rule.get("amount_threshold")
             if amount_threshold is not None:
-                amounts = re.findall(r"\$(\d+(?:,\d{3})*(?:\.\d{2})?)", text)
+                amounts = self._offer_amounts(text, keywords, customer_context)
                 amount_exceeded = any(float(a.replace(",", "")) > amount_threshold for a in amounts)
                 if not amount_exceeded:
                     continue
@@ -223,6 +265,64 @@ class KnowledgeGraphStore:
                 )
             )
         return violations
+
+    def _offer_amounts(
+        self, text: str, keywords: list[str], customer_context: dict[str, Any]
+    ) -> list[str]:
+        """The ``$`` amounts a threshold rule with these keywords may count.
+
+        Fails closed: only a verified coverage statement is left out. That is
+        an amount that claim assignment gives to a coverage category, equal to
+        that category's limit on the customer's plan, in a sentence that reads
+        as a statement of coverage: the mention right before the amount,
+        joined only by linking words ("Your emergency dental is $2,500."), no
+        transfer verb, and none of the rule's keywords. Every other amount
+        counts, including "a $600 emergency dental credit" and "...with a
+        credit. I'll put $2,500 toward your emergency dental."
+        """
+        plan = self._fact_store.get(str(customer_context.get("plan_type", "")).lower(), {})
+        limits = {cov["category"].lower(): float(cov["limit"]) for cov in plan.get("coverages", [])}
+        if not limits:
+            return [m.group(1) for m in AMOUNT_PATTERN.finditer(text)]
+
+        lower = text.lower()
+        mentions = self.coverage_mentions()
+        claimed = assign_amounts(text, {**mentions, _OFFER_KEY: keywords})
+        statement_sentences = [
+            (start, end)
+            for start, end in sentence_spans(text)
+            if not any(kw in lower[start:end] for kw in keywords)
+            and not _TRANSFER_VERB.search(text, start, end)
+        ]
+
+        def is_statement(m: re.Match[str], cat: str) -> bool:
+            if float(m.group(1).replace(",", "")) != limits[cat]:
+                return False
+            sentence = next(((s, e) for s, e in statement_sentences if s <= m.start() < e), None)
+            if sentence is None:
+                return False
+            start, end = sentence
+            names = "|".join(re.escape(v.lower()) for v in mentions[cat])
+            before = re.search(rf"\b(?:{names}){_COVERAGE_LINK}", lower[start : m.start()])
+            return before is not None and _COVERAGE_TAIL.match(lower, m.end(), end) is not None
+
+        verified = {
+            m.span()
+            for cat, found in claimed.items()
+            if cat in limits
+            for m in found
+            if is_statement(m, cat)
+        }
+        return [m.group(1) for m in AMOUNT_PATTERN.finditer(text) if m.span() not in verified]
+
+    def coverage_mentions(self) -> dict[str, list[str]]:
+        """Map each known coverage category to the phrases that mention it."""
+        categories = {
+            cov["category"].lower()
+            for plan in self._fact_store.values()
+            for cov in plan.get("coverages", [])
+        }
+        return {cat: [cat, *self._CATEGORY_ALIASES.get(cat, [])] for cat in categories}
 
     # Patterns indicating the agent is NOT actively making an offer
     _NON_OFFER_PATTERNS = [
@@ -310,8 +410,8 @@ class KnowledgeGraphStore:
 
             # Step 2: Check amount threshold (if defined)
             if "amount_threshold" in rule:
-                # Parse $X amounts
-                amounts = re.findall(r"\$(\d+(?:,\d{3})*(?:\.\d{2})?)", text)
+                # Parse $X amounts (verified coverage statements excluded)
+                amounts = self._offer_amounts(text, rule.get("keywords", []), customer_context)
                 # Parse bare "N dollar(s)" or "N credit" without $ prefix
                 bare = re.findall(
                     r"(?:^|\s)(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:dollar|credit|compensation|adjustment)",
@@ -496,6 +596,14 @@ class KnowledgeGraphStore:
 
     # --- Correction Generation ---
 
+    def rule_index(self) -> dict[str, dict[str, Any]]:
+        """Map each rule_id to its definition (first occurrence across intents)."""
+        index: dict[str, dict[str, Any]] = {}
+        for rules in self._policy_rules.values():
+            for rule in rules:
+                index.setdefault(rule["rule_id"], rule)
+        return index
+
     async def generate_compliant_alternative(
         self,
         original_text: str,
@@ -504,12 +612,25 @@ class KnowledgeGraphStore:
         customer_context: dict[str, Any],
         strategies: list[dict[str, Any]] | None = None,
     ) -> str:
-        """Generate a policy-compliant alternative to the original text.
+        """Generate a policy-compliant alternative to the original text."""
+        result = await self.generate_compliant_alternative_with_edits(
+            original_text, violations, intent_type, customer_context, strategies=strategies
+        )
+        return result.text
 
-        Uses KG context to produce a corrected version that:
-        - Addresses all violations
-        - Preserves conversational tone
-        - Offers appropriate alternatives (escalation, lower amount, etc.)
+    async def generate_compliant_alternative_with_edits(
+        self,
+        original_text: str,
+        violations: list[dict[str, Any]],
+        intent_type: str,
+        customer_context: dict[str, Any],
+        strategies: list[dict[str, Any]] | None = None,
+    ) -> RewriteResult:
+        """Generate a policy-compliant alternative plus the edits that produced it.
+
+        Tiers, first that applies wins: Neo4j correction templates (connected
+        only) → LLM rewrite (API key only) → span-level rewrite of the flagged
+        sentences → whole-message template for rules the span tier could not fix.
         """
         key = self._cache_key(
             "correction",
@@ -522,36 +643,59 @@ class KnowledgeGraphStore:
             logger.debug("Cache hit: generate_compliant_alternative")
             return self._correction_cache[key]
 
-        corrected = original_text
+        result = await self._tiered_correction(
+            original_text, violations, intent_type, customer_context, strategies
+        )
+        self._correction_cache[key] = result
+        return result
 
-        # Tier 1: Try Neo4j correction templates (per-violation)
+    async def _tiered_correction(
+        self,
+        original_text: str,
+        violations: list[dict[str, Any]],
+        intent_type: str,
+        customer_context: dict[str, Any],
+        strategies: list[dict[str, Any]] | None,
+    ) -> RewriteResult:
+        # Tier 1: Neo4j correction templates (per-violation, last wins)
         if self._connected:
+            winner: dict[str, Any] | None = None
+            corrected = original_text
             for violation in violations:
-                rule_id = violation.get("rule_id", "")
-                correction = await self._get_correction_from_neo4j(rule_id)
+                correction = await self._get_correction_from_neo4j(violation.get("rule_id", ""))
                 if correction:
-                    corrected = correction
-            if corrected != original_text:
-                self._correction_cache[key] = corrected
-                return corrected
+                    corrected, winner = correction, violation
+            if winner is not None and corrected != original_text:
+                return _whole_text_result(original_text, corrected, winner, "neo4j")
 
-        # Tier 2: Try LLM-powered correction (all violations at once for coherent rewrite)
+        # Tier 2: LLM-powered correction (all violations at once for coherent rewrite)
         llm_correction = await self._get_llm_correction(
             original_text, violations, intent_type, customer_context, strategies=strategies
         )
         if llm_correction:
-            self._correction_cache[key] = llm_correction
-            return llm_correction
+            rule_ids = ", ".join(v.get("rule_id", "") for v in violations)
+            return _whole_text_result(original_text, llm_correction, {"rule_id": rule_ids}, "llm")
 
-        # Tier 3: Hardcoded template fallback (per-violation)
+        # Tier 3: span-level rewrite of only the offending sentences
+        span = rewrite(original_text, violations, self.rule_index(), self.coverage_mentions())
+        unresolved = set(span.unresolved)
+        if span.edits:
+            # A rule counts as resolved only if the rewrite no longer triggers it.
+            # New violations in the rewrite are left to the pipeline's revalidation.
+            still = await self.check_policy_compliance(span.text, intent_type, customer_context)
+            unresolved |= {v.rule_id for v in still} & {v.get("rule_id") for v in violations}
+
+        # Tier 4: whole-message template for rules the span tier left unresolved (last wins)
+        template_result: RewriteResult | None = None
         for violation in violations:
-            rule_id = violation.get("rule_id", "")
-            correction = self._get_template_correction(rule_id, customer_context, original_text)
-            if correction:
-                corrected = correction
-
-        self._correction_cache[key] = corrected
-        return corrected
+            if violation.get("rule_id", "") not in unresolved:
+                continue
+            template = self._get_template_correction(
+                violation.get("rule_id", ""), customer_context, original_text
+            )
+            if template:
+                template_result = _whole_text_result(original_text, template, violation, "template")
+        return template_result or span
 
     async def _get_correction_from_neo4j(self, rule_id: str) -> str | None:
         """Fetch a correction template from Neo4j for a given rule."""

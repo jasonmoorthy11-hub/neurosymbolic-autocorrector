@@ -21,11 +21,13 @@ from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
 from autocorrector.guardrails.telemetry import build_pii_guard
+from autocorrector.guardrails.validators import detect_pii_types
 from autocorrector.intent_classifier.classifier import IntentClassifier
-from autocorrector.knowledge_graph.claims import apply_fact_corrections
+from autocorrector.knowledge_graph.rewriter import fact_edits
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import (
     CorrectionAction,
+    CorrectionEdit,
     CorrectionResult,
     CustomerContext,
     DetectedIntent,
@@ -72,7 +74,9 @@ class PipelineState(TypedDict, total=False):
     corrected_text: str | None
     correction_attempts: int
     pii_detected: bool  # Whether PII was found and redacted
+    pii_types: list[str]  # Which PII types were redacted, in pattern order
     redacted_text: str  # Agent text after PII redaction (set only when PII was found)
+    edits: list[CorrectionEdit]  # Every change made by correct_node, in order
     guardrails_applied: list[str]  # Which guardrail validators fired
     nemo_blocked: bool  # Whether NeMo input rails blocked the input
 
@@ -176,14 +180,17 @@ def guardrails_check_node(state: PipelineState) -> dict[str, Any]:
     pii_result = pii_guard.validate(text)
 
     pii_detected = False
+    pii_types: list[str] = []
     if pii_result.validated_output and pii_result.validated_output != text:
         pii_detected = True
+        pii_types = detect_pii_types(text)
         text = pii_result.validated_output
         guardrails_applied.append("pii-detection")
         logger.info("PII detected and redacted in agent output")
 
     updates: dict[str, Any] = {
         "pii_detected": pii_detected,
+        "pii_types": pii_types,
         "guardrails_applied": guardrails_applied,
     }
     if pii_detected:
@@ -277,7 +284,9 @@ async def correct_node(state: PipelineState) -> dict[str, Any]:
     attempts = state.get("correction_attempts", 0)
 
     # Apply fact corrections at the claimed spans (the text validate_node checked)
-    corrected = apply_fact_corrections(text, validation.fact_errors)
+    fact = fact_edits(text, validation.fact_errors)
+    corrected = fact.text
+    edits = [*state.get("edits", []), *fact.edits]
 
     # Fetch ACE strategies for this intent type
     strategies = None
@@ -293,13 +302,15 @@ async def correct_node(state: PipelineState) -> dict[str, Any]:
     # Apply policy corrections
     if validation.violations:
         try:
-            corrected = await kg.generate_compliant_alternative(
+            rewritten = await kg.generate_compliant_alternative_with_edits(
                 original_text=corrected,
                 violations=[v.model_dump() for v in validation.violations],
                 intent_type=intent.intent_type.value,
                 customer_context=customer_ctx.model_dump(exclude_none=True),
                 strategies=strategies,
             )
+            corrected = rewritten.text
+            edits = [*edits, *rewritten.edits]
         except Exception:
             logger.exception("Correction generation failed, delivering original text")
 
@@ -319,6 +330,7 @@ async def correct_node(state: PipelineState) -> dict[str, Any]:
         "corrected_text": corrected,
         "correction_attempts": attempts + 1,
         "explanation": explanation,
+        "edits": edits,
     }
 
 
@@ -606,6 +618,8 @@ async def run_autocorrection(
     # Track if PII was detected
     pii_detected = result.get("pii_detected", False)
     guardrails_applied = result.get("guardrails_applied", [])
+    # An escalation sends nothing, so no rewrite reaches the customer
+    edits = [] if action == CorrectionAction.ESCALATE else result.get("edits", [])
 
     explanation = result.get("explanation")
 
@@ -621,6 +635,8 @@ async def run_autocorrection(
         validation=initial_validation,
         explanation=explanation,
         pii_detected=pii_detected,
+        pii_types=result.get("pii_types", []),
         guardrails_applied=guardrails_applied,
         detected_language=detected_language,
+        edits=edits,
     )

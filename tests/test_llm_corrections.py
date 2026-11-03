@@ -13,7 +13,7 @@ from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 
 @pytest.fixture
 def store():
-    """KG store with no API key (template fallback path)."""
+    """KG store with no API key (offline fallback: span rewrite, then template)."""
     return KnowledgeGraphStore()
 
 

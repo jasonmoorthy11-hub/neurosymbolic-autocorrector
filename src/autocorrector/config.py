@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # Correction pipeline
     max_correction_attempts: int = Field(default=3, ge=1)
+    # Reported for every modified output: a fixed heuristic, not a calibrated probability
     correction_confidence_score: float = Field(default=0.92, ge=0.0, le=1.0)
 
     # Audit

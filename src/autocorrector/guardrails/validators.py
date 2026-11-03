@@ -200,6 +200,16 @@ _PII_PATTERNS = {
         "[PHONE REDACTED]",
     ),
 }
+PII_TYPES = tuple(_PII_PATTERNS)
+
+
+def detect_pii_types(text: str) -> list[str]:
+    """PII types present in ``text``, in pattern order (what PIIDetectionValidator redacts)."""
+    return [
+        pii_type
+        for pii_type, (pattern, _) in _PII_PATTERNS.items()
+        if re.search(pattern, text, re.IGNORECASE)
+    ]
 
 
 @register_validator(name="pii-detection", data_type="string")

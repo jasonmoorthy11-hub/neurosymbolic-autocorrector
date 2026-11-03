@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+from autocorrector.models import CorrectionAction
+from autocorrector.orchestrator.pipeline import run_autocorrection
 
 
 class TestPolicyCompliance:
@@ -262,3 +264,171 @@ class TestMissingContextParity:
         )
         assert [v.rule_id for v in memory_violations] == ["CREDIT-001"]
         assert [v.rule_id for v in neo4j_violations] == ["CREDIT-001"]
+
+
+_COVERAGE_AND_CREDIT = "Your emergency dental is $2,500. I can offer you a $50 credit."
+
+
+_CREDIT_002 = {
+    "rule_id": "CREDIT-002",
+    "name": "Credit Supervisor Threshold",
+    "description": "Single credit cannot exceed $500 without supervisor approval",
+    "severity": "critical",
+    "source_document": "Credit_Policy_2024_v3.2",
+    "source_section": "Section 4.3",
+    "amount_threshold": 500,
+    "keywords": KnowledgeGraphStore().rule_index()["CREDIT-002"]["keywords"],
+    "conditions": [],
+}
+
+# Offers that name a coverage category are still offers: (text, tenure, expected rule ids)
+_CATEGORY_NAMED_OFFERS = [
+    ("I'm adding a $600 emergency dental credit to your account.", 400, ["CREDIT-002"]),
+    ("I can give you a $200 emergency room credit today.", 30, ["CREDIT-001"]),
+    (
+        "As a courtesy, I'll apply $600 to your emergency dental balance as compensation.",
+        400,
+        ["CREDIT-002"],
+    ),
+]
+
+
+# Offer language in one sentence, the amount (next to a category) in the next
+_NEIGHBOUR_KEYWORD_OFFERS = [
+    "I'll cover $700 of your emergency room costs. Consider it a goodwill adjustment.",
+    "I want to make this right with a credit. I'll put $600 toward your emergency dental.",
+    "As compensation, here is what I'll do. I'm applying $600 to your emergency dental.",
+    # Exactly the plan's limits: the value alone does not make a coverage statement
+    "I want to make this right with a credit. I'll put $2,500 toward your emergency dental.",
+    "I want to make this right with a credit. I'll put $10,000 toward your emergency room bill.",
+    # Coverage-statement shape, but the sentence moves money to the customer
+    "Here is a goodwill adjustment. I'll apply it so your emergency dental limit is $2,500.",
+    # No verb or keyword in the amount's sentence, but not shaped as a coverage statement
+    "Consider it a goodwill adjustment. Yours today: emergency dental, $2,500.",
+    # Statement shape before the amount, a gift after it
+    "Here's my compensation offer. The emergency dental benefit of $2,500 is yours.",
+    "Here's my compensation offer. Your emergency dental is $2,500, all yours today.",
+]
+_HIGH_AND_CRITICAL = ["CREDIT-001", "CREDIT-002"]
+
+
+class TestCreditAmountsIgnoreCoverage:
+    """Only a correct coverage statement, in a sentence that offers nothing, is not an offer."""
+
+    @pytest.mark.parametrize(("text", "tenure", "expected"), _CATEGORY_NAMED_OFFERS)
+    async def test_credit_rules_count_offer_naming_a_category(self, text, tenure, expected):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text,
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": tenure},
+        )
+        assert [v.rule_id for v in violations] == expected
+
+    @pytest.mark.parametrize(
+        "text", [t for t, _, expected in _CATEGORY_NAMED_OFFERS if expected == ["CREDIT-002"]]
+    )
+    async def test_credit_rules_neo4j_count_offer_naming_a_category(self, text):
+        violations = await _neo4j_store([_CREDIT_002]).check_policy_compliance(
+            text=text,
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 400},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-002"]
+
+    async def test_category_named_credit_escalates_not_fact_corrected(self):
+        """A $600 dental credit must not be 'fact-corrected' into a $2,500 credit."""
+        result = await run_autocorrection(
+            text="I'm adding a $600 emergency dental credit to your account.",
+            customer_context={"account_tenure_days": 30, "plan_type": "standard_2024"},
+        )
+        assert result.action_taken == CorrectionAction.ESCALATE
+
+    @pytest.mark.parametrize(
+        ("text", "context", "expected"),
+        [
+            (text, {"account_tenure_days": 30, "plan_type": "standard_2024"}, _HIGH_AND_CRITICAL)
+            for text in _NEIGHBOUR_KEYWORD_OFFERS
+        ]
+        + [
+            (text, {"account_tenure_days": 400}, ["CREDIT-002"])
+            for text in _NEIGHBOUR_KEYWORD_OFFERS
+        ]
+        + [
+            (
+                "I want to make this right with a credit. I'll put $200 toward your emergency "
+                "room visit.",
+                {"account_tenure_days": 30},
+                ["CREDIT-001"],
+            )
+        ],
+    )
+    async def test_credit_rules_count_offer_with_keyword_in_neighbour_sentence(
+        self, text, context, expected
+    ):
+        """Only a correct coverage statement is exempt; these amounts are offers."""
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="financial_compensation", customer_context=context
+        )
+        assert [v.rule_id for v in violations] == expected
+
+    async def test_credit_rules_count_exact_limit_in_offer_sentence(self):
+        """Even the plan's true limit counts when its own sentence offers something."""
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text="As a courtesy credit, your emergency dental is $2,500.",
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 400, "plan_type": "standard_2024"},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-002"]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            _COVERAGE_AND_CREDIT,
+            "Your emergency dental is $2,500 per year. I can offer you a $50 credit.",
+        ],
+    )
+    async def test_credit_rules_ignore_correct_coverage_amount(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text,
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 30, "plan_type": "standard_2024"},
+        )
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        "context",
+        [{"account_tenure_days": 30}, {"account_tenure_days": 30, "plan_type": "premium_2024"}],
+    )
+    async def test_credit_rules_count_unverified_coverage_amount(self, context):
+        """No plan, or not that plan's limit: the amount counts (fail closed, as before)."""
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=_COVERAGE_AND_CREDIT,
+            intent_type="financial_compensation",
+            customer_context=context,
+        )
+        assert [v.rule_id for v in violations] == _HIGH_AND_CRITICAL
+
+    async def test_credit_rules_still_count_offered_amount_beside_coverage(self):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text="Your emergency dental is $2,500. I can offer you a $200 credit.",
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 30, "plan_type": "standard_2024"},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-001"]
+
+    async def test_credit_rules_neo4j_ignore_correct_coverage_amount(self):
+        violations = await _neo4j_store([_CREDIT_002]).check_policy_compliance(
+            text=_COVERAGE_AND_CREDIT,
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 30, "plan_type": "standard_2024"},
+        )
+        assert violations == []
+
+    @pytest.mark.parametrize("text", _NEIGHBOUR_KEYWORD_OFFERS)
+    async def test_credit_rules_neo4j_count_offer_with_keyword_in_neighbour_sentence(self, text):
+        violations = await _neo4j_store([_CREDIT_002]).check_policy_compliance(
+            text=text,
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 30, "plan_type": "standard_2024"},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-002"]

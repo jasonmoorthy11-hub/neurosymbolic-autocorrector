@@ -246,28 +246,39 @@ def _typed_elsewhere(
     return not (follows_mention and _stem(noun) in _SPEND_WORDS and limit_language)
 
 
-def apply_fact_corrections(text: str, fact_errors: Sequence[FactCheckResult]) -> str:
-    """Replace each wrong claim with its correct value.
+def fact_replacements(
+    text: str, fact_errors: Sequence[FactCheckResult]
+) -> list[tuple[int, int, FactCheckResult]]:
+    """Locate each wrong claim in ``text`` as ``(start, end, error)``, sorted by start.
 
     Uses the claim's span when it still points at the claim; otherwise
-    replaces whole-amount occurrences of the claim ("$50" never edits "$500").
+    matches whole-amount occurrences of the claim ("$50" never matches "$500").
+    Overlapping spans keep the later-starting (then longer) one.
     """
-    replacements: dict[tuple[int, int], str] = {}
+    found: dict[tuple[int, int], FactCheckResult] = {}
     for error in fact_errors:
         if not (error.claim and error.correct_value):
             continue
         start, end = error.claim_start, error.claim_end
         if start is not None and end is not None and text[start:end] == error.claim:
-            replacements[(start, end)] = error.correct_value
+            found[(start, end)] = error
             continue
         for m in re.finditer(re.escape(error.claim) + r"(?!\d|,\d|\.\d)", text):
-            replacements.setdefault((m.start(), m.end()), error.correct_value)
+            found.setdefault((m.start(), m.end()), error)
 
-    corrected = text
+    kept: list[tuple[int, int, FactCheckResult]] = []
     next_start = len(text) + 1
-    for (start, end), value in sorted(replacements.items(), reverse=True):
-        if end > next_start:  # overlaps a later replacement already applied
+    for (start, end), error in sorted(found.items(), key=lambda item: item[0], reverse=True):
+        if end > next_start:  # overlaps a later span already kept
             continue
-        corrected = corrected[:start] + value + corrected[end:]
+        kept.append((start, end, error))
         next_start = start
+    return kept[::-1]
+
+
+def apply_fact_corrections(text: str, fact_errors: Sequence[FactCheckResult]) -> str:
+    """Replace each wrong claim with its correct value (spans from ``fact_replacements``)."""
+    corrected = text
+    for start, end, error in reversed(fact_replacements(text, fact_errors)):
+        corrected = corrected[:start] + error.correct_value + corrected[end:]
     return corrected

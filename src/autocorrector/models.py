@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Severity(StrEnum):
@@ -71,18 +71,45 @@ class ValidationResult(BaseModel):
     severity: Severity = Severity.LOW
 
 
+CorrectionTier = Literal["neo4j", "llm", "span", "template"]
+
+
+class CorrectionEdit(BaseModel):
+    """One change made to the text, citing the rule (and source) behind it.
+
+    Offsets index the text that stage received. Stages run in order within
+    each correction attempt: fact fixes first, then the policy rewrite. For
+    translated input that text is the English translation, not the original.
+    Frozen: cached correction results share their edits.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    rule_id: str
+    before: str
+    after: str
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+    source_document: str | None = None
+    source_section: str | None = None
+    tier: CorrectionTier = "span"
+
+
 class CorrectionResult(BaseModel):
     original_text: str
     corrected_text: str
     was_modified: bool
     action_taken: CorrectionAction
+    # Fixed heuristic, not a calibrated probability
     confidence: float = Field(ge=0.0, le=1.0)
     intent: DetectedIntent
     validation: ValidationResult
     explanation: ExplainabilityReport | None = None
     pii_detected: bool = False
+    pii_types: list[str] = Field(default_factory=list)
     guardrails_applied: list[str] = Field(default_factory=list)
     detected_language: str = "en"
+    edits: list[CorrectionEdit] = Field(default_factory=list)
 
 
 class ExplainabilityReport(BaseModel):
@@ -91,6 +118,7 @@ class ExplainabilityReport(BaseModel):
     rules_applied: list[str] = Field(default_factory=list)
     rationale: str
     source_documents: list[str] = Field(default_factory=list)
+    # Fixed heuristic, not a calibrated probability
     confidence: float = Field(ge=0.0, le=1.0)
     compliance_status: str
 

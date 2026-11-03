@@ -6,6 +6,7 @@ from autocorrector.guardrails.telemetry import build_guard, build_pii_guard
 from autocorrector.guardrails.validators import (
     ComplianceCheckValidator,
     FactualAccuracyValidator,
+    detect_pii_types,
 )
 from autocorrector.orchestrator.pipeline import run_autocorrection
 
@@ -162,6 +163,13 @@ class TestPIIDetection:
         guard = build_pii_guard()
         result = guard.validate("Your order #12345 has shipped. Reference case 67890.")
         assert result.validated_output == "Your order #12345 has shipped. Reference case 67890."
+
+    def test_detect_pii_types_in_pattern_order(self):
+        text = "Call (555) 123-4567 or email john.doe@example.com; SSN 123-45-6789."
+        assert detect_pii_types(text) == ["ssn", "email", "phone"]
+
+    def test_detect_pii_types_none(self):
+        assert detect_pii_types("Your order #12345 has shipped.") == []
 
 
 # --- Compliance Check Tests ---
