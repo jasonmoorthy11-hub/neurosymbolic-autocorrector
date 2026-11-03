@@ -1,11 +1,11 @@
 # Neurosymbolic Autocorrector
 
-Enterprise AI quality assurance system that **corrects** (not blocks) agent outputs in real-time using knowledge graphs + symbolic reasoning.
+AI quality assurance system that **corrects** (not blocks) agent outputs in real-time using knowledge graphs + symbolic reasoning. On the offline path every policy/fact edit cites its rule and source; PII is redacted to type tokens (not edits).
 
 ## Commands
 
 ```bash
-# Tests (393 passing, excludes Neo4j integration which needs separate install)
+# Tests (1128 passing offline; the 14 Neo4j integration tests need a Neo4j server)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file
@@ -14,16 +14,27 @@ python3 -m pytest -k "test_name" -v                          # single test
 # Demo (15 scenarios: 10 step-by-step + 5 full pipeline)
 python3 scripts/demo.py
 
-# Evaluation (410-case golden dataset v3.2)
+# Evaluation (410-case golden dataset v3.2, in-sample)
 python3 scripts/evaluate.py
 python3 scripts/evaluate.py --llm-judge              # with LLM quality scoring
 python3 scripts/evaluate.py --category true_positive  # filter by category
+# Held-out set (60 blind cases): do NOT run, edit or tune on it. Its first and only
+# run is published in docs/evaluation.md; fixes go into new golden rows.
+#   python3 scripts/evaluate.py --dataset heldout
+python3 scripts/bench_pii.py                          # external PII span benchmark (downloads once into .cache/)
+
+# Replay data for the backend-free dashboard (refuses with an API key set or NeMo on)
+python3 scripts/record_replay.py           # writes dashboard/public/replay/replay.json
+python3 scripts/record_replay.py --check   # exit 1 if stale; re-record after pipeline/scenario/rule changes
 
 # Dashboard
 ./scripts/start_dashboard.sh  # FastAPI :8000 + React :3000
+cd dashboard && npm test      # vitest
+cd dashboard && VITE_REPLAY=1 npm run dev  # replay mode, no backend
 
 # Lint
-ruff check src/ tests/
+ruff check src tests scripts
+ruff format --check src tests scripts
 
 # Docker
 docker compose up --build  # 3 services: autocorrector, neo4j, dashboard
@@ -41,7 +52,7 @@ Agent Output → Language Detection → Translate to English → NeMo Input Rail
 - **Knowledge Graph** (`knowledge_graph/`) — Neo4j policy store with in-memory fallback + vector embeddings
 - **Intent Classifier** (`intent_classifier/`) — 9 intent types with confidence scores
 - **Guardrails** (`guardrails/`) — PII detection (10 types), Guardrails AI validators, NeMo input rails
-- **ACE** (`ace/`) — Self-improving corrections via supervisor feedback (Reflector + Curator)
+- **ACE** (`ace/`) — ACE-style supervisor-feedback loop (after Agentic Context Engineering, Zhang et al., 2025, arXiv 2510.04618): Reflector + Curator; strategies feed the LLM tier only
 - **Audit** (`audit/`) — SQLite event logging, supervisor decisions, analytics
 - **Dashboard** (`dashboard/`) — FastAPI REST/WebSocket backend + analytics/ROI
 - **Evaluation** (`evaluation/`) — Golden dataset, scoring, LLM-as-judge
@@ -50,7 +61,7 @@ Agent Output → Language Detection → Translate to English → NeMo Input Rail
 ## Key Constraints
 
 - **Correct, don't block** — Never break conversation flow. Corrections must be seamless.
-- **3-tier correction fallback** — Neo4j template → LLM (Claude) → Hardcoded template
+- **4-tier correction fallback** — Neo4j template (connected only) → LLM (key only) → span rewrite of the offending sentences (cited edits) → whole-message template
 - **Fail-open guardrails** — NeMo/Guardrails failures pass through rather than block
 - **Async everywhere** — All I/O is async (aiosqlite, httpx, Neo4j driver)
 - **Immutable events** — `correction_events` table is append-only; decisions go in separate table
@@ -90,3 +101,4 @@ All settings via env vars with `AUTOCORRECTOR_` prefix or `.env` file. Key ones:
 - Mock external services (Neo4j, Anthropic, NeMo) — tests must pass offline
 - Golden dataset in `src/autocorrector/evaluation/dataset.py`
 - Test files mirror source: `test_pipeline.py` tests `orchestrator/pipeline.py`
+- CI (`.github/workflows/ci.yml`): pytest, ruff, replay `--check` on Python 3.12 + 3.14; dashboard build/lint/vitest + replay build. Offline, no secrets.

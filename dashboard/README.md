@@ -1,73 +1,40 @@
-# React + TypeScript + Vite
+# Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite. One codebase, two builds, chosen at build time by
+`VITE_REPLAY` (`src/replay/mode.ts`):
 
-Currently, two official plugins are available:
+| Mode | Command | Data |
+|---|---|---|
+| Live | `npm run dev` | REST and WebSocket from the FastAPI backend on :8000 (Vite proxies `/api` and `/ws`; start both with `../scripts/start_dashboard.sh`) |
+| Replay | `VITE_REPLAY=1 npm run dev` | `public/replay/replay.json`, recorded runs of the offline pipeline; no backend, no data requests beyond that file |
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The hooks in `src/hooks/useApi.ts` and `src/hooks/useWebSocket.ts` switch to the
+replay hooks in `src/replay/` when `VITE_REPLAY=1`, so the components are the same in
+both modes. The demo deploy (`vercel.json` at the repo root) builds the replay mode.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev                    # live mode
+VITE_REPLAY=1 npm run dev      # replay mode
+npm run build                  # type-check + production build (live)
+VITE_REPLAY=1 npm run build    # production build (replay)
+npm run lint
+npm test                       # vitest
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Replay data
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+`public/replay/replay.json` is written by `python3 scripts/record_replay.py` from the
+repo root and is never edited by hand. It records 25 scenarios run through the
+offline pipeline (no API key, in-memory policy store, NeMo off); the recorder
+refuses to run otherwise. `python3 scripts/record_replay.py --check` fails when the
+file no longer matches what the pipeline produces, and CI runs it.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Honesty rules for the replay build
+
+- The banner always reads "Recorded runs of the offline pipeline — no backend, no
+  API key".
+- Every number shown is derived from `replay.json` (`src/replay/derive.ts`).
+- Agent names are fictional and all PII is fake.
+- Confidence is shown only as a labelled heuristic; ROI figures are labelled
+  illustrative, with their assumptions visible.
