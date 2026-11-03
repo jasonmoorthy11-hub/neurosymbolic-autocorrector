@@ -14,6 +14,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from autocorrector.llm_response import completed_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -143,7 +145,7 @@ async def judge_correction(
     violations: list[dict[str, Any]],
     action_taken: str,
     client: Any,
-    model: str = "claude-sonnet-4-6",
+    model: str = "claude-sonnet-5-5",
 ) -> JudgeScore:
     """Score a single correction using the LLM judge."""
     if client is None:
@@ -157,12 +159,19 @@ async def judge_correction(
 
         response = await client.messages.create(
             model=model,
-            max_tokens=512,
+            max_tokens=4096,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
+            output_config={"effort": "medium"},
         )
 
-        result = _parse_judge_response(response.content[0].text)
+        text = completed_text(response)
+        if not text:
+            return JudgeScore(
+                case_id=case_id,
+                error=f"incomplete judge response (stop_reason={response.stop_reason})",
+            )
+        result = _parse_judge_response(text)
 
         # Weighted average: accuracy and completeness weighted higher
         overall = (
@@ -190,7 +199,7 @@ async def judge_correction(
 async def run_judge_evaluation(
     cases: list[dict[str, Any]],
     api_key: str,
-    model: str = "claude-sonnet-4-6",
+    model: str = "claude-sonnet-5-5",
 ) -> JudgeReport:
     """Run LLM judge evaluation on a list of correction results.
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from autocorrector.llm_response import completed_text
+
 logger = logging.getLogger(__name__)
 
 REFLECTOR_SYSTEM_PROMPT = (
@@ -74,11 +76,12 @@ async def extract_lesson(
     try:
         response = await anthropic_client.messages.create(
             model=model,
-            max_tokens=256,
+            max_tokens=4096,
             system=REFLECTOR_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
+            output_config={"effort": "medium"},
         )
-        lesson = response.content[0].text.strip()
+        lesson = completed_text(response).strip()
         if not lesson:
             return None
         logger.info("Reflector extracted lesson: %s", lesson[:80])

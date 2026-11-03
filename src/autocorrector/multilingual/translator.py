@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from autocorrector.llm_response import completed_text
+
 if TYPE_CHECKING:
     from anthropic import AsyncAnthropic
 
@@ -52,7 +54,7 @@ async def translate_to_english(
     text: str,
     source_lang: str,
     client: AsyncAnthropic,
-    model: str = "claude-sonnet-4-6",
+    model: str = "claude-sonnet-5-5",
 ) -> str:
     """Translate text to English. Returns original on failure (fail-open)."""
     if source_lang == "en":
@@ -62,14 +64,19 @@ async def translate_to_english(
     try:
         response = await client.messages.create(
             model=model,
-            max_tokens=1024,
+            max_tokens=8192,
             system=(
                 f"Translate the following {lang_name} text to English. "
                 "Return ONLY the translation, nothing else."
             ),
             messages=[{"role": "user", "content": text}],
+            output_config={"effort": "low"},
         )
-        return response.content[0].text.strip()
+        translated = completed_text(response).strip()
+        if not translated:
+            logger.warning("Translation to English returned no text; using original text")
+            return text
+        return translated
     except Exception:
         logger.exception("Translation to English failed, using original text")
         return text
@@ -79,7 +86,7 @@ async def translate_from_english(
     text: str,
     target_lang: str,
     client: AsyncAnthropic,
-    model: str = "claude-sonnet-4-6",
+    model: str = "claude-sonnet-5-5",
 ) -> str:
     """Translate English text to target language. Returns original on failure (fail-open)."""
     if target_lang == "en":
@@ -89,14 +96,19 @@ async def translate_from_english(
     try:
         response = await client.messages.create(
             model=model,
-            max_tokens=1024,
+            max_tokens=8192,
             system=(
                 f"Translate the following English text to {lang_name}. "
                 "Return ONLY the translation, nothing else."
             ),
             messages=[{"role": "user", "content": text}],
+            output_config={"effort": "low"},
         )
-        return response.content[0].text.strip()
+        translated = completed_text(response).strip()
+        if not translated:
+            logger.warning("Translation from English returned no text; using original text")
+            return text
+        return translated
     except Exception:
         logger.exception("Translation from English failed, using original text")
         return text

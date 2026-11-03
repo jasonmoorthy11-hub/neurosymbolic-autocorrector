@@ -36,8 +36,8 @@ async def main() -> None:
     )
     parser.add_argument(
         "--judge-model",
-        default="claude-sonnet-4-6",
-        help="Model for LLM judge (default: claude-sonnet-4-6)",
+        default="claude-sonnet-5-5",
+        help="Model for LLM judge (default: claude-sonnet-5-5)",
     )
     args = parser.parse_args()
 

@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    default_llm: str = "claude-sonnet-4-6"
-    correction_llm: str = "claude-opus-4-6"
+    default_llm: str = "claude-sonnet-5-5"
+    correction_llm: str = "claude-opus-5-5"
 
     # Correction pipeline
     max_correction_attempts: int = Field(default=3, ge=1)

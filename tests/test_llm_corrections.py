@@ -3,6 +3,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
+from anthropic.types.beta import BetaMessage
 
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 
@@ -26,7 +28,7 @@ def store_custom_model():
     """KG store with custom model override."""
     return KnowledgeGraphStore(
         anthropic_api_key="test-key-123",
-        correction_llm="claude-haiku-4-5-20251001",
+        correction_llm="claude-haiku-5-5",
     )
 
 
@@ -98,7 +100,7 @@ class TestLLMCorrectionFallback:
         mock_response.content = [MagicMock(text="I can offer you a $50 credit.")]
 
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client.beta.messages.create = AsyncMock(return_value=mock_response)
         store_with_key._anthropic_client = mock_client
 
         result = await store_with_key.generate_compliant_alternative(
@@ -108,13 +110,13 @@ class TestLLMCorrectionFallback:
             customer_context={"account_tenure_days": 30},
         )
         assert result == "I can offer you a $50 credit."
-        mock_client.messages.create.assert_called_once()
+        mock_client.beta.messages.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_falls_back_to_template_on_api_error(self, store_with_key):
         """When LLM API fails, should fall back to template correction."""
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(side_effect=Exception("API error"))
+        mock_client.beta.messages.create = AsyncMock(side_effect=Exception("API error"))
         store_with_key._anthropic_client = mock_client
 
         result = await store_with_key.generate_compliant_alternative(
@@ -146,7 +148,7 @@ class TestLLMCorrectionFallback:
         mock_response.content = [MagicMock(text="Corrected text from LLM")]
 
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client.beta.messages.create = AsyncMock(return_value=mock_response)
         store_with_key._anthropic_client = mock_client
 
         args = {
@@ -161,7 +163,7 @@ class TestLLMCorrectionFallback:
 
         assert result1 == result2 == "Corrected text from LLM"
         # Only called once — second call used cache
-        assert mock_client.messages.create.call_count == 1
+        assert mock_client.beta.messages.create.call_count == 1
 
     @pytest.mark.asyncio
     async def test_empty_llm_response_falls_back(self, store_with_key):
@@ -170,7 +172,7 @@ class TestLLMCorrectionFallback:
         mock_response.content = [MagicMock(text="")]
 
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client.beta.messages.create = AsyncMock(return_value=mock_response)
         store_with_key._anthropic_client = mock_client
 
         result = await store_with_key.generate_compliant_alternative(
@@ -220,4 +222,174 @@ class TestLLMClientInitialization:
 
     def test_model_override(self, store_custom_model):
         """Custom model should override the default."""
-        assert store_custom_model._correction_llm == "claude-haiku-4-5-20251001"
+        assert store_custom_model._correction_llm == "claude-haiku-5-5"
+
+
+class TestLLMCorrectionIncomplete:
+    @pytest.mark.asyncio
+    async def test_truncated_response_is_discarded(self, store_with_key):
+        """A max_tokens-truncated correction must not reach the customer."""
+        mock_response = MagicMock()
+        mock_response.stop_reason = "max_tokens"
+        mock_response.content = [MagicMock(text="I can offer you a $50 credit and I'll also")]
+
+        mock_client = AsyncMock()
+        mock_client.beta.messages.create = AsyncMock(return_value=mock_response)
+        store_with_key._anthropic_client = mock_client
+
+        result = await store_with_key.generate_compliant_alternative(
+            original_text="I can offer you a $200 credit.",
+            violations=[{"rule_id": "CREDIT-001", "severity": "high", "description": "test"}],
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 30},
+        )
+        template = await KnowledgeGraphStore().generate_compliant_alternative(
+            original_text="I can offer you a $200 credit.",
+            violations=[{"rule_id": "CREDIT-001", "severity": "high", "description": "test"}],
+            intent_type="financial_compensation",
+            customer_context={"account_tenure_days": 30},
+        )
+        assert result == template
+        mock_client.beta.messages.create.assert_called_once()
+
+
+# --- Request Shape Tests ---
+
+
+def _correction_args() -> dict:
+    return {
+        "original_text": "I can offer you a $200 credit.",
+        "violations": [{"rule_id": "CREDIT-001", "severity": "high", "description": "test"}],
+        "intent_type": "financial_compensation",
+        "customer_context": {"account_tenure_days": 30},
+    }
+
+
+def _text_response(text: str) -> MagicMock:
+    response = MagicMock()
+    response.stop_reason = "end_turn"
+    response.content = [MagicMock(text=text)]
+    return response
+
+
+class TestLLMCorrectionRequestShape:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model", ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1"])
+    async def test_llm_correction_uses_server_side_fallback(self, model):
+        """Models with server-side refusal fallbacks go through the beta endpoint."""
+        store = KnowledgeGraphStore(anthropic_api_key="test-key-123", correction_llm=model)
+        mock_client = AsyncMock()
+        mock_client.beta.messages.create = AsyncMock(return_value=_text_response("Fixed."))
+        mock_client.messages.create = AsyncMock()
+        store._anthropic_client = mock_client
+
+        result = await store.generate_compliant_alternative(**_correction_args())
+
+        assert result == "Fixed."
+        mock_client.messages.create.assert_not_called()
+        kwargs = mock_client.beta.messages.create.call_args.kwargs
+        assert kwargs["model"] == model
+        assert kwargs["betas"] == ["server-side-fallback-2026-07-01"]
+        assert kwargs["fallbacks"] == "default"
+        assert kwargs["output_config"] == {"effort": "medium"}
+
+    @pytest.mark.asyncio
+    async def test_llm_correction_haiku_uses_plain_create(self, store_custom_model):
+        """Haiku 5.5 has no server-side fallback: plain messages.create, no betas."""
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=_text_response("Fixed."))
+        mock_client.beta.messages.create = AsyncMock()
+        store_custom_model._anthropic_client = mock_client
+
+        result = await store_custom_model.generate_compliant_alternative(**_correction_args())
+
+        assert result == "Fixed."
+        mock_client.beta.messages.create.assert_not_called()
+        kwargs = mock_client.messages.create.call_args.kwargs
+        assert kwargs["model"] == "claude-haiku-5-5"
+        assert kwargs["output_config"] == {"effort": "medium"}
+        assert "fallbacks" not in kwargs
+        assert "betas" not in kwargs
+
+
+def _beta_message(*blocks: dict) -> BetaMessage:
+    return BetaMessage.model_validate(
+        {
+            "id": "msg_t",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-opus-5-5",
+            "content": list(blocks),
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+    )
+
+
+_THINKING = {"type": "thinking", "thinking": "", "signature": "sig"}
+_FALLBACK = {
+    "type": "fallback",
+    "from": {"model": "claude-opus-5-5"},
+    "to": {"model": "claude-opus-5"},
+    "trigger": {"type": "refusal"},
+}
+
+
+class TestLLMCorrectionRealResponses:
+    @pytest.mark.asyncio
+    async def test_beta_path_reads_text_after_thinking(self, store_with_key):
+        mock_client = AsyncMock()
+        mock_client.beta.messages.create = AsyncMock(
+            return_value=_beta_message(_THINKING, {"type": "text", "text": "Fixed."})
+        )
+        store_with_key._anthropic_client = mock_client
+        assert await store_with_key.generate_compliant_alternative(**_correction_args()) == "Fixed."
+
+    @pytest.mark.asyncio
+    async def test_plain_path_reads_text_after_thinking(self, store_custom_model):
+        msg = Message(
+            id="msg_t",
+            type="message",
+            role="assistant",
+            model="claude-haiku-5-5",
+            content=[
+                ThinkingBlock(type="thinking", thinking="", signature="sig"),
+                TextBlock(type="text", text="Fixed."),
+            ],
+            stop_reason="end_turn",
+            stop_sequence=None,
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=msg)
+        store_custom_model._anthropic_client = mock_client
+        result = await store_custom_model.generate_compliant_alternative(**_correction_args())
+        assert result == "Fixed."
+
+    @pytest.mark.asyncio
+    async def test_fallback_model_output_is_used(self, store_with_key):
+        mock_client = AsyncMock()
+        mock_client.beta.messages.create = AsyncMock(
+            return_value=_beta_message(_FALLBACK, {"type": "text", "text": "From fallback."})
+        )
+        store_with_key._anthropic_client = mock_client
+        result = await store_with_key.generate_compliant_alternative(**_correction_args())
+        assert result == "From fallback."
+
+    @pytest.mark.asyncio
+    async def test_refused_partial_output_never_ships(self, store_with_key, store):
+        """Text from the model that declined precedes the seam; fall back to the template."""
+        mock_client = AsyncMock()
+        mock_client.beta.messages.create = AsyncMock(
+            return_value=_beta_message(
+                {"type": "text", "text": "PARTIAL FROM REFUSED MODEL"},
+                _FALLBACK,
+                {"type": "text", "text": "continuation"},
+            )
+        )
+        store_with_key._anthropic_client = mock_client
+        result = await store_with_key.generate_compliant_alternative(**_correction_args())
+        template = await store.generate_compliant_alternative(**_correction_args())
+        assert result == template
+        assert "PARTIAL" not in result

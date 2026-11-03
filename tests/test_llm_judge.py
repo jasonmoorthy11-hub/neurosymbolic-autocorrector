@@ -155,6 +155,7 @@ class TestJudgeScoring:
         # overall = 5*0.2 + 4*0.3 + 4*0.3 + 5*0.2 = 1.0 + 1.2 + 1.2 + 1.0 = 4.4
         assert score.overall == 4.4
         assert score.is_valid
+        assert mock_client.messages.create.call_args.kwargs["output_config"] == {"effort": "medium"}
 
     async def test_judge_no_client_returns_error(self):
         score = await judge_correction(
@@ -257,3 +258,58 @@ class TestJudgeReport:
 
         invalid_zero = JudgeScore(case_id="Z", overall=0.0)
         assert not invalid_zero.is_valid
+
+
+class TestJudgeIncompleteResponse:
+    async def test_truncated_response_reports_error(self):
+        mock_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.stop_reason = "max_tokens"
+        mock_response.content = [MagicMock(text='{"fluency": 5')]
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        score = await judge_correction(
+            case_id="c1",
+            original_text="a",
+            corrected_text="b",
+            violations=[],
+            action_taken="corrected",
+            client=mock_client,
+        )
+        assert score.error is not None
+        assert "max_tokens" in score.error
+
+
+    async def test_reads_scores_after_thinking_block(self):
+        from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
+
+        msg = Message(
+            id="msg_t",
+            type="message",
+            role="assistant",
+            model="claude-sonnet-5-5",
+            content=[
+                ThinkingBlock(type="thinking", thinking="", signature="sig"),
+                TextBlock(
+                    type="text",
+                    text='{"fluency": 4, "accuracy": 4, "completeness": 4, '
+                    '"tone_preservation": 4, "rationale": "ok"}',
+                ),
+            ],
+            stop_reason="end_turn",
+            stop_sequence=None,
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=msg)
+
+        score = await judge_correction(
+            case_id="c2",
+            original_text="a",
+            corrected_text="b",
+            violations=[],
+            action_taken="corrected",
+            client=mock_client,
+        )
+        assert score.error is None
+        assert score.accuracy == 4

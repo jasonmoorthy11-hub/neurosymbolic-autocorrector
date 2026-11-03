@@ -18,12 +18,17 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from autocorrector.llm_response import (
+    SERVER_SIDE_FALLBACK_BETA,
+    completed_text,
+    supports_server_side_fallback,
+)
 from autocorrector.models import FactCheckResult, PolicyViolation, Severity
 
 logger = logging.getLogger(__name__)
 
 # Default model for LLM-powered corrections
-DEFAULT_CORRECTION_LLM = "claude-sonnet-4-6"
+DEFAULT_CORRECTION_LLM = "claude-opus-5-5"
 
 
 class KnowledgeGraphStore:
@@ -604,14 +609,23 @@ class KnowledgeGraphStore:
                 original_text, violations, intent_type, customer_context
             )
 
-            response = await client.messages.create(
-                model=self._correction_llm,
-                max_tokens=1024,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
+            request: dict[str, Any] = {
+                "model": self._correction_llm,
+                "max_tokens": 8192,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}],
+                "output_config": {"effort": "medium"},
+            }
+            if supports_server_side_fallback(self._correction_llm):
+                response = await client.beta.messages.create(
+                    **request,
+                    betas=[SERVER_SIDE_FALLBACK_BETA],
+                    fallbacks="default",
+                )
+            else:
+                response = await client.messages.create(**request)
 
-            corrected = response.content[0].text.strip()
+            corrected = completed_text(response).strip()
             if not corrected:
                 logger.warning("LLM returned empty correction")
                 return None

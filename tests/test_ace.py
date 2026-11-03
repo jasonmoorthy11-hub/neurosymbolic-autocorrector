@@ -55,7 +55,7 @@ class TestReflectorExtract:
 
         lesson = await extract_lesson(
             anthropic_client=mock_client,
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             original_text="I can offer $200",
             corrected_text="I can offer $50",
             violations=[{"rule_id": "CREDIT-001", "description": "Over threshold"}],
@@ -65,13 +65,14 @@ class TestReflectorExtract:
         mock_client.messages.create.assert_called_once()
         call_kwargs = mock_client.messages.create.call_args.kwargs
         assert call_kwargs["system"] == REFLECTOR_SYSTEM_PROMPT
-        assert call_kwargs["max_tokens"] == 256
+        assert call_kwargs["max_tokens"] == 4096
+        assert call_kwargs["output_config"] == {"effort": "medium"}
 
     @pytest.mark.asyncio
     async def test_extract_lesson_no_client(self):
         lesson = await extract_lesson(
             anthropic_client=None,
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             original_text="text",
             corrected_text="fixed",
             violations=[],
@@ -85,7 +86,7 @@ class TestReflectorExtract:
 
         lesson = await extract_lesson(
             anthropic_client=mock_client,
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             original_text="text",
             corrected_text="fixed",
             violations=[],
@@ -101,7 +102,7 @@ class TestReflectorExtract:
 
         lesson = await extract_lesson(
             anthropic_client=mock_client,
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             original_text="text",
             corrected_text="fixed",
             violations=[],
@@ -297,3 +298,54 @@ class TestStrategyInjection:
         assert "Lesson 0" in prompt
         assert "Lesson 9" in prompt
         assert "Lesson 10" not in prompt
+
+
+class TestReflectorIncompleteResponse:
+    @pytest.mark.asyncio
+    async def test_refusal_returns_none(self):
+        mock_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.stop_reason = "refusal"
+        mock_response.content = [MagicMock(text="should be discarded")]
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        lesson = await extract_lesson(
+            anthropic_client=mock_client,
+            model="claude-sonnet-5-5",
+            original_text="a",
+            corrected_text="b",
+            violations=[],
+            rejection_reason="tone_wrong",
+        )
+        assert lesson is None
+
+    @pytest.mark.asyncio
+    async def test_reads_lesson_after_thinking_block(self, caplog):
+        from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
+
+        msg = Message(
+            id="msg_t",
+            type="message",
+            role="assistant",
+            model="claude-sonnet-5-5",
+            content=[
+                ThinkingBlock(type="thinking", thinking="", signature="sig"),
+                TextBlock(type="text", text="Keep the apology before the policy line."),
+            ],
+            stop_reason="end_turn",
+            stop_sequence=None,
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=msg)
+
+        lesson = await extract_lesson(
+            anthropic_client=mock_client,
+            model="claude-sonnet-5-5",
+            original_text="a",
+            corrected_text="b",
+            violations=[],
+            rejection_reason="tone_wrong",
+        )
+        assert lesson == "Keep the apology before the policy line."
+        assert "failed" not in caplog.text.lower()

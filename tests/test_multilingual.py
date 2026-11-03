@@ -119,6 +119,12 @@ class TestTranslator:
         await translate_to_english("Text", "de", client)
         call_args = client.messages.create.call_args
         assert "German" in call_args.kwargs["system"]
+        assert call_args.kwargs["output_config"] == {"effort": "low"}
+
+    async def test_translate_from_english_uses_low_effort(self):
+        client = self._mock_client("Hola")
+        await translate_from_english("Hello", "es", client)
+        assert client.messages.create.call_args.kwargs["output_config"] == {"effort": "low"}
 
     async def test_translate_uses_code_for_unknown_lang(self):
         client = self._mock_client("Translated text")
@@ -146,7 +152,7 @@ class TestPipelineMultilingual:
         settings = MagicMock()
         settings.supported_languages = ["en", "es", "fr", "pt", "de", "ar", "zh"]
         settings.anthropic_api_key = "test-key"
-        settings.default_llm = "claude-sonnet-4-6"
+        settings.default_llm = "claude-sonnet-5-5"
         mock_settings.return_value = settings
 
         state = {"agent_text": "Puedo ofrecerle un crédito de $200 en su cuenta"}
@@ -178,7 +184,7 @@ class TestPipelineMultilingual:
         settings = MagicMock()
         settings.supported_languages = ["en", "es", "fr", "pt"]
         settings.anthropic_api_key = "test-key"
-        settings.default_llm = "claude-sonnet-4-6"
+        settings.default_llm = "claude-sonnet-5-5"
         mock_settings.return_value = settings
 
         state = {"detected_language": "es"}
@@ -236,3 +242,58 @@ class TestPipelineMultilingual:
             validation=ValidationResult(is_compliant=True, action=CorrectionAction.ALLOW),
         )
         assert result.detected_language == "en"
+
+
+class TestTranslatorThinkingFirst:
+    def _thinking_only_client(self, stop_reason: str = "end_turn") -> AsyncMock:
+        from anthropic.types import Message, ThinkingBlock, Usage
+
+        msg = Message(
+            id="msg_t",
+            type="message",
+            role="assistant",
+            model="claude-sonnet-5-5",
+            content=[ThinkingBlock(type="thinking", thinking="", signature="sig")],
+            stop_reason=stop_reason,
+            stop_sequence=None,
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+        client = AsyncMock()
+        client.messages.create = AsyncMock(return_value=msg)
+        return client
+
+    async def test_to_english_thinking_only_returns_original(self):
+        client = self._thinking_only_client()
+        assert await translate_to_english("Hola mundo", "es", client) == "Hola mundo"
+
+    async def test_from_english_truncated_returns_original(self):
+        client = self._thinking_only_client(stop_reason="max_tokens")
+        assert await translate_from_english("Hello world", "es", client) == "Hello world"
+
+    def _thinking_then_text_client(self, text: str) -> AsyncMock:
+        from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
+
+        msg = Message(
+            id="msg_t",
+            type="message",
+            role="assistant",
+            model="claude-sonnet-5-5",
+            content=[
+                ThinkingBlock(type="thinking", thinking="", signature="sig"),
+                TextBlock(type="text", text=text),
+            ],
+            stop_reason="end_turn",
+            stop_sequence=None,
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+        client = AsyncMock()
+        client.messages.create = AsyncMock(return_value=msg)
+        return client
+
+    async def test_to_english_reads_text_after_thinking(self):
+        client = self._thinking_then_text_client("Hello world")
+        assert await translate_to_english("Hola mundo", "es", client) == "Hello world"
+
+    async def test_from_english_reads_text_after_thinking(self):
+        client = self._thinking_then_text_client("Hola mundo")
+        assert await translate_from_english("Hello world", "es", client) == "Hola mundo"
