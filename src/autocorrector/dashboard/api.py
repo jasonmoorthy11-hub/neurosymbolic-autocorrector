@@ -80,6 +80,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestLoggingMiddleware)
 
+
 class DashboardAuthMiddleware(BaseHTTPMiddleware):
     """API key authentication for sensitive dashboard endpoints.
 
@@ -652,8 +653,7 @@ async def get_analytics_summary(request: Request):
     corrections = summary["corrections"]
     escalations = summary["escalations"]
     estimated_savings = (
-        corrections * settings.cost_per_violation
-        + escalations * settings.cost_per_escalation
+        corrections * settings.cost_per_violation + escalations * settings.cost_per_escalation
     )
 
     return {

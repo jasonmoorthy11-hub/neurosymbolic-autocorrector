@@ -62,6 +62,7 @@ class TestSettingsValidation:
         with pytest.raises(ValidationError):
             _NoEnvSettings(max_correction_attempts=0)
 
+
 class TestSettingsEnvOverride:
     def test_env_var_override(self, monkeypatch):
         monkeypatch.setenv("AUTOCORRECTOR_TEST_NOEXIST_PORT", "9000")

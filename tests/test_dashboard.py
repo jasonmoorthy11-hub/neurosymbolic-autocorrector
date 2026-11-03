@@ -458,15 +458,9 @@ class TestAnalyticsSummary:
     @pytest.mark.asyncio
     async def test_analytics_summary_with_data(self, client, clean_state):
         audit = clean_state
-        await audit.log_event(
-            _make_event(event_id="e1", action=CorrectionAction.CORRECT)
-        )
-        await audit.log_event(
-            _make_event(event_id="e2", action=CorrectionAction.ESCALATE)
-        )
-        await audit.log_event(
-            _make_event(event_id="e3", action=CorrectionAction.ALLOW)
-        )
+        await audit.log_event(_make_event(event_id="e1", action=CorrectionAction.CORRECT))
+        await audit.log_event(_make_event(event_id="e2", action=CorrectionAction.ESCALATE))
+        await audit.log_event(_make_event(event_id="e3", action=CorrectionAction.ALLOW))
         resp = await client.get("/api/analytics/summary")
         data = resp.json()
         assert data["total_events"] == 3
@@ -483,13 +477,9 @@ class TestAnalyticsSummary:
         audit = clean_state
         # 3 corrections + 2 escalations
         for i in range(3):
-            await audit.log_event(
-                _make_event(event_id=f"c{i}", action=CorrectionAction.CORRECT)
-            )
+            await audit.log_event(_make_event(event_id=f"c{i}", action=CorrectionAction.CORRECT))
         for i in range(2):
-            await audit.log_event(
-                _make_event(event_id=f"e{i}", action=CorrectionAction.ESCALATE)
-            )
+            await audit.log_event(_make_event(event_id=f"e{i}", action=CorrectionAction.ESCALATE))
         resp = await client.get("/api/analytics/summary")
         data = resp.json()
         # savings = (3 * 15.0) + (2 * 25.0) = 45 + 50 = 95

@@ -54,8 +54,6 @@ def setup_logging() -> None:
     if settings.log_format == "json":
         handler.setFormatter(JSONFormatter())
     else:
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s")
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s"))
 
     root.addHandler(handler)

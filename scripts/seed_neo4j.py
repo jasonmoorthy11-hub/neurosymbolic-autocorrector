@@ -155,7 +155,7 @@ async def run_verification(driver) -> None:
         )
         print("\n3. Correction Templates:")
         async for record in result:
-            print(f"   {record['rule']}: \"{record['template_preview']}...\"")
+            print(f'   {record["rule"]}: "{record["template_preview"]}..."')
 
         # 4. Check products and coverages
         result = await session.run(
@@ -184,8 +184,10 @@ async def run_verification(driver) -> None:
         )
         print("\n5. Sample Compliance Query (financial_compensation rules):")
         async for record in result:
-            print(f"   {record['rule_id']}: threshold=${record['threshold']}, "
-                  f"keywords={record['keywords']}, conditions={record['conditions']}")
+            print(
+                f"   {record['rule_id']}: threshold=${record['threshold']}, "
+                f"keywords={record['keywords']}, conditions={record['conditions']}"
+            )
 
     print("\nAll verification queries passed!")
 

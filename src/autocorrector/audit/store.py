@@ -261,8 +261,12 @@ class AuditStore:
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
-                event_id, decision, reviewer, comment,
-                rejection_reason, datetime.now(UTC).isoformat(),
+                event_id,
+                decision,
+                reviewer,
+                comment,
+                rejection_reason,
+                datetime.now(UTC).isoformat(),
             ),
         )
         await self._db.commit()
@@ -583,8 +587,12 @@ class AuditStore:
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
-                strategy_id, lesson, rule_id, intent_type,
-                source_event_id, datetime.now(UTC).isoformat(),
+                strategy_id,
+                lesson,
+                rule_id,
+                intent_type,
+                source_event_id,
+                datetime.now(UTC).isoformat(),
             ),
         )
         await self._db.commit()
@@ -676,9 +684,7 @@ class AuditStore:
                 (rule_id,),
             )
         else:
-            cursor = await self._db.execute(
-                "SELECT strategy_id, lesson FROM correction_strategies"
-            )
+            cursor = await self._db.execute("SELECT strategy_id, lesson FROM correction_strategies")
         for row in await cursor.fetchall():
             existing_lesson = row[1].lower()
             new_lesson = lesson.lower()

@@ -34,8 +34,13 @@ class TestJSONFormatter:
     def test_includes_request_id(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="msg", args=None, exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="msg",
+            args=None,
+            exc_info=None,
         )
         record.request_id = "abc-123"  # type: ignore[attr-defined]
         output = formatter.format(record)
@@ -45,8 +50,13 @@ class TestJSONFormatter:
     def test_excludes_empty_request_id(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="msg", args=None, exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="msg",
+            args=None,
+            exc_info=None,
         )
         record.request_id = ""  # type: ignore[attr-defined]
         output = formatter.format(record)
@@ -59,9 +69,15 @@ class TestJSONFormatter:
             raise ValueError("boom")
         except ValueError:
             import sys
+
             record = logging.LogRecord(
-                name="test", level=logging.ERROR, pathname="", lineno=0,
-                msg="failed", args=None, exc_info=sys.exc_info(),
+                name="test",
+                level=logging.ERROR,
+                pathname="",
+                lineno=0,
+                msg="failed",
+                args=None,
+                exc_info=sys.exc_info(),
             )
         output = formatter.format(record)
         data = json.loads(output)
@@ -75,8 +91,13 @@ class TestCorrelationIdFilter:
         token = request_id_var.set("req-999")
         try:
             record = logging.LogRecord(
-                name="test", level=logging.INFO, pathname="", lineno=0,
-                msg="msg", args=None, exc_info=None,
+                name="test",
+                level=logging.INFO,
+                pathname="",
+                lineno=0,
+                msg="msg",
+                args=None,
+                exc_info=None,
             )
             filt.filter(record)
             assert record.request_id == "req-999"  # type: ignore[attr-defined]
@@ -86,8 +107,13 @@ class TestCorrelationIdFilter:
     def test_empty_when_unset(self):
         filt = CorrelationIdFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="msg", args=None, exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="msg",
+            args=None,
+            exc_info=None,
         )
         filt.filter(record)
         assert record.request_id == ""  # type: ignore[attr-defined]

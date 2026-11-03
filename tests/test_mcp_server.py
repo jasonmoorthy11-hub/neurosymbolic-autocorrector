@@ -193,4 +193,3 @@ class TestRunValidationLanguageGuard:
         assert result["action"] == "escalate"
         assert result["detected_language"] == "es"
         assert result["reason"] == "translation-unavailable"
-

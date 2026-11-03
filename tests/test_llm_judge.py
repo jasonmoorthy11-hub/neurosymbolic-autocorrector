@@ -279,7 +279,6 @@ class TestJudgeIncompleteResponse:
         assert score.error is not None
         assert "max_tokens" in score.error
 
-
     async def test_reads_scores_after_thinking_block(self):
         from anthropic.types import Message, TextBlock, ThinkingBlock, Usage
 

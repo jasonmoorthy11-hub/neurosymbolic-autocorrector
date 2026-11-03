@@ -651,10 +651,7 @@ class KnowledgeGraphStore:
         )
         if strategies:
             lessons = "\n".join(f"- {s['lesson']}" for s in strategies[:10])
-            base += (
-                "\n\nLEARNED STRATEGIES (from supervisor feedback — follow these):\n"
-                + lessons
-            )
+            base += "\n\nLEARNED STRATEGIES (from supervisor feedback — follow these):\n" + lessons
         return base
 
     @staticmethod

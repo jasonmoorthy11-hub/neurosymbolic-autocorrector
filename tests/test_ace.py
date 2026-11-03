@@ -50,7 +50,9 @@ class TestReflectorExtract:
     async def test_extract_lesson_success(self):
         mock_client = AsyncMock()
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="When correcting credits, maintain empathetic tone.")]
+        mock_response.content = [
+            MagicMock(text="When correcting credits, maintain empathetic tone.")
+        ]
         mock_client.messages.create = AsyncMock(return_value=mock_response)
 
         lesson = await extract_lesson(
@@ -158,7 +160,9 @@ class TestCurator:
     @pytest.mark.asyncio
     async def test_curate_different_lessons(self, audit_store):
         await curate_strategy(audit_store=audit_store, lesson="Be empathetic with credits.")
-        await curate_strategy(audit_store=audit_store, lesson="Always verify plan coverage amounts.")
+        await curate_strategy(
+            audit_store=audit_store, lesson="Always verify plan coverage amounts."
+        )
 
         strategies = await audit_store.get_all_strategies()
         assert len(strategies) == 2
@@ -226,9 +230,13 @@ class TestAuditStoreStrategies:
 
     @pytest.mark.asyncio
     async def test_top_strategies_filtered_by_intent(self, audit_store):
-        await audit_store.add_strategy(strategy_id="s1", lesson="Credit tip", intent_type="financial_compensation")
+        await audit_store.add_strategy(
+            strategy_id="s1", lesson="Credit tip", intent_type="financial_compensation"
+        )
         await audit_store.add_strategy(strategy_id="s2", lesson="General tip", intent_type=None)
-        await audit_store.add_strategy(strategy_id="s3", lesson="Troubleshooting tip", intent_type="troubleshooting")
+        await audit_store.add_strategy(
+            strategy_id="s3", lesson="Troubleshooting tip", intent_type="troubleshooting"
+        )
 
         strategies = await audit_store.get_top_strategies(intent_type="financial_compensation")
         ids = [s["strategy_id"] for s in strategies]

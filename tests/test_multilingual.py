@@ -26,18 +26,13 @@ class TestLanguageDetector:
         assert detect_language("Puedo ofrecerle un crédito de $200 en su cuenta") == "es"
 
     def test_detect_french(self):
-        assert (
-            detect_language("Je peux vous offrir un crédit de 200$ sur votre compte")
-            == "fr"
-        )
+        assert detect_language("Je peux vous offrir un crédit de 200$ sur votre compte") == "fr"
 
     def test_detect_portuguese(self):
         assert detect_language("Posso oferecer um crédito de $200 para você") == "pt"
 
     def test_detect_german(self):
-        assert (
-            detect_language("Ich kann Ihnen einen Kredit von 200 Euro anbieten") == "de"
-        )
+        assert detect_language("Ich kann Ihnen einen Kredit von 200 Euro anbieten") == "de"
 
     def test_detect_italian(self):
         assert detect_language("Posso offrirle un credito di 200 euro") == "it"
@@ -84,9 +79,7 @@ class TestTranslator:
 
     async def test_translate_to_english(self):
         client = self._mock_client("I can offer you a $200 credit")
-        result = await translate_to_english(
-            "Puedo ofrecerle un crédito de $200", "es", client
-        )
+        result = await translate_to_english("Puedo ofrecerle un crédito de $200", "es", client)
         assert result == "I can offer you a $200 credit"
         client.messages.create.assert_called_once()
 
@@ -98,9 +91,7 @@ class TestTranslator:
 
     async def test_translate_from_english(self):
         client = self._mock_client("Puedo ofrecerle un crédito de $200")
-        result = await translate_from_english(
-            "I can offer you a $200 credit", "es", client
-        )
+        result = await translate_from_english("I can offer you a $200 credit", "es", client)
         assert result == "Puedo ofrecerle un crédito de $200"
         client.messages.create.assert_called_once()
 
@@ -165,18 +156,24 @@ class TestPipelineMultilingual:
 
         state = {"agent_text": "Puedo ofrecerle un crédito de $200 en su cuenta"}
 
-        with patch(
-            "anthropic.AsyncAnthropic",
-        ), patch(
-            "autocorrector.multilingual.translator.translate_to_english_checked",
-            new_callable=AsyncMock,
-            return_value=Translation("I can offer you a $200 credit on your account", ok=True),
+        with (
+            patch(
+                "anthropic.AsyncAnthropic",
+            ),
+            patch(
+                "autocorrector.multilingual.translator.translate_to_english_checked",
+                new_callable=AsyncMock,
+                return_value=Translation("I can offer you a $200 credit on your account", ok=True),
+            ),
         ):
             result = await detect_and_translate_node(state)
 
         assert result["detected_language"] == "es"
         assert result["agent_text"] == "I can offer you a $200 credit on your account"
-        assert result["original_text_untranslated"] == "Puedo ofrecerle un crédito de $200 en su cuenta"
+        assert (
+            result["original_text_untranslated"]
+            == "Puedo ofrecerle un crédito de $200 en su cuenta"
+        )
 
     async def test_translate_output_english_noop(self):
         from autocorrector.orchestrator.pipeline import _translate_output_if_needed
@@ -197,16 +194,17 @@ class TestPipelineMultilingual:
 
         state = {"detected_language": "es"}
 
-        with patch(
-            "anthropic.AsyncAnthropic",
-        ), patch(
-            "autocorrector.multilingual.translator.translate_from_english",
-            new_callable=AsyncMock,
-            return_value="Puedo ofrecerle un crédito de $50",
+        with (
+            patch(
+                "anthropic.AsyncAnthropic",
+            ),
+            patch(
+                "autocorrector.multilingual.translator.translate_from_english",
+                new_callable=AsyncMock,
+                return_value="Puedo ofrecerle un crédito de $50",
+            ),
         ):
-            result = await _translate_output_if_needed(
-                "I can offer you a $50 credit", state
-            )
+            result = await _translate_output_if_needed("I can offer you a $50 credit", state)
 
         assert result == "Puedo ofrecerle un crédito de $50"
 
@@ -337,9 +335,10 @@ class TestTranslationGuard:
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")
-        ), patch("anthropic.AsyncAnthropic") as client_cls:
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")),
+            patch("anthropic.AsyncAnthropic") as client_cls,
+        ):
             result = await run_autocorrection(SPANISH_CREDIT, NEW_CUSTOMER)
 
         assert result.detected_language == "es"
@@ -351,12 +350,14 @@ class TestTranslationGuard:
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")
-        ), patch("anthropic.AsyncAnthropic"), patch(
-            "autocorrector.multilingual.translator.translate_to_english_checked",
-            new_callable=AsyncMock,
-            return_value=Translation(SPANISH_CREDIT, ok=False),
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")),
+            patch("anthropic.AsyncAnthropic"),
+            patch(
+                "autocorrector.multilingual.translator.translate_to_english_checked",
+                new_callable=AsyncMock,
+                return_value=Translation(SPANISH_CREDIT, ok=False),
+            ),
         ):
             result = await run_autocorrection(SPANISH_CREDIT, NEW_CUSTOMER)
 
@@ -366,9 +367,7 @@ class TestTranslationGuard:
     async def test_pipeline_spanish_pii_still_redacted_on_escalation(self):
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")
-        ):
+        with patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")):
             result = await run_autocorrection(
                 "Su número de seguro social es 123-45-6789, gracias por esperar.",
                 NEW_CUSTOMER,
@@ -387,16 +386,19 @@ class TestTranslationGuard:
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")
-        ), patch("anthropic.AsyncAnthropic"), patch(
-            "autocorrector.multilingual.translator.translate_to_english_checked",
-            new_callable=AsyncMock,
-            return_value=Translation("I can offer you a $200 credit on your account.", ok=True),
-        ), patch(
-            "autocorrector.multilingual.translator.translate_from_english",
-            new_callable=AsyncMock,
-            side_effect=lambda text, *a, **k: text,
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")),
+            patch("anthropic.AsyncAnthropic"),
+            patch(
+                "autocorrector.multilingual.translator.translate_to_english_checked",
+                new_callable=AsyncMock,
+                return_value=Translation("I can offer you a $200 credit on your account.", ok=True),
+            ),
+            patch(
+                "autocorrector.multilingual.translator.translate_from_english",
+                new_callable=AsyncMock,
+                side_effect=lambda text, *a, **k: text,
+            ),
         ):
             result = await run_autocorrection(SPANISH_CREDIT, NEW_CUSTOMER)
 
@@ -408,9 +410,7 @@ class TestTranslationGuard:
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")
-        ):
+        with patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")):
             result = await run_autocorrection(
                 "I'd be happy to help you with that today.", NEW_CUSTOMER
             )
@@ -423,7 +423,8 @@ class TestTranslationGuard:
         assert detect_language(text) == "en"
 
     @pytest.mark.parametrize(
-        "text", ["Crédito de $750 aplicado.", "Le ofrezco $500 crédito.", "Reembolso de $500 aprobado."]
+        "text",
+        ["Crédito de $750 aplicado.", "Le ofrezco $500 crédito.", "Reembolso de $500 aprobado."],
     )
     def test_detect_short_text_with_amount_or_accents_is_detected(self, text):
         assert detect_language(text) == "es"
@@ -436,9 +437,7 @@ class TestTranslationGuard:
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")
-        ):
+        with patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")):
             result = await run_autocorrection("Crédito de $750 aplicado.", NEW_CUSTOMER)
 
         assert result.action_taken == CorrectionAction.ESCALATE
@@ -448,9 +447,7 @@ class TestTranslationGuard:
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")
-        ):
+        with patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("")):
             result = await run_autocorrection("OK.", NEW_CUSTOMER)
 
         assert result.action_taken == CorrectionAction.ALLOW
@@ -463,9 +460,10 @@ class TestTranslationGuard:
 
         polish = "Mogę zaoferować panu kredyt w wysokości 200 dolarów jeszcze dzisiaj."
         assert detect_language(polish) == "pl"
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")
-        ), patch("anthropic.AsyncAnthropic") as client_cls:
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")),
+            patch("anthropic.AsyncAnthropic") as client_cls,
+        ):
             result = await run_autocorrection(polish, NEW_CUSTOMER)
 
         assert result.action_taken == CorrectionAction.ESCALATE
@@ -480,12 +478,13 @@ class TestTranslationGuard:
         settings = _settings("")
         settings.nemo_rails_enabled = True
         blocked = InputRailResult(allowed=False, rails_triggered=["jailbreak"], reason="x")
-        with patch(
-            "autocorrector.orchestrator.pipeline.get_settings", return_value=settings
-        ), patch(
-            "autocorrector.guardrails.nemo_rails.check_input",
-            new_callable=AsyncMock,
-            return_value=blocked,
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=settings),
+            patch(
+                "autocorrector.guardrails.nemo_rails.check_input",
+                new_callable=AsyncMock,
+                return_value=blocked,
+            ),
         ):
             result = await run_autocorrection(SPANISH_CREDIT, NEW_CUSTOMER)
 

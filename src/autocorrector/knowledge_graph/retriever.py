@@ -198,8 +198,7 @@ class PolicyRetriever:
                     results.append(
                         RetrievalResult(
                             content=(
-                                f"{data['plan']} {data['category']}"
-                                f": ${data['coverage_limit']:,.0f}"
+                                f"{data['plan']} {data['category']}: ${data['coverage_limit']:,.0f}"
                             ),
                             source=(
                                 f"{data.get('source_doc', '')} p.{data.get('source_page', '')}"

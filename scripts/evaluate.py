@@ -105,9 +105,7 @@ async def main() -> None:
 
             # Re-run corrections and collect original + corrected text for the judge
             judge_cases = []
-            correction_cases = [
-                c for c in dataset.cases if c.expected_action.value == "correct"
-            ]
+            correction_cases = [c for c in dataset.cases if c.expected_action.value == "correct"]
             if correction_cases:
                 print(f"\nRunning LLM judge on {len(correction_cases)} correction cases...")
                 for case in correction_cases:
@@ -130,13 +128,15 @@ async def main() -> None:
                                 }
                                 for v in result.validation.violations
                             ]
-                            judge_cases.append({
-                                "case_id": case.id,
-                                "original_text": case.agent_text,
-                                "corrected_text": result.corrected_text,
-                                "violations": violations,
-                                "action_taken": "correct",
-                            })
+                            judge_cases.append(
+                                {
+                                    "case_id": case.id,
+                                    "original_text": case.agent_text,
+                                    "corrected_text": result.corrected_text,
+                                    "violations": violations,
+                                    "action_taken": "correct",
+                                }
+                            )
                     except Exception as e:
                         logger.warning(f"Skipping {case.id} for judge: {e}")
 
