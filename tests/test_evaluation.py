@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
+
 from autocorrector.evaluation.dataset import (
     GOLDEN_DATASET,
     ExpectedAction,
 )
+from autocorrector.evaluation.heldout import HELDOUT_DATASET
 from autocorrector.evaluation.scorer import CaseResult, compute_metrics, format_report
 
 # --- Dataset Tests ---
@@ -56,6 +59,44 @@ class TestGoldenDataset:
                 assert case.expected_pii is True, (
                     f"Case {case.id}: pii_leak should have expected_pii=True"
                 )
+
+
+class TestHeldoutDataset:
+    """Structure of the blind held-out set (never tuned on; see heldout.py)."""
+
+    def test_heldout_composition(self):
+        actions = [c.expected_action for c in HELDOUT_DATASET.cases]
+        assert len(HELDOUT_DATASET.cases) == 60
+        assert actions.count(ExpectedAction.ALLOW) == 25  # 20 allow + 5 tricky negatives
+        assert actions.count(ExpectedAction.CORRECT) == 25
+        assert actions.count(ExpectedAction.ESCALATE) == 10
+        assert HELDOUT_DATASET.summary["tricky_negative"] == 5
+
+    def test_heldout_ids_unique_and_disjoint_from_golden(self):
+        ids = [c.id for c in HELDOUT_DATASET.cases]
+        assert len(ids) == len(set(ids))
+        assert not set(ids) & {c.id for c in GOLDEN_DATASET.cases}
+
+    def test_heldout_texts_not_in_golden(self):
+        def norm(text: str) -> str:
+            return re.sub(r"[^a-z0-9$]+", " ", text.lower()).strip()
+
+        golden_texts = {norm(c.agent_text) for c in GOLDEN_DATASET.cases}
+        overlap = [c.id for c in HELDOUT_DATASET.cases if norm(c.agent_text) in golden_texts]
+        assert overlap == []
+
+    def test_heldout_covers_every_rule(self):
+        rule_ids = {r for c in HELDOUT_DATASET.cases for r in c.expected_rule_ids}
+        assert rule_ids == {
+            "CREDIT-001",
+            "CREDIT-002",
+            "ESC-001",
+            "REFUND-001",
+            "REFUND-002",
+            "PROMISE-001",
+            "SLA-001",
+            "DISC-001",
+        }
 
 
 # --- Scorer Tests ---
