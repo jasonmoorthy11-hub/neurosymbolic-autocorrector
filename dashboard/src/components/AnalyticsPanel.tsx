@@ -102,7 +102,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry }: Pro
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                labelFormatter={formatTime}
+                labelFormatter={(label) => formatTime(String(label))}
               />
               <Legend wrapperStyle={{ color: "#e2e8f0", fontSize: 12 }} />
               <Line

@@ -4,7 +4,7 @@
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[all,dev]"
+pip install -e ".[dev,langgraph,guardrails]"   # offline core; ".[all,dev]" adds Neo4j + Redis
 cp .env.example .env
 # Edit .env with your API keys
 pytest

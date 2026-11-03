@@ -11,6 +11,7 @@ import {
   Legend,
   LabelList,
 } from "recharts";
+import type { PieLabelRenderProps } from "recharts";
 import type { DashboardMetrics } from "../types/api";
 
 interface Props {
@@ -43,8 +44,8 @@ const RULE_NAMES: Record<string, string> = {
   "DISC-001": "Disclosure",
 };
 
-const renderPercentLabel = ({ name, percent }: { name: string; percent: number }) =>
-  `${name}: ${(percent * 100).toFixed(0)}%`;
+const renderPercentLabel = ({ name, percent }: PieLabelRenderProps) =>
+  `${name ?? ""}: ${((percent ?? 0) * 100).toFixed(0)}%`;
 
 export function EventChart({ metrics }: Props) {
   if (!metrics || metrics.total_events === 0) {

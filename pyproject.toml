@@ -45,6 +45,8 @@ dev = [
 neo4j = [
     "neo4j>=6.1,<7",
 ]
+# Experimental and not imported by the package. llama-index-graph-stores-neo4j
+# requires neo4j<6, which conflicts with the [neo4j] extra, so it is not in [all].
 graphrag = [
     "neo4j-graphrag[openai]>=1.13,<2",
     "llama-index>=0.12",
@@ -68,7 +70,7 @@ redis = [
     "redis>=5.2",
 ]
 all = [
-    "neurosymbolic-autocorrector[neo4j,graphrag,langgraph,guardrails,redis]",
+    "neurosymbolic-autocorrector[neo4j,langgraph,guardrails,redis]",
 ]
 
 [project.scripts]

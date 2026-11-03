@@ -48,7 +48,7 @@ Agent Output
 git clone <repo-url>
 cd neurosymbolic-autocorrector
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[all,dev]"
+pip install -e ".[dev,langgraph,guardrails]"   # offline core; ".[all,dev]" adds Neo4j + Redis
 
 # Set up environment
 cp .env.example .env
