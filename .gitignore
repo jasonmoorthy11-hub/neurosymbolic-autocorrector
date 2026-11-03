@@ -15,3 +15,6 @@ venv/
 .DS_Store
 node_modules/
 *.db
+
+# Local Claude Code permissions (per-machine)
+.claude/settings.local.json

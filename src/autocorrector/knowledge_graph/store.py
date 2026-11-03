@@ -763,7 +763,7 @@ class KnowledgeGraphStore:
     def _load_default_rules() -> dict[str, list[dict[str, Any]]]:
         """Load default policy rules for the MVP in-memory store.
 
-        These mirror the proposal scenarios:
+        These mirror the canonical scenarios:
         - Credit approval requires 90+ days tenure for amounts > $50
         - Maximum single credit is $500 without supervisor approval
         """
@@ -933,7 +933,7 @@ class KnowledgeGraphStore:
     def _load_default_facts() -> dict[str, dict[str, Any]]:
         """Load default fact store for the MVP.
 
-        These mirror the proposal scenario:
+        These mirror the canonical scenario:
         - Standard plan: $2,500 emergency dental (not $5,000)
         """
         return {

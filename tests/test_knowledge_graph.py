@@ -6,7 +6,7 @@ import pytest
 class TestPolicyCompliance:
     @pytest.mark.asyncio
     async def test_credit_over_threshold_new_account(self, connected_kg_store):
-        """Scenario 1 from proposal: $200 credit with 45-day tenure triggers violation."""
+        """Canonical scenario 1: $200 credit with 45-day tenure triggers violation."""
         violations = await connected_kg_store.check_policy_compliance(
             text="I can offer you a $200 credit for the inconvenience.",
             intent_type="financial_compensation",
@@ -62,7 +62,7 @@ class TestPolicyCompliance:
 class TestFactVerification:
     @pytest.mark.asyncio
     async def test_dental_coverage_overstatement(self, connected_kg_store):
-        """Scenario 2 from proposal: $5,000 dental claim on Standard plan (actual $2,500)."""
+        """Canonical scenario 2: $5,000 dental claim on Standard plan (actual $2,500)."""
         errors = await connected_kg_store.verify_facts(
             text="Your plan covers up to $5,000 in emergency dental work.",
             customer_context={"plan_type": "standard_2024"},

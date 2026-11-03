@@ -1,8 +1,8 @@
-"""End-to-end tests for the proposal scenarios.
+"""End-to-end tests for the canonical scenarios.
 
 These tests verify the complete pipeline: intent classification -> policy check ->
-fact verification -> correction generation, matching the exact scenarios from the
-proposal document for an enterprise contact-center pilot.
+fact verification -> correction generation, matching the canonical
+credit-policy and coverage-fact scenarios.
 """
 
 import pytest

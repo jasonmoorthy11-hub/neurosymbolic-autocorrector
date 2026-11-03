@@ -39,7 +39,7 @@ function App() {
 
         <header className="app-header">
           <div className="header-left">
-            <h1><span style={{ color: '#94a3b8', fontWeight: 400, fontSize: 14, display: 'block', marginBottom: 2 }}>Symbolic Systems</span>Neurosymbolic Autocorrector</h1>
+            <h1>Neurosymbolic Autocorrector</h1>
             <span className="header-subtitle">Real-Time Correction Dashboard</span>
           </div>
           <DemoControls connected={connected} />

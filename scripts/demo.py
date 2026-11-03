@@ -174,7 +174,7 @@ async def run_pipeline_scenario(
 async def main():
     print("\n" + "=" * 70)
     print("  NEUROSYMBOLIC AUTOCORRECTOR - Live Demo")
-    print("  Symbolic Systems LLC (public release)")
+    print("  Personal open-source project")
     print("=" * 70)
 
     kg = KnowledgeGraphStore()

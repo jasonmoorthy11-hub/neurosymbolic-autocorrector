@@ -39,7 +39,7 @@ class TestPipelineCorrect:
 
     @pytest.mark.asyncio
     async def test_unauthorized_credit_corrected(self):
-        """Proposal Scenario 1: Agent offers $75 credit to new customer."""
+        """Canonical scenario 1: Agent offers $75 credit to new customer."""
         result = await run_autocorrection(
             text="I'll go ahead and issue you a $75 credit right now.",
             customer_context={
@@ -58,7 +58,7 @@ class TestPipelineCorrect:
 
     @pytest.mark.asyncio
     async def test_factual_error_corrected(self):
-        """Proposal Scenario 2: Agent states wrong coverage amount."""
+        """Canonical scenario 2: Agent states wrong coverage amount."""
         result = await run_autocorrection(
             text="Your Standard plan covers up to $5,000 in emergency dental procedures.",
             customer_context={

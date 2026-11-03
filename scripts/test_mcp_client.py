@@ -76,7 +76,7 @@ async def main():
         assert parsed["action"] == "allow"
         print("    PASSED!")
 
-        # --- Test 2: Validate unauthorized credit (Proposal Scenario 1) ---
+        # --- Test 2: Validate unauthorized credit (canonical scenario 1) ---
         print("\n" + "=" * 60)
         print("[TEST 2] Unauthorized credit — new account (should CORRECT)")
         print("=" * 60)
@@ -128,7 +128,7 @@ async def main():
         assert correction["was_modified"] is True
         print("    PASSED!")
 
-        # --- Test 4: Validate factual error (Proposal Scenario 2) ---
+        # --- Test 4: Validate factual error (canonical scenario 2) ---
         print("\n" + "=" * 60)
         print("[TEST 4] Factual error — wrong coverage amount (should CORRECT)")
         print("=" * 60)

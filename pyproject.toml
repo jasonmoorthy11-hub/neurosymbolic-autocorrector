@@ -5,11 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "neurosymbolic-autocorrector"
 version = "0.1.0"
-description = "Enterprise AI quality assurance and autocorrection system using neurosymbolic reasoning"
-license = "LicenseRef-Proprietary"
+description = "Real-time policy-grounded correction of LLM agent outputs (knowledge-graph rules + symbolic checks + optional LLM rewrite)"
+license = "MIT"
 requires-python = ">=3.12"
 authors = [
-    { name = "Symbolic Systems LLC" },
+    { name = "Jason Moorthy", email = "jasonmoorthy11@gmail.com" },
 ]
 
 dependencies = [

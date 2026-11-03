@@ -1,6 +1,6 @@
 # Neurosymbolic Autocorrector
 
-> **Public reference implementation.** Production version was built at Symbolic Systems for an enterprise contact-center engagement. This repo is a sanitized snapshot — synthetic policy data, no client-specific eval cases.
+> Personal project, sole author.
 
 
 Enterprise AI quality assurance and autocorrection system that uses knowledge graphs + symbolic reasoning to **correct** agent outputs in real-time — without breaking conversation flow.
@@ -171,4 +171,4 @@ python scripts/seed_neo4j.py        # Seed knowledge graph
 
 ## License
 
-Proprietary — Symbolic Systems LLC
+MIT — see [LICENSE](LICENSE)
