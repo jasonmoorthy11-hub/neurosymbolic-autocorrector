@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "neurosymbolic-autocorrector"
+version = "0.1.0"
+description = "Enterprise AI quality assurance and autocorrection system using neurosymbolic reasoning"
+license = "LicenseRef-Proprietary"
+requires-python = ">=3.12"
+authors = [
+    { name = "Symbolic Systems LLC" },
+]
+
+dependencies = [
+    # MCP Server
+    "mcp>=1.25,<2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+
+    # LLM Clients
+    "anthropic>=0.45",
+    "openai>=1.60",
+
+    # Data & Validation
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+
+    # Language Detection
+    "fast-langdetect>=1.0",
+
+    # Infrastructure
+    "httpx>=0.28",
+    "aiosqlite>=0.20",
+    "cachetools>=5.5",
+    "slowapi>=0.1.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.9",
+]
+neo4j = [
+    "neo4j>=6.1,<7",
+]
+graphrag = [
+    "neo4j-graphrag[openai]>=1.13,<2",
+    "llama-index>=0.12",
+    "llama-index-graph-stores-neo4j>=0.5",
+    "pyshacl>=0.26",
+    "rdflib>=7.1",
+]
+langgraph = [
+    "langgraph>=1.0,<2",
+    "langchain-mcp-adapters>=0.1",
+    "langchain-anthropic>=0.3",
+    "langchain-openai>=0.3",
+]
+guardrails = [
+    "guardrails-ai>=0.9",
+]
+nemo = [
+    "nemoguardrails>=0.20",
+]
+redis = [
+    "redis>=5.2",
+]
+all = [
+    "neurosymbolic-autocorrector[neo4j,graphrag,langgraph,guardrails,redis]",
+]
+
+[project.scripts]
+autocorrector = "autocorrector.mcp_server.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autocorrector"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/autocorrector/evaluation/dataset.py" = ["E501"]
+"tests/*.py" = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
