@@ -129,3 +129,68 @@ class TestBuildRationale:
         assert "R1" in rationale
         assert "X" in rationale
         assert "Y" in rationale
+
+
+class TestRunValidationLanguageGuard:
+    async def test_run_validation_non_english_escalates(self):
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+        from autocorrector.mcp_server.server import _run_validation
+        from autocorrector.models import (
+            CorrectionAction,
+            CustomerContext,
+            DetectedIntent,
+            IntentType,
+        )
+
+        result = await _run_validation(
+            "Puedo ofrecerle un crédito de $200 en su cuenta hoy mismo.",
+            DetectedIntent(intent_type=IntentType.GENERAL, confidence=0.5),
+            CustomerContext(account_tenure_days=30),
+            KnowledgeGraphStore(),
+        )
+        assert result.action == CorrectionAction.ESCALATE
+        assert result.is_compliant is False
+
+    async def test_run_validation_short_english_allowed(self):
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+        from autocorrector.mcp_server.server import _run_validation
+        from autocorrector.models import (
+            CorrectionAction,
+            CustomerContext,
+            DetectedIntent,
+            IntentType,
+        )
+
+        result = await _run_validation(
+            "OK.",
+            DetectedIntent(intent_type=IntentType.GENERAL, confidence=0.5),
+            CustomerContext(account_tenure_days=30),
+            KnowledgeGraphStore(),
+        )
+        assert result.action == CorrectionAction.ALLOW
+
+    async def test_validate_action_reports_translation_reason(self):
+        from unittest.mock import AsyncMock
+
+        from autocorrector.intent_classifier.classifier import IntentClassifier
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+        from autocorrector.mcp_server.server import validate_action
+
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context = {
+            "kg": KnowledgeGraphStore(),
+            "classifier": IntentClassifier(),
+            "audit_store": None,
+        }
+        ctx.info = AsyncMock()
+        ctx.warning = AsyncMock()
+
+        result = await validate_action(
+            text="Puedo ofrecerle un crédito de $200 en su cuenta hoy mismo.",
+            customer_context={"account_tenure_days": 30},
+            ctx=ctx,
+        )
+        assert result["action"] == "escalate"
+        assert result["detected_language"] == "es"
+        assert result["reason"] == "translation-unavailable"
+

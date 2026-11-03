@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from autocorrector.llm_response import completed_text
@@ -50,15 +51,23 @@ _LANG_NAMES: dict[str, str] = {
 }
 
 
-async def translate_to_english(
+@dataclass(frozen=True)
+class Translation:
+    """Translated text plus whether translation actually succeeded."""
+
+    text: str
+    ok: bool
+
+
+async def translate_to_english_checked(
     text: str,
     source_lang: str,
     client: AsyncAnthropic,
     model: str = "claude-sonnet-5-5",
-) -> str:
-    """Translate text to English. Returns original on failure (fail-open)."""
+) -> Translation:
+    """Translate text to English; on failure return the original with ``ok=False``."""
     if source_lang == "en":
-        return text
+        return Translation(text, ok=True)
 
     lang_name = _LANG_NAMES.get(source_lang, source_lang)
     try:
@@ -75,11 +84,21 @@ async def translate_to_english(
         translated = completed_text(response).strip()
         if not translated:
             logger.warning("Translation to English returned no text; using original text")
-            return text
-        return translated
+            return Translation(text, ok=False)
+        return Translation(translated, ok=True)
     except Exception:
         logger.exception("Translation to English failed, using original text")
-        return text
+        return Translation(text, ok=False)
+
+
+async def translate_to_english(
+    text: str,
+    source_lang: str,
+    client: AsyncAnthropic,
+    model: str = "claude-sonnet-5-5",
+) -> str:
+    """Translate text to English. Returns original on failure (fail-open)."""
+    return (await translate_to_english_checked(text, source_lang, client, model)).text
 
 
 async def translate_from_english(

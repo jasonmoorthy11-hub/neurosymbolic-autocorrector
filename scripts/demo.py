@@ -20,9 +20,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from guardrails import Guard
-
-from autocorrector.guardrails.validators import PIIDetectionValidator
+from autocorrector.guardrails.telemetry import build_pii_guard
 from autocorrector.intent_classifier.classifier import IntentClassifier
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.orchestrator.pipeline import run_autocorrection
@@ -60,7 +58,7 @@ async def run_scenario(
         print_field("Entities", str(intent.extracted_entities), 6)
 
     # Step 2: Guardrails AI - PII Detection
-    pii_guard = Guard().use(PIIDetectionValidator(on_fail="fix"))
+    pii_guard = build_pii_guard()
     pii_result = pii_guard.validate(agent_output)
     pii_detected = pii_result.validated_output != agent_output
     print("\n  [2] Guardrails AI - PII Safety Check:")

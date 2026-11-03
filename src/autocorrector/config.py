@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
 
+    # Guardrails AI hub telemetry (OTLP export to the vendor); off unless opted in
+    guardrails_telemetry: bool = False
+
     # NeMo Guardrails
     nemo_rails_enabled: bool = False
     nemo_config_path: str = "configs/nemo"

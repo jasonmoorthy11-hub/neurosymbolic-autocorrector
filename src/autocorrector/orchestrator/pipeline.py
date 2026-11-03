@@ -20,7 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
-from autocorrector.guardrails.validators import PIIDetectionValidator
+from autocorrector.guardrails.telemetry import build_pii_guard
 from autocorrector.intent_classifier.classifier import IntentClassifier
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import (
@@ -62,6 +62,7 @@ class PipelineState(TypedDict, total=False):
     # Multilingual
     detected_language: str
     original_text_untranslated: str
+    translation_failed: bool  # Non-English text that could not be translated
 
     # Intermediate (set by nodes)
     intent: DetectedIntent
@@ -70,6 +71,7 @@ class PipelineState(TypedDict, total=False):
     corrected_text: str | None
     correction_attempts: int
     pii_detected: bool  # Whether PII was found and redacted
+    redacted_text: str  # Agent text after PII redaction (set only when PII was found)
     guardrails_applied: list[str]  # Which guardrail validators fired
     nemo_blocked: bool  # Whether NeMo input rails blocked the input
 
@@ -98,17 +100,28 @@ async def detect_and_translate_node(state: PipelineState) -> dict[str, Any]:
 
     if lang != "en":
         settings = get_settings()
-        if lang in settings.supported_languages:
+        translated = None
+        if lang in settings.supported_languages and settings.anthropic_api_key:
             from anthropic import AsyncAnthropic
 
-            from autocorrector.multilingual.translator import translate_to_english
+            from autocorrector.multilingual import translator
 
             client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            translated = await translate_to_english(
+            result = await translator.translate_to_english_checked(
                 text, lang, client, settings.default_llm
             )
+            if result.ok:
+                translated = result.text
+
+        if translated is not None:
             updates["agent_text"] = translated
             logger.info(f"Translated input from {lang} to en")
+        else:
+            # English-only policy checks on untranslated text would silently pass it;
+            # escalate after PII redaction instead (see route_after_validation).
+            updates["translation_failed"] = True
+            updates["guardrails_applied"] = ["translation-unavailable"]
+            logger.warning(f"Translation from {lang} unavailable; output will be escalated")
 
     return updates
 
@@ -132,7 +145,7 @@ async def nemo_input_check_node(state: PipelineState) -> dict[str, Any]:
         logger.warning(f"NeMo input rail blocked: {result.rails_triggered} — {result.reason[:100]}")
         return {
             "nemo_blocked": True,
-            "guardrails_applied": result.rails_triggered,
+            "guardrails_applied": [*state.get("guardrails_applied", []), *result.rails_triggered],
         }
 
     return {"nemo_blocked": False}
@@ -154,14 +167,11 @@ def guardrails_check_node(state: PipelineState) -> dict[str, Any]:
     If PII is found, the text is redacted before continuing through
     the pipeline. This prevents PII from reaching the customer.
     """
-    from guardrails import Guard
-
     text = state.get("corrected_text") or state["agent_text"]
-    guardrails_applied: list[str] = []
+    guardrails_applied: list[str] = list(state.get("guardrails_applied", []))
 
-    # PII detection and redaction
-    pii_validator = PIIDetectionValidator(on_fail="fix")
-    pii_guard = Guard().use(pii_validator)
+    # PII detection and redaction (Guardrails hub telemetry off unless opted in)
+    pii_guard = build_pii_guard()
     pii_result = pii_guard.validate(text)
 
     pii_detected = False
@@ -178,6 +188,7 @@ def guardrails_check_node(state: PipelineState) -> dict[str, Any]:
     if pii_detected:
         # Replace the text going forward with the redacted version
         updates["corrected_text"] = text
+        updates["redacted_text"] = text
 
     return updates
 
@@ -387,6 +398,8 @@ def route_after_validation(
     """Route based on validation result."""
     validation = state["validation"]
 
+    if state.get("translation_failed"):
+        return "escalate"
     if validation.is_compliant:
         return "allow"
     if validation.action == CorrectionAction.ESCALATE:
@@ -579,7 +592,8 @@ async def run_autocorrection(
         "validation", default_validation
     )
     final_text = result.get("final_text", text)
-    corrected_text = final_text if final_text else text
+    # Escalated (final_text None): nothing is sent, but never hand back unredacted PII
+    corrected_text = final_text or result.get("redacted_text") or text
 
     was_modified = corrected_text != text
 

@@ -45,6 +45,7 @@ from autocorrector.models import (
     Severity,
     ValidationResult,
 )
+from autocorrector.multilingual.detector import detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,15 @@ async def _run_validation(
     """Run the full validation pipeline: policy check + fact check."""
     violations: list[PolicyViolation] = []
     fact_errors: list[FactCheckResult] = []
+
+    # Policy rules are English-only and these tools do not translate, so
+    # non-English text is escalated rather than silently allowed.
+    if detect_language(text) != "en":
+        return ValidationResult(
+            is_compliant=False,
+            action=CorrectionAction.ESCALATE,
+            severity=Severity.HIGH,
+        )
 
     # 1. Policy compliance check via knowledge graph
     policy_results = await kg.check_policy_compliance(
@@ -228,9 +238,12 @@ async def validate_action(
 
     # 3. Validate
     validation = await _run_validation(text, intent, customer_ctx, kg)
+    language = detect_language(text)
 
     if ctx:
-        if validation.is_compliant:
+        if language != "en":
+            await ctx.warning(f"Language '{language}': escalate (translation-unavailable)")
+        elif validation.is_compliant:
             await ctx.info("Output is compliant — ALLOW")
         else:
             await ctx.warning(
@@ -248,6 +261,8 @@ async def validate_action(
             "type": intent.intent_type.value,
             "confidence": intent.confidence,
         },
+        "detected_language": language,
+        "reason": "translation-unavailable" if language != "en" else None,
     }
 
 
