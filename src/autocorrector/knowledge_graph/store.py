@@ -18,6 +18,7 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from autocorrector.knowledge_graph.claims import assign_amounts
 from autocorrector.llm_response import (
     SERVER_SIDE_FALLBACK_BETA,
     completed_text,
@@ -192,10 +193,10 @@ class KnowledgeGraphStore:
             if conditions:
                 all_met = True
                 for cond in conditions:
+                    # Missing context defaults to 0, as in the in-memory path (D-213)
                     actual = customer_context.get(cond["field"])
                     if actual is None:
-                        all_met = False
-                        break
+                        actual = 0
                     op = cond["operator"]
                     val = cond["value"]
                     if (
@@ -427,29 +428,16 @@ class KnowledgeGraphStore:
             )
             coverages = [record.data() async for record in result]
 
-        amount_pattern = r"\$(\d+(?:,\d{3})*(?:\.\d{2})?)"
-        text_lower = text.lower()
-
-        for cov in coverages:
-            category_lower = cov["category"].lower()
-            if category_lower in text_lower:
-                matches = re.findall(amount_pattern, text)
-                for match in matches:
-                    claimed = float(match.replace(",", ""))
-                    actual = float(cov["coverage_limit"])
-                    if claimed != actual:
-                        results.append(
-                            FactCheckResult(
-                                claim=f"${match}",
-                                is_accurate=False,
-                                correct_value=f"${actual:,.0f}",
-                                source_document=cov.get("source_doc"),
-                                source_page=cov.get("source_page"),
-                                confidence=0.99,
-                            )
-                        )
-
-        return results
+        facts = [
+            {
+                "category": cov["category"],
+                "limit": cov["coverage_limit"],
+                "source_document": cov.get("source_doc"),
+                "source_page": cov.get("source_page"),
+            }
+            for cov in coverages
+        ]
+        return self._fact_errors(text, facts)
 
     # Category aliases for flexible fact matching
     _CATEGORY_ALIASES = {
@@ -468,39 +456,43 @@ class KnowledgeGraphStore:
         self, text: str, customer_context: dict[str, Any]
     ) -> list[FactCheckResult]:
         """Verify facts against in-memory fact store."""
-        results = []
         plan_type = customer_context.get("plan_type", "").lower()
 
         if not plan_type or plan_type not in self._fact_store:
-            return results
+            return []
 
-        plan_facts = self._fact_store[plan_type]
+        return self._fact_errors(text, self._fact_store[plan_type].get("coverages", []))
 
-        amount_pattern = r"\$(\d+(?:,\d{3})*(?:\.\d{2})?)"
-        text_lower = text.lower()
+    def _fact_errors(self, text: str, facts: list[dict[str, Any]]) -> list[FactCheckResult]:
+        """Compare each amount with the limit of the category that claims it.
 
-        for fact in plan_facts.get("coverages", []):
-            category_lower = fact["category"].lower()
-            variants = [category_lower] + self._CATEGORY_ALIASES.get(category_lower, [])
-
-            if any(v in text_lower for v in variants):
-                matches = re.findall(amount_pattern, text)
-                for match in matches:
-                    claimed = float(match.replace(",", ""))
-                    actual = fact["limit"]
-                    if claimed != actual:
-                        results.append(
-                            FactCheckResult(
-                                claim=f"${match}",
-                                is_accurate=False,
-                                correct_value=f"${actual:,.0f}",
-                                source_document=fact.get("source_document"),
-                                source_page=fact.get("source_page"),
-                                confidence=0.99,
-                            )
-                        )
-
-        return results
+        ``facts`` holds ``category``, ``limit``, ``source_document`` and
+        ``source_page`` per coverage; aliases come from ``_CATEGORY_ALIASES``.
+        """
+        by_category = {fact["category"].lower(): fact for fact in facts}
+        claims = assign_amounts(
+            text,
+            {cat: [cat, *self._CATEGORY_ALIASES.get(cat, [])] for cat in by_category},
+        )
+        results = []
+        for cat, matches in claims.items():
+            fact = by_category[cat]
+            limit = float(fact["limit"])
+            results.extend(
+                FactCheckResult(
+                    claim=match.group(0),
+                    is_accurate=False,
+                    correct_value=f"${limit:,.0f}",
+                    source_document=fact.get("source_document"),
+                    source_page=fact.get("source_page"),
+                    confidence=0.99,
+                    claim_start=match.start(),
+                    claim_end=match.end(),
+                )
+                for match in matches
+                if float(match.group(1).replace(",", "")) != limit
+            )
+        return sorted(results, key=lambda r: r.claim_start or 0)
 
     # --- Correction Generation ---
 

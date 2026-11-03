@@ -22,6 +22,7 @@ from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
 from autocorrector.guardrails.telemetry import build_pii_guard
 from autocorrector.intent_classifier.classifier import IntentClassifier
+from autocorrector.knowledge_graph.claims import apply_fact_corrections
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import (
     CorrectionAction,
@@ -275,12 +276,8 @@ async def correct_node(state: PipelineState) -> dict[str, Any]:
     customer_ctx = CustomerContext(**state.get("customer_context", {}))
     attempts = state.get("correction_attempts", 0)
 
-    corrected = text
-
-    # Apply fact corrections
-    for fact_error in validation.fact_errors:
-        if fact_error.correct_value and fact_error.claim:
-            corrected = corrected.replace(fact_error.claim, fact_error.correct_value)
+    # Apply fact corrections at the claimed spans (the text validate_node checked)
+    corrected = apply_fact_corrections(text, validation.fact_errors)
 
     # Fetch ACE strategies for this intent type
     strategies = None

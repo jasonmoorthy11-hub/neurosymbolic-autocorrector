@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import hmac
 import io
 import json
 import logging
@@ -108,14 +109,15 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
         if not self._is_protected(request.url.path):
             return await call_next(request)
 
+        expected = self.api_key.encode()
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
-            if token == self.api_key:
+            if hmac.compare_digest(token.encode(), expected):
                 return await call_next(request)
 
         api_key_header = request.headers.get("x-api-key", "")
-        if api_key_header == self.api_key:
+        if hmac.compare_digest(api_key_header.encode(), expected):
             return await call_next(request)
 
         return JSONResponse(

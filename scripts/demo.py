@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from autocorrector.guardrails.telemetry import build_pii_guard
 from autocorrector.intent_classifier.classifier import IntentClassifier
+from autocorrector.knowledge_graph.claims import apply_fact_corrections
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.orchestrator.pipeline import run_autocorrection
 
@@ -103,10 +104,8 @@ async def run_scenario(
         # Start with PII-redacted text if needed
         corrected = pii_result.validated_output if pii_detected else agent_output
 
-        # Apply fact corrections (deterministic string replacement)
-        for f in inaccurate:
-            if f.claim and f.correct_value:
-                corrected = corrected.replace(f.claim, f.correct_value)
+        # Apply fact corrections (deterministic replacement of the wrong amounts)
+        corrected = apply_fact_corrections(corrected, inaccurate)
 
         # Apply policy corrections
         if violations:

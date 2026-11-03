@@ -17,6 +17,7 @@ Resources:
 
 from __future__ import annotations
 
+import hmac
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -33,6 +34,7 @@ from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
 from autocorrector.intent_classifier.classifier import IntentClassifier
+from autocorrector.knowledge_graph.claims import apply_fact_corrections
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import (
     CorrectionAction,
@@ -178,9 +180,7 @@ async def _generate_correction(
     corrected = text
 
     # Apply fact corrections (deterministic — replace wrong values with KG values)
-    for fact_error in validation.fact_errors:
-        if fact_error.correct_value and fact_error.claim:
-            corrected = corrected.replace(fact_error.claim, fact_error.correct_value)
+    corrected = apply_fact_corrections(corrected, validation.fact_errors)
 
     # Apply policy corrections via KG-grounded rewriting
     if validation.violations:
@@ -530,16 +530,19 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/mcp"):
             return await call_next(request)
 
+        # Timing-safe compares on bytes (str compare_digest rejects non-ASCII)
+        expected = self.api_key.encode()
+
         # Check Authorization: Bearer <key>
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
-            if token == self.api_key:
+            if hmac.compare_digest(token.encode(), expected):
                 return await call_next(request)
 
         # Check X-API-Key header
         api_key_header = request.headers.get("x-api-key", "")
-        if api_key_header == self.api_key:
+        if hmac.compare_digest(api_key_header.encode(), expected):
             return await call_next(request)
 
         return JSONResponse(
@@ -578,7 +581,7 @@ def main():
 
         import uvicorn
 
-        uvicorn.run(starlette_app, host="0.0.0.0", port=8000)
+        uvicorn.run(starlette_app, host=settings.host, port=settings.port)
 
 
 if __name__ == "__main__":

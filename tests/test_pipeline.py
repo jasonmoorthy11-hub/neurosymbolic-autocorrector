@@ -71,6 +71,16 @@ class TestPipelineCorrect:
         assert result.was_modified is True
         assert "$2,500" in result.corrected_text
 
+    async def test_pipeline_fact_fix_leaves_correct_duplicate_amount(self):
+        """Only the wrong $5,000 (dental) is fixed; the correct Rx $5,000 stays."""
+        result = await run_autocorrection(
+            text="Your $5,000 prescription drug limit and $5,000 emergency dental limit stay.",
+            customer_context={"plan_type": "standard_2024", "account_tenure_days": 365},
+        )
+        assert result.corrected_text == (
+            "Your $5,000 prescription drug limit and $2,500 emergency dental limit stay."
+        )
+
     @pytest.mark.asyncio
     async def test_correction_preserves_intent(self):
         result = await run_autocorrection(

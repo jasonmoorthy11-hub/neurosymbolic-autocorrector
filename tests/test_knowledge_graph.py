@@ -1,6 +1,10 @@
 """Tests for the knowledge graph store (in-memory mode)."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
+
+from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 
 
 class TestPolicyCompliance:
@@ -122,3 +126,139 @@ class TestCorrectionGeneration:
             customer_context={},
         )
         assert corrected == original
+
+
+def _neo4j_store(records: list[dict]) -> KnowledgeGraphStore:
+    """A store that behaves as connected, with one Neo4j query returning ``records``."""
+    mock_records = []
+    for data in records:
+        rec = MagicMock()
+        rec.data.return_value = data
+        mock_records.append(rec)
+
+    mock_result = MagicMock()
+    mock_result.__aiter__ = lambda self: self
+    mock_result.__anext__ = AsyncMock(side_effect=[*mock_records, StopAsyncIteration])
+
+    mock_session = AsyncMock()
+    mock_session.run = AsyncMock(return_value=mock_result)
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    store = KnowledgeGraphStore()
+    store._connected = True
+    store._driver = MagicMock()
+    store._driver.session.return_value = mock_session
+    return store
+
+
+_STANDARD_COVERAGES = [
+    {
+        "category": cov["category"],
+        "coverage_limit": cov["limit"],
+        "source_doc": cov["source_document"],
+        "source_page": cov["source_page"],
+    }
+    for cov in KnowledgeGraphStore._load_default_facts()["standard_2024"]["coverages"]
+]
+
+_UNRELATED_AMOUNTS = "Your $40 specialist copay and $2,500 emergency dental limit are unchanged."
+_DENTAL_OVERSTATED = "Your Standard plan covers up to $5,000 in emergency dental procedures."
+
+
+class TestFactCheckAdjacency:
+    async def test_fact_check_ignores_unrelated_amounts(self, connected_kg_store):
+        """Each amount is checked only against the category it sits next to."""
+        errors = await connected_kg_store.verify_facts(
+            text=_UNRELATED_AMOUNTS, customer_context={"plan_type": "standard_2024"}
+        )
+        assert errors == []
+
+    async def test_fact_check_still_flags_adjacent_overstatement(self, connected_kg_store):
+        errors = await connected_kg_store.verify_facts(
+            text=_DENTAL_OVERSTATED, customer_context={"plan_type": "standard_2024"}
+        )
+        assert [(e.claim, e.correct_value) for e in errors] == [("$5,000", "$2,500")]
+
+    async def test_fact_check_ignores_amounts_in_other_sentences(self, connected_kg_store):
+        errors = await connected_kg_store.verify_facts(
+            text="Your emergency dental limit is unchanged. I can offer you a $200 credit.",
+            customer_context={"plan_type": "standard_2024"},
+        )
+        assert errors == []
+
+    async def test_fact_check_two_categories_one_sentence(self, connected_kg_store):
+        errors = await connected_kg_store.verify_facts(
+            text="Under your plan, emergency dental is $5,000 and emergency room is $10,000.",
+            customer_context={"plan_type": "standard_2024"},
+        )
+        assert [(e.claim, e.correct_value) for e in errors] == [("$5,000", "$2,500")]
+
+    async def test_fact_check_neo4j_ignores_unrelated_amounts(self):
+        store = _neo4j_store(_STANDARD_COVERAGES)
+        errors = await store.verify_facts(
+            text=_UNRELATED_AMOUNTS, customer_context={"plan_type": "Standard 2024"}
+        )
+        assert errors == []
+
+    async def test_fact_check_reports_claim_span(self, connected_kg_store):
+        text = "Your $5,000 prescription drug limit and $5,000 emergency dental limit stay."
+        errors = await connected_kg_store.verify_facts(
+            text=text, customer_context={"plan_type": "standard_2024"}
+        )
+        (error,) = errors
+        assert (error.claim, error.correct_value) == ("$5,000", "$2,500")
+        start = text.rindex("$5,000")
+        assert (error.claim_start, error.claim_end) == (start, start + len("$5,000"))
+
+    async def test_fact_check_neo4j_uses_aliases(self):
+        store = _neo4j_store(_STANDARD_COVERAGES)
+        errors = await store.verify_facts(
+            text="Your specialist copay is $60.", customer_context={"plan_type": "Standard 2024"}
+        )
+        assert [(e.claim, e.correct_value) for e in errors] == [("$60", "$40")]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Emergency dental on Premium is $10,000.",
+            "Emergency dental under your Premium is $10,000.",
+        ],
+    )
+    async def test_fact_check_premium_plan_name_is_not_a_money_word(self, connected_kg_store, text):
+        errors = await connected_kg_store.verify_facts(
+            text=text, customer_context={"plan_type": "premium_2024"}
+        )
+        assert [(e.claim, e.correct_value) for e in errors] == [("$10,000", "$5,000")]
+
+    async def test_fact_check_neo4j_flags_adjacent_overstatement(self):
+        store = _neo4j_store(_STANDARD_COVERAGES)
+        errors = await store.verify_facts(
+            text=_DENTAL_OVERSTATED, customer_context={"plan_type": "Standard 2024"}
+        )
+        assert [(e.claim, e.correct_value) for e in errors] == [("$5,000", "$2,500")]
+
+
+class TestMissingContextParity:
+    async def test_missing_context_same_in_neo4j_and_memory(self):
+        """A missing tenure field counts as 0 days in both paths (D-213)."""
+        text = "I can offer you a $200 credit for the inconvenience."
+        credit_rule = {
+            "rule_id": "CREDIT-001",
+            "name": "Credit Authorization Threshold",
+            "description": "Credits over $50 require 90+ days tenure",
+            "severity": "high",
+            "source_document": "Credit_Policy_2024_v3.2",
+            "source_section": "Section 4.1",
+            "amount_threshold": 50,
+            "keywords": ["credit"],
+            "conditions": [{"field": "account_tenure_days", "operator": "lt", "value": 90}],
+        }
+        neo4j_violations = await _neo4j_store([credit_rule]).check_policy_compliance(
+            text=text, intent_type="financial_compensation", customer_context={}
+        )
+        memory_violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="financial_compensation", customer_context={}
+        )
+        assert [v.rule_id for v in memory_violations] == ["CREDIT-001"]
+        assert [v.rule_id for v in neo4j_violations] == ["CREDIT-001"]

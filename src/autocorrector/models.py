@@ -58,6 +58,9 @@ class FactCheckResult(BaseModel):
     source_document: str | None = None
     source_page: int | None = None
     confidence: float = Field(ge=0.0, le=1.0)
+    # Offsets of the claim in the checked text, when the checker knows them
+    claim_start: int | None = Field(default=None, ge=0)
+    claim_end: int | None = Field(default=None, ge=0)
 
 
 class ValidationResult(BaseModel):
