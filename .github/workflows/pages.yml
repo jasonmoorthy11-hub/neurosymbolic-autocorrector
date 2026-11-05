@@ -1,0 +1,54 @@
+name: Pages
+
+# Deploys the replay-mode dashboard (static, no backend) to GitHub Pages at
+# https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (replay mode)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - uses: actions/configure-pages@v6
+      - name: Build
+        # Base path = repo name, so a rename cannot leave the assets 404ing.
+        run: npm run build -- --base=/${{ github.event.repository.name }}/
+        env:
+          VITE_REPLAY: "1"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dashboard/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -148,7 +148,7 @@ The React app in `dashboard/` builds in one of two modes (`VITE_REPLAY`):
   `dashboard/src/replay/derive.ts` compute the dashboard's numbers from it with the
   backend's formulas. The recorder refuses to run with an API key set or NeMo on,
   and `--check` (run in CI) fails if the file no longer matches the pipeline.
-  `vercel.json` builds this mode.
+  `.github/workflows/pages.yml` builds this mode and publishes it to GitHub Pages.
 
 ## Evaluation
 

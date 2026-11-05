@@ -10,7 +10,8 @@ React 19 + TypeScript + Vite. One codebase, two builds, chosen at build time by
 
 The hooks in `src/hooks/useApi.ts` and `src/hooks/useWebSocket.ts` switch to the
 replay hooks in `src/replay/` when `VITE_REPLAY=1`, so the components are the same in
-both modes. The demo deploy (`vercel.json` at the repo root) builds the replay mode.
+both modes. The demo deploy (`.github/workflows/pages.yml`) builds the replay mode
+with `--base=/neurosymbolic-autocorrector/` and publishes `dist/` to GitHub Pages.
 
 ```bash
 npm ci
