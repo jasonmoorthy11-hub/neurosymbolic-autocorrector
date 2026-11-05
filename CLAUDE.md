@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1232 passing offline; the 14 Neo4j integration tests need a Neo4j server)
+# Tests (1239 passing offline; the 14 Neo4j integration tests need a Neo4j server)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file
@@ -75,7 +75,7 @@ src/autocorrector/
 ├── logging_config.py  — JSON structured logging, correlation IDs, request context
 ├── ace/               — Self-improving corrections (reflector.py, curator.py)
 ├── audit/store.py     — AuditStore: SQLite async, correction_events + supervisor_decisions
-├── dashboard/api.py   — FastAPI app: REST + WebSocket, CORS, rate limiting, analytics
+├── dashboard/         — api.py (app, middleware, /health), routes/{events,queue,demo,ws}.py, state.py, processing.py, models.py
 ├── evaluation/        — dataset.py (golden cases), scorer.py, runner.py, llm_judge.py
 ├── explainability/    — Correction reasoning engine
 ├── guardrails/        — PII detection, NeMo rails wrapper

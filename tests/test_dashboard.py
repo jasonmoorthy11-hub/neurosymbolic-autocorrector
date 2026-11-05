@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-import autocorrector.dashboard.api as api_module
+import autocorrector.dashboard.state as state_module
 from autocorrector.audit.store import AuditStore
 from autocorrector.dashboard.api import _connections, _event_log, app
 from autocorrector.models import (
@@ -48,14 +48,14 @@ async def clean_state(tmp_path):
     # Inject a temp audit store so tests don't touch a real DB
     audit = AuditStore(db_path=str(tmp_path / "test_dashboard.db"))
     await audit.connect()
-    api_module._audit_store = audit
+    state_module._audit_store = audit
 
     yield audit
 
     _event_log.clear()
     _connections.clear()
     await audit.close()
-    api_module._audit_store = None
+    state_module._audit_store = None
 
 
 @pytest.fixture

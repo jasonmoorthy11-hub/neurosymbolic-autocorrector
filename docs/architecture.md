@@ -147,7 +147,10 @@ the rules resource.
 supervisor queue (escalations plus high and critical violations, newest first, each
 labelled with its highest severity), approve/reject, export, analytics and demo runs,
 and a WebSocket that pushes new events. Rate limiting, and an optional API key on the
-approve/reject, export and demo endpoints.
+approve/reject, export and demo endpoints. The endpoints live in one router per
+surface (`dashboard/routes/events.py`, `queue.py`, `demo.py`, `ws.py`); the stores,
+the in-memory event log, the WebSocket connections and the rate limiter they share
+are in `dashboard/state.py`, the pipeline call in `dashboard/processing.py`.
 
 The React app in `dashboard/` builds in one of two modes (`VITE_REPLAY`):
 
