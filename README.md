@@ -193,9 +193,14 @@ Known, measured, or found by the held-out run:
   another plan is checked against that plan instead of the customer's. The
   held-out numbers above are from the first run and stay as reported; a new
   accuracy claim needs a new blind set.
-- The keyword intent score is still diluted by the length of the keyword list, so
-  the classifier often answers `general`; the rules no longer depend on it, but the
-  intent shown in traces and used for ACE strategies does.
+- The intent classifier is keyword and regex matching. Since v1.2 one keyword hit
+  scores at the pattern's base confidence (the score was divided by the keyword
+  list's length before, so most replies read `general`), which means a noun used in
+  another sense is enough to mislabel a reply: "credit card" reads as
+  `financial_compensation`, "return your call" as `refund_processing`, "your
+  package was delivered" as `product_inquiry`. The rules do not depend on the
+  intent; the trace label and the ACE strategy lookup do, so strategies learned
+  under `general` are no longer found for replies that now get a specific label.
 - A coverage figure in the same sentence as a credit counts as an offer amount and
   escalates. This is deliberate (fail-closed), but it escalates some correct replies.
 - A credit amount next to a coverage category ("a $600 emergency dental credit") is

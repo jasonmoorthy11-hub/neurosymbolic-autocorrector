@@ -46,12 +46,15 @@ class IntentClassifier:
         """Classify the intent of an agent's output text."""
         text_lower = text.lower()
         best_match: DetectedIntent | None = None
-        best_score = 0.0
+        # Ties on score are broken by keyword hits, then by pattern order
+        # (strict ">" keeps the earlier pattern).
+        best_rank = (0.0, 0)
 
         for pattern in self._patterns:
-            score, entities = self._score_pattern(text_lower, text, pattern)
-            if score > best_score:
-                best_score = score
+            score, keyword_hits, entities = self._score_pattern(text_lower, text, pattern)
+            rank = (score, keyword_hits)
+            if rank > best_rank:
+                best_rank = rank
                 best_match = DetectedIntent(
                     intent_type=pattern.intent_type,
                     confidence=min(score, 1.0),
@@ -69,35 +72,31 @@ class IntentClassifier:
 
     def _score_pattern(
         self, text_lower: str, text_original: str, pattern: IntentPattern
-    ) -> tuple[float, dict]:
-        """Score how well a text matches an intent pattern."""
-        keyword_hits = 0
-        total_keywords = len(pattern.keywords)
+    ) -> tuple[float, int, dict]:
+        """Score how well a text matches an intent pattern.
 
-        for keyword in pattern.keywords:
-            if keyword in text_lower:
-                keyword_hits += 1
+        Returns ``(score, keyword_hits, entities)``. Any keyword hit scores at the
+        pattern's base confidence: the score is not divided by the size of the
+        keyword list, so one strong cue is enough (a list of seven keywords used
+        to dilute a single hit to 0.13, below the ``general`` floor). Keywords
+        match at word starts only ("try" never matches "country"), as the policy
+        rules' keywords do; inflections still match ("refunds").
+        """
+        keyword_hits = sum(
+            1 for keyword in pattern.keywords if re.search(r"\b" + re.escape(keyword), text_lower)
+        )
 
-        if total_keywords == 0 and not pattern.patterns:
-            return 0.0, {}
-
-        # Keyword score
-        keyword_score = (keyword_hits / total_keywords) if total_keywords > 0 else 0.0
+        if not pattern.keywords and not pattern.patterns:
+            return 0.0, 0, {}
 
         # Pattern (regex) score
-        pattern_score = 0.0
-        for regex_pattern in pattern.patterns:
-            if re.search(regex_pattern, text_lower):
-                pattern_score = 1.0
-                break
+        regex_hit = any(re.search(regex_pattern, text_lower) for regex_pattern in pattern.patterns)
 
         # Combined score
-        if keyword_score > 0 and pattern_score > 0:
+        if keyword_hits and regex_hit:
             score = pattern.base_confidence + 0.1  # bonus for both matching
-        elif pattern_score > 0:
+        elif regex_hit or keyword_hits:
             score = pattern.base_confidence
-        elif keyword_score > 0:
-            score = keyword_score * pattern.base_confidence
         else:
             score = 0.0
 
@@ -108,7 +107,7 @@ class IntentClassifier:
             if match:
                 entities[entity_name] = match.group(1)
 
-        return score, entities
+        return score, keyword_hits, entities
 
     @staticmethod
     def _build_patterns() -> list[IntentPattern]:
@@ -198,7 +197,6 @@ class IntentClassifier:
                     "escalate",
                     "complaint",
                     "speak to",
-                    "transfer",
                     "higher authority",
                     "legal action",
                     "attorney",
@@ -208,6 +206,8 @@ class IntentClassifier:
                     "legal department",
                 ],
                 patterns=[
+                    # "transfer you to", never "transfer your balance" or a wire transfer
+                    r"\btransfer\s+you\b",
                     r"(?:transfer|connect|escalate).*(?:supervisor|manager|senior)",
                     r"(?:let me|i'll).*(?:get|find|connect).*(?:supervisor|manager|someone|senior)",
                     r"(?:legal\s+action|attorney|lawyer|lawsuit|litigation)",

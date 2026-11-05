@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_at": "2026-11-03T17:43:19Z",
-  "git_sha": "af4a8f2-dirty",
+  "recorded_at": "2026-11-05T06:25:00Z",
+  "git_sha": "0460705-dirty",
   "mode": "offline-deterministic",
   "python": "3.14.7",
   "latency_note": "wall time per scenario on the recording machine, after one untimed warm-up run",
@@ -136,7 +136,7 @@
           "Credit_Policy_2024_v3.2"
         ]
       },
-      "latency_ms": 14.3,
+      "latency_ms": 14.7,
       "t_offset_ms": 0
     },
     {
@@ -186,7 +186,7 @@
           "Policy_Document_Standard_2024.pdf"
         ]
       },
-      "latency_ms": 13.4,
+      "latency_ms": 14.7,
       "t_offset_ms": 2500
     },
     {
@@ -212,7 +212,7 @@
       "heuristic_confidence": 1.0,
       "guardrails_applied": [],
       "explanation": null,
-      "latency_ms": 12.2,
+      "latency_ms": 12.1,
       "t_offset_ms": 5000
     },
     {
@@ -254,7 +254,7 @@
       "heuristic_confidence": 1.0,
       "guardrails_applied": [],
       "explanation": null,
-      "latency_ms": 11.8,
+      "latency_ms": 12.5,
       "t_offset_ms": 7500
     },
     {
@@ -285,7 +285,7 @@
         "pii-detection"
       ],
       "explanation": null,
-      "latency_ms": 11.9,
+      "latency_ms": 15.1,
       "t_offset_ms": 10000
     },
     {
@@ -344,7 +344,7 @@
           "Credit_Policy_2024_v3.2"
         ]
       },
-      "latency_ms": 13.7,
+      "latency_ms": 14.2,
       "t_offset_ms": 12500
     },
     {
@@ -375,7 +375,7 @@
         "pii-detection"
       ],
       "explanation": null,
-      "latency_ms": 11.9,
+      "latency_ms": 12.6,
       "t_offset_ms": 15000
     },
     {
@@ -439,7 +439,7 @@
           "Agent_Conduct_Policy_2024_v1.0"
         ]
       },
-      "latency_ms": 13.8,
+      "latency_ms": 14.0,
       "t_offset_ms": 17500
     },
     {
@@ -452,8 +452,8 @@
         "account_tenure_days": 120
       },
       "detected_language": "en",
-      "intent": "general",
-      "intent_confidence": 0.5,
+      "intent": "troubleshooting",
+      "intent_confidence": 0.8,
       "pii_types": [],
       "violations": [
         {
@@ -557,7 +557,7 @@
           "Agent_Conduct_Policy_2024_v1.0"
         ]
       },
-      "latency_ms": 13.1,
+      "latency_ms": 13.3,
       "t_offset_ms": 22500
     },
     {
@@ -643,7 +643,7 @@
         "pii-detection"
       ],
       "explanation": null,
-      "latency_ms": 11.7,
+      "latency_ms": 12.5,
       "t_offset_ms": 27500
     },
     {
@@ -694,7 +694,7 @@
           "Policy_Document_Standard_2024.pdf"
         ]
       },
-      "latency_ms": 13.9,
+      "latency_ms": 13.4,
       "t_offset_ms": 30000
     },
     {
@@ -707,8 +707,8 @@
         "account_tenure_days": 200
       },
       "detected_language": "en",
-      "intent": "general",
-      "intent_confidence": 0.5,
+      "intent": "product_inquiry",
+      "intent_confidence": 0.8,
       "pii_types": [],
       "violations": [
         {
@@ -774,7 +774,7 @@
       "heuristic_confidence": 1.0,
       "guardrails_applied": [],
       "explanation": null,
-      "latency_ms": 11.5,
+      "latency_ms": 11.4,
       "t_offset_ms": 35000
     },
     {
@@ -827,7 +827,7 @@
           "Credit_Policy_2024_v3.2"
         ]
       },
-      "latency_ms": 13.4,
+      "latency_ms": 13.3,
       "t_offset_ms": 37500
     },
     {
@@ -840,8 +840,8 @@
         "account_tenure_days": 90
       },
       "detected_language": "en",
-      "intent": "general",
-      "intent_confidence": 0.5,
+      "intent": "policy_explanation",
+      "intent_confidence": 0.85,
       "pii_types": [],
       "violations": [],
       "fact_errors": [
@@ -877,7 +877,7 @@
           "Policy_Document_Standard_2024.pdf"
         ]
       },
-      "latency_ms": 13.5,
+      "latency_ms": 14.1,
       "t_offset_ms": 40000
     },
     {
@@ -911,7 +911,7 @@
       "heuristic_confidence": 1.0,
       "guardrails_applied": [],
       "explanation": null,
-      "latency_ms": 12.1,
+      "latency_ms": 11.5,
       "t_offset_ms": 42500
     },
     {
@@ -940,7 +940,7 @@
         "pii-detection"
       ],
       "explanation": null,
-      "latency_ms": 11.9,
+      "latency_ms": 11.7,
       "t_offset_ms": 45000
     },
     {
@@ -965,7 +965,7 @@
       "heuristic_confidence": 1.0,
       "guardrails_applied": [],
       "explanation": null,
-      "latency_ms": 11.5,
+      "latency_ms": 11.4,
       "t_offset_ms": 47500
     },
     {
@@ -1003,8 +1003,8 @@
         "account_tenure_days": 90
       },
       "detected_language": "en",
-      "intent": "general",
-      "intent_confidence": 0.5,
+      "intent": "policy_explanation",
+      "intent_confidence": 0.85,
       "pii_types": [],
       "violations": [],
       "fact_errors": [
@@ -1040,7 +1040,7 @@
           "Policy_Document_Standard_2024.pdf"
         ]
       },
-      "latency_ms": 13.3,
+      "latency_ms": 13.8,
       "t_offset_ms": 52500
     },
     {
@@ -1074,7 +1074,7 @@
       "heuristic_confidence": 1.0,
       "guardrails_applied": [],
       "explanation": null,
-      "latency_ms": 12.2,
+      "latency_ms": 11.4,
       "t_offset_ms": 55000
     },
     {
@@ -1128,7 +1128,7 @@
         "pii-detection"
       ],
       "explanation": null,
-      "latency_ms": 12.1,
+      "latency_ms": 11.8,
       "t_offset_ms": 60000
     }
   ]

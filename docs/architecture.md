@@ -13,7 +13,7 @@ and how the replay demo is built. Paths are relative to `src/autocorrector/`.
 |---|---|---|
 | `detect_and_translate` | fast-langdetect (`multilingual/detector.py`); non-English text is translated to English by the LLM (`multilingual/translator.py`) | No key, unsupported language or failed translation sets `translation_failed`; the reply is escalated after PII redaction, never allowed |
 | `nemo_input_check` | NeMo Guardrails input rails (jailbreak, topic) | Off by default; not installed or erroring = pass through (fail-open). A block escalates |
-| `classify_intent` | Rule-based classifier (`intent_classifier/classifier.py`), 9 intents, regex patterns plus keyword scores; below the 0.3 floor the intent is `general` | — |
+| `classify_intent` | Rule-based classifier (`intent_classifier/classifier.py`), 9 intents, regex patterns plus keyword cues: any keyword hit scores at the pattern's base confidence, a regex and a keyword together add 0.1, ties go to more keyword hits then pattern order; with no hit at all the intent is `general` | — |
 | `guardrails_check` | PII rail (`guardrails/validators.py`, 10 regex types) through a Guardrails AI guard built with telemetry off (`guardrails/telemetry.py`); matched PII is replaced with tokens and the redacted text is used from here on | — |
 | `validate` | Policy rules and coverage facts from the knowledge-graph store | If the policy check or the fact check raises, it is logged, `validation-unavailable` is added to the guardrails applied and the reply is escalated (fail-closed); what the other check found is kept |
 | `correct` | Fact edits at the claimed spans, then the correction tiers | The policy rewrite raises → logged; the text keeps only its fact edits |

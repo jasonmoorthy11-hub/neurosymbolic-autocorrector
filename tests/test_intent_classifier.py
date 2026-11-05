@@ -79,3 +79,79 @@ def test_entity_extraction_large_amount():
     classifier = IntentClassifier()
     result = classifier.classify("We'll apply a $1,500 compensation credit to your account.")
     assert result.extracted_entities.get("amount") == "1,500"
+
+
+# --- keyword scoring: any hit scores at base confidence (v1.2) ---
+
+
+def test_single_refund_keyword_scores_base_confidence():
+    classifier = IntentClassifier()
+    result = classifier.classify(
+        "Your money back will arrive on the card you used within five business days."
+    )
+    assert result.intent_type == IntentType.REFUND_PROCESSING
+    assert result.confidence >= 0.85
+
+
+def test_single_credit_keyword_scores_base_confidence():
+    classifier = IntentClassifier()
+    result = classifier.classify("We will add a credit to your next statement.")
+    assert result.intent_type == IntentType.FINANCIAL_COMPENSATION
+    assert result.confidence >= 0.85
+
+
+def test_no_keyword_text_is_general():
+    classifier = IntentClassifier()
+    result = classifier.classify("Thanks for calling, have a great day.")
+    assert result.intent_type == IntentType.GENERAL
+    assert result.confidence == 0.5
+
+
+def test_regex_plus_keyword_outranks_single_keyword():
+    classifier = IntentClassifier()
+    result = classifier.classify("Let me transfer you to a supervisor about the refund.")
+    assert result.intent_type == IntentType.ESCALATION_REQUEST
+    assert result.confidence >= 0.95
+
+
+def test_more_keyword_hits_win_a_tie():
+    classifier = IntentClassifier()
+    result = classifier.classify("The refund puts your money back as a credit on the card.")
+    assert result.intent_type == IntentType.REFUND_PROCESSING
+
+
+def test_both_match_tie_keeps_pattern_order():
+    classifier = IntentClassifier()
+    result = classifier.classify("I'll process a refund and apply a $20 credit.")
+    assert result.intent_type == IntentType.FINANCIAL_COMPENSATION
+    assert result.confidence == 1.0
+
+
+def test_money_transfer_is_not_an_escalation():
+    classifier = IntentClassifier()
+    result = classifier.classify("Please confirm the routing number for the wire transfer.")
+    assert result.intent_type != IntentType.ESCALATION_REQUEST
+
+
+def test_transfer_you_is_an_escalation():
+    classifier = IntentClassifier()
+    result = classifier.classify("I'll transfer you to our billing department now.")
+    assert result.intent_type == IntentType.ESCALATION_REQUEST
+
+
+def test_transfer_your_balance_is_not_an_escalation():
+    classifier = IntentClassifier()
+    result = classifier.classify("Let me transfer your balance to the new account.")
+    assert result.intent_type != IntentType.ESCALATION_REQUEST
+
+
+def test_keywords_match_at_word_starts_only():
+    classifier = IntentClassifier()
+    result = classifier.classify("We ship to every country in the region.")
+    assert result.intent_type == IntentType.GENERAL
+
+
+def test_keyword_inflections_still_match():
+    classifier = IntentClassifier()
+    result = classifier.classify("Your refunds were sent back to the original card.")
+    assert result.intent_type == IntentType.REFUND_PROCESSING
