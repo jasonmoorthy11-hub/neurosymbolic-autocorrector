@@ -317,7 +317,13 @@ class TestStoreTiers:
             text,
             "LLM fix.",
         )
-        assert (edit.start, edit.end, edit.source_document) == (0, len(text), None)
+        # The LLM tier cites the sources of every rule too, highest severity first
+        assert (edit.start, edit.end, edit.source_document, edit.source_section) == (
+            0,
+            len(text),
+            "Credit_Policy_2024_v3.2; Agent_Conduct_Policy_2024_v1.0",
+            "Section 4.1; Section 2.3",
+        )
 
     async def test_cache_hit_returns_same_result(self, store):
         text, violations = await self._credit_case(store)

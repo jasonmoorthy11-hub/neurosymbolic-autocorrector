@@ -74,6 +74,65 @@ _TRANSFER_VERB = re.compile(
 )
 
 
+# Whole-message templates, one per correctable rule (the Neo4j seed mirrors these)
+CORRECTION_TEMPLATES: dict[str, str] = {
+    "CREDIT-001": (
+        "I understand your frustration. Based on your account status, "
+        "I can offer you a $50 credit today. For additional compensation, "
+        "I'd be happy to escalate this to a supervisor who can review your case further."
+    ),
+    "CREDIT-002": (
+        "I'd like to help resolve this for you. Let me connect you with a supervisor "
+        "who has the authorization to review credits of this amount. They'll be able "
+        "to assist you right away."
+    ),
+    "REFUND-001": (
+        "I understand you'd like a refund. Let me check the details of your purchase "
+        "and our current refund policy to find the best option for you."
+    ),
+    "PROMISE-001": (
+        "I want to help resolve this for you. While I can't make guarantees about "
+        "future policies, I can ensure your current concern is addressed and escalate "
+        "for further review if needed."
+    ),
+    "SLA-001": (
+        "I'll prioritize getting this resolved for you as quickly as possible. "
+        "While I can't guarantee a specific timeline, I'll make sure your case "
+        "receives prompt attention."
+    ),
+    "DISC-001": (
+        "Let me look into that for you. I'll work on getting this resolved "
+        "and follow up with the next steps."
+    ),
+}
+
+_SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+
+
+def _by_severity(violations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Violations highest severity first; ties keep their order."""
+
+    def rank(v: dict[str, Any]) -> int:
+        severity = v.get("severity", "")
+        return _SEVERITY_RANK.get(str(getattr(severity, "value", severity)).lower(), 4)
+
+    return sorted(violations, key=rank)
+
+
+def _cite_all(violations: list[dict[str, Any]]) -> dict[str, Any]:
+    """One citation for a rewrite that addresses every violation (ids and sources joined)."""
+
+    def joined(key: str) -> str | None:
+        values = dict.fromkeys(v.get(key) for v in violations if v.get(key))
+        return "; ".join(values) or None
+
+    return {
+        "rule_id": ", ".join(dict.fromkeys(v["rule_id"] for v in violations if v.get("rule_id"))),
+        "source_document": joined("source_document"),
+        "source_section": joined("source_section"),
+    }
+
+
 def _whole_text_result(
     original_text: str, corrected: str, violation: dict[str, Any], tier: CorrectionTier
 ) -> RewriteResult:
@@ -536,36 +595,44 @@ class KnowledgeGraphStore:
         Queries the Product→Coverage relationships to check if dollar
         amounts mentioned in the text match the actual coverage limits.
         """
-        results = []
         plan_type = customer_context.get("plan_type")
 
         if not plan_type:
-            return results
+            return []
 
+        # Every plan with its coverages (a plan without any is still known, so a
+        # claim naming it is skipped rather than checked against the customer's
+        # plan), as on the in-memory path
         async with self._driver.session() as session:
             result = await session.run(
                 """
-                MATCH (plan:Product {name: $plan_type})-[:HAS_COVERAGE]->(cov:Coverage)
-                RETURN cov.category AS category, cov.limit AS coverage_limit,
+                MATCH (plan:Product)
+                OPTIONAL MATCH (plan)-[:HAS_COVERAGE]->(cov:Coverage)
+                RETURN plan.name AS plan, cov.category AS category,
+                       cov.limit AS coverage_limit,
                        cov.source_document AS source_doc, cov.source_page AS source_page
-                """,
-                plan_type=plan_type,
+                """
             )
             coverages = [record.data() async for record in result]
 
-        facts = [
-            {
-                "category": cov["category"],
-                "limit": cov["coverage_limit"],
-                "source_document": cov.get("source_doc"),
-                "source_page": cov.get("source_page"),
-            }
-            for cov in coverages
-        ]
-        # Other plans are not fetched here: a claim attributed to one is left unchecked
-        customer = _plan_key(plan_type)
-        others = {key: None for key in self._fact_store if key != customer}
-        return self._fact_errors(text, facts, plan_type, others)
+        by_plan: dict[str, list[dict[str, Any]]] = {}
+        for cov in coverages:
+            facts = by_plan.setdefault(_plan_key(str(cov.get("plan", ""))), [])
+            if cov.get("category") is None:
+                continue
+            facts.append(
+                {
+                    "category": cov["category"],
+                    "limit": cov["coverage_limit"],
+                    "source_document": cov.get("source_doc"),
+                    "source_page": cov.get("source_page"),
+                }
+            )
+        customer = _plan_key(str(plan_type))
+        if customer not in by_plan:
+            return []
+        others = {key: facts for key, facts in by_plan.items() if key != customer}
+        return self._fact_errors(text, by_plan[customer], plan_type, others)
 
     # Category aliases for flexible fact matching
     _CATEGORY_ALIASES = {
@@ -598,14 +665,19 @@ class KnowledgeGraphStore:
             text, self._fact_store[plan_type].get("coverages", []), plan_type, others
         )
 
+    @staticmethod
+    def _mentions_for(key: str, plan_name: str) -> list[str]:
+        """The phrases that name one plan: "premium 2024", its name, "premium plan"."""
+        name = plan_name.lower()
+        first = name.split()[0] if name.split() else key
+        return list(dict.fromkeys([key.replace("_", " "), name, f"{first} plan"]))
+
     def plan_mentions(self) -> dict[str, list[str]]:
         """Map each known plan key to the phrases that name it ("premium plan")."""
-        mentions = {}
-        for key, plan in self._fact_store.items():
-            name = str(plan.get("plan_name", key)).lower()
-            first = name.split()[0] if name.split() else key
-            mentions[key] = list(dict.fromkeys([key.replace("_", " "), name, f"{first} plan"]))
-        return mentions
+        return {
+            key: self._mentions_for(key, str(plan.get("plan_name", key)))
+            for key, plan in self._fact_store.items()
+        }
 
     def _fact_errors(
         self,
@@ -638,7 +710,11 @@ class KnowledgeGraphStore:
         claims = assign_amounts(
             text, {cat: [cat, *self._CATEGORY_ALIASES.get(cat, [])] for cat in categories}
         )
-        plan_mentions = {key: self.plan_mentions().get(key, []) for key in by_plan}
+        # A plan only Neo4j knows is named from its key ("gold_2024" → "gold plan")
+        known = self.plan_mentions()
+        plan_mentions = {
+            key: known.get(key) or self._mentions_for(key, key.replace("_", " ")) for key in by_plan
+        }
         # "your plan" is the customer's, whatever it is called
         plan_mentions[customer] = [*plan_mentions.get(customer, []), "your plan", "your coverage"]
         results = []
@@ -729,24 +805,25 @@ class KnowledgeGraphStore:
         customer_context: dict[str, Any],
         strategies: list[dict[str, Any]] | None,
     ) -> RewriteResult:
-        # Tier 1: Neo4j correction templates (per-violation, last wins)
+        # Tier 1: Neo4j correction templates. As in tier 4, the whole reply is
+        # replaced, so the edit cites every rule (highest severity first) and the
+        # wording is the first rule's template in that order.
         if self._connected:
-            winner: dict[str, Any] | None = None
-            corrected = original_text
-            for violation in violations:
+            ordered = _by_severity(violations)
+            for violation in ordered:
                 correction = await self._get_correction_from_neo4j(violation.get("rule_id", ""))
-                if correction:
-                    corrected, winner = correction, violation
-            if winner is not None and corrected != original_text:
-                return _whole_text_result(original_text, corrected, winner, "neo4j")
+                if correction and correction != original_text:
+                    return _whole_text_result(
+                        original_text, correction, _cite_all(ordered), "neo4j"
+                    )
 
         # Tier 2: LLM-powered correction (all violations at once for coherent rewrite)
         llm_correction = await self._get_llm_correction(
             original_text, violations, intent_type, customer_context, strategies=strategies
         )
         if llm_correction:
-            rule_ids = ", ".join(v.get("rule_id", "") for v in violations)
-            return _whole_text_result(original_text, llm_correction, {"rule_id": rule_ids}, "llm")
+            cited = _cite_all(_by_severity(violations))
+            return _whole_text_result(original_text, llm_correction, cited, "llm")
 
         # Tier 3: span-level rewrite of only the offending sentences
         span = rewrite(original_text, violations, self.rule_index(), self.coverage_mentions())
@@ -757,17 +834,27 @@ class KnowledgeGraphStore:
             still = await self.check_policy_compliance(span.text, intent_type, customer_context)
             unresolved |= {v.rule_id for v in still} & {v.get("rule_id") for v in violations}
 
-        # Tier 4: whole-message template for rules the span tier left unresolved (last wins)
-        template_result: RewriteResult | None = None
-        for violation in violations:
-            if violation.get("rule_id", "") not in unresolved:
-                continue
-            template = self._get_template_correction(
-                violation.get("rule_id", ""), customer_context, original_text
-            )
-            if template:
-                template_result = _whole_text_result(original_text, template, violation, "template")
-        return template_result or span
+        # Tier 4: whole-message template for rules the span tier left unresolved.
+        # It replaces the whole reply, so its one edit cites every rule that fired,
+        # highest severity first; the template is the first unresolved rule's in that
+        # order that has one.
+        ordered = _by_severity(violations)
+        template = next(
+            (
+                t
+                for v in ordered
+                if v.get("rule_id", "") in unresolved
+                and (
+                    t := self._get_template_correction(
+                        v.get("rule_id", ""), customer_context, original_text
+                    )
+                )
+            ),
+            None,
+        )
+        if template is None:
+            return span
+        return _whole_text_result(original_text, template, _cite_all(ordered), "template")
 
     async def _get_correction_from_neo4j(self, rule_id: str) -> str | None:
         """Fetch a correction template from Neo4j for a given rule."""
@@ -899,41 +986,12 @@ class KnowledgeGraphStore:
     def _get_template_correction(
         self, rule_id: str, customer_context: dict[str, Any], original_text: str
     ) -> str | None:
-        """Get a template-based correction for a rule violation."""
+        """The whole-message template for a rule, or None.
 
-        corrections = {
-            "CREDIT-001": lambda: (
-                "I understand your frustration. Based on your account status, "
-                "I can offer you a $50 credit today. For additional compensation, "
-                "I'd be happy to escalate this to a supervisor who can review your case further."
-            ),
-            "CREDIT-002": lambda: (
-                "I'd like to help resolve this for you. Let me connect you with a supervisor "
-                "who has the authorization to review credits of this amount. They'll be able "
-                "to assist you right away."
-            ),
-            "REFUND-001": lambda: (
-                "I understand you'd like a refund. Let me check the details of your purchase "
-                "and our current refund policy to find the best option for you."
-            ),
-            "PROMISE-001": lambda: (
-                "I want to help resolve this for you. While I can't make guarantees about "
-                "future policies, I can ensure your current concern is addressed and escalate "
-                "for further review if needed."
-            ),
-            "SLA-001": lambda: (
-                "I'll prioritize getting this resolved for you as quickly as possible. "
-                "While I can't guarantee a specific timeline, I'll make sure your case "
-                "receives prompt attention."
-            ),
-            "DISC-001": lambda: (
-                "Let me look into that for you. I'll work on getting this resolved "
-                "and follow up with the next steps."
-            ),
-        }
-
-        correction_fn = corrections.get(rule_id)
-        return correction_fn() if correction_fn else None
+        Templates are fixed per rule; the context and text parameters are kept
+        for callers that may pass them (``guardrails/validators.py``).
+        """
+        return CORRECTION_TEMPLATES.get(rule_id)
 
     # --- Rules query ---
 

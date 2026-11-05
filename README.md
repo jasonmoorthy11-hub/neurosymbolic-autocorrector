@@ -202,8 +202,8 @@ Known, measured, or found by the held-out run:
   also read as a coverage claim and fact-checked; the action (escalate) is still
   right (held-out HO-ESC-02/03).
 - When the whole-message template takes over (a rule the span tier cannot fix, such
-  as an amount written in words), it replaces the entire reply and its single edit
-  cites only one rule, even if other rules fired and their sentences were dropped.
+  as an amount written in words), it replaces the entire reply; its one edit cites
+  every rule that fired, but the wording comes from one rule's template.
 - PII detection is US-format regex. On the external benchmark, IBAN/BBAN bank
   accounts have 0% recall and addresses 13.7% recall (all languages); phone and
   card precision are about 22%, so bare digit strings get redacted.
@@ -211,10 +211,6 @@ Known, measured, or found by the held-out run:
   `/api/events`, `/api/queue` and the WebSocket are open. They serve the audit rows,
   which hold the text as the regex PII rail above redacts it (rows written before
   v1.1 are unchanged, the table is append-only). The replay demo uses fake PII only.
-- The Neo4j seed (`scripts/seed_neo4j.py`) has 3 of the 8 rules, so with Neo4j
-  connected the universal rules, ESC-001 and REFUND-002 are not checked; fact
-  checks there fetch only the customer's plan, so another plan's limit in a
-  comparison is left unchecked rather than verified.
 - The fact-claim heuristic misses some phrasings, for example a follow-up sentence
   such as "It covers $5,000." or "Coverage is capped at $5,000.", "I'll check if
   emergency dental covers $5,000.", "After your deductible dental coverage pays

@@ -57,19 +57,19 @@ is treated as money being offered.
 
 With Neo4j connected (`AUTOCORRECTOR_NEO4J_*`, `scripts/seed_neo4j.py`), rules,
 facts and correction templates are read with parameterized Cypher. The seed
-(`knowledge_graph/schema.py`) has only CREDIT-001, CREDIT-002 and REFUND-001, so the
-universal rules, ESC-001 and REFUND-002 are not checked on the Neo4j path (the rule
-query reads every active rule; it no longer filters by intent). Fact checks there
-fetch only the customer's plan, so an amount attributed to another plan is left
-unchecked. The span tier and the coverage exemption still use the in-memory rules
-and facts.
+(`knowledge_graph/schema.py`) is generated from the in-memory rules, templates and
+coverage facts, so both paths check the same eight rules and both plans (the rule
+query reads every active rule and only orders by intent; the fact query reads every
+plan, so an amount attributed to another plan is checked against that plan). The
+span tier and the coverage exemption still use the in-memory rules and facts.
 
 ## Correction tiers
 
 `KnowledgeGraphStore.generate_compliant_alternative_with_edits`; the first tier that
 applies wins:
 
-1. **Neo4j template**, only when connected.
+1. **Neo4j template**, only when connected; cited like tier 4 (every rule, the
+   highest-severity rule's template).
 2. **LLM rewrite**, only with an Anthropic key (`AUTOCORRECTOR_CORRECTION_LLM`). The
    response parser keeps only text after any thinking blocks and accepts only the
    `end_turn` and `stop_sequence` stop reasons; anything else falls through.
@@ -80,8 +80,9 @@ applies wins:
    replacement. A rule counts as resolved only if the rewritten text no longer
    triggers it.
 4. **Whole-message template** for any rule the span tier left unresolved. The
-   template replaces the whole reply, including any span edits, and its edit cites
-   only its own rule; if several rules are unresolved, the last one's template wins.
+   template replaces the whole reply, including any span edits, so its one edit
+   cites every rule that fired (ids and sources joined, highest severity first); the
+   wording is the template of the highest-severity unresolved rule that has one.
 
 Policy and fact changes are recorded as `CorrectionEdit`s (`models.py`): `rule_id`,
 `before`, `after`, `start`, `end`, `source_document`, `source_section`, `tier`. Fact

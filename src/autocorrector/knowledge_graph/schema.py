@@ -27,6 +27,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from autocorrector.knowledge_graph.store import CORRECTION_TEMPLATES, KnowledgeGraphStore
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,110 +62,71 @@ POLICIES: list[dict[str, Any]] = [
         "effective_date": "2024-03-01",
         "category": "financial",
     },
-]
-
-RULES: list[dict[str, Any]] = [
     {
-        "rule_id": "CREDIT-001",
-        "name": "Credit Authorization Threshold",
-        "description": "Credits over $50 require 90+ days account tenure",
-        "intent_type": "financial_compensation",
-        "severity": "high",
-        "section": "Section 4.1",
-        "active": True,
-        "amount_threshold": 50,
-        "keywords": ["credit", "compensation", "offer you"],
-        "policy": "Credit_Policy_2024_v3.2",
-        "conditions": [
-            {"field": "account_tenure_days", "operator": "lt", "value": 90},
-        ],
-        "correction_template": (
-            "I understand your frustration. Based on your account status, "
-            "I can offer you a $50 credit today. For additional compensation, "
-            "I'd be happy to escalate this to a supervisor who can review your case further."
-        ),
+        "name": "Escalation_Policy_2024_v1.0",
+        "version": "1.0",
+        "effective_date": "2024-01-01",
+        "category": "escalation",
     },
     {
-        "rule_id": "CREDIT-002",
-        "name": "Maximum Credit Amount",
-        "description": "Single credit cannot exceed $500 without supervisor approval",
-        "intent_type": "financial_compensation",
-        "severity": "critical",
-        "section": "Section 4.3",
-        "active": True,
-        "amount_threshold": 500,
-        "keywords": ["credit", "compensation", "offer you"],
-        "policy": "Credit_Policy_2024_v3.2",
-        "conditions": [],
-        "correction_template": (
-            "I'd like to help resolve this for you. Let me connect you with a supervisor "
-            "who has the authorization to review credits of this amount. They'll be able "
-            "to assist you right away."
-        ),
+        "name": "Agent_Conduct_Policy_2024_v1.0",
+        "version": "1.0",
+        "effective_date": "2024-01-01",
+        "category": "conduct",
     },
     {
-        "rule_id": "REFUND-001",
-        "name": "Refund Window",
-        "description": "Refunds must be processed within 30 days of purchase",
-        "intent_type": "refund_processing",
-        "severity": "high",
-        "section": "Section 2.1",
-        "active": True,
-        "amount_threshold": None,
-        "keywords": ["refund", "money back", "return"],
-        "policy": "Refund_Policy_2024_v2.1",
-        "conditions": [],
-        "correction_template": (
-            "I understand you'd like a refund. Let me check the details of your purchase "
-            "and our current refund policy to find the best option for you."
-        ),
+        "name": "SLA_Policy_2024_v1.0",
+        "version": "1.0",
+        "effective_date": "2024-01-01",
+        "category": "service",
     },
 ]
 
-PRODUCTS: list[dict[str, Any]] = [
-    {
-        "name": "standard_2024",
-        "display_name": "Standard 2024",
-        "coverages": [
-            {
-                "category": "emergency dental",
-                "limit": 2500,
-                "source_document": "Policy_Document_Standard_2024.pdf",
-                "source_page": 12,
-            },
-            {
-                "category": "emergency room",
-                "limit": 10000,
-                "source_document": "Policy_Document_Standard_2024.pdf",
-                "source_page": 8,
-            },
-            {
-                "category": "prescription drugs",
-                "limit": 5000,
-                "source_document": "Policy_Document_Standard_2024.pdf",
-                "source_page": 15,
-            },
-        ],
-    },
-    {
-        "name": "premium_2024",
-        "display_name": "Premium 2024",
-        "coverages": [
-            {
-                "category": "emergency dental",
-                "limit": 5000,
-                "source_document": "Policy_Document_Premium_2024.pdf",
-                "source_page": 12,
-            },
-            {
-                "category": "emergency room",
-                "limit": 25000,
-                "source_document": "Policy_Document_Premium_2024.pdf",
-                "source_page": 8,
-            },
-        ],
-    },
-]
+
+def _rules_from_defaults() -> list[dict[str, Any]]:
+    """The in-memory rules in seed shape: one source of truth for both paths.
+
+    ``intent_type`` is the in-memory domain (``_universal`` for rules that apply
+    under every intent); the compliance query reads every active rule and only
+    orders by it.
+    """
+    rules = []
+    for domain, domain_rules in KnowledgeGraphStore._load_default_rules().items():
+        for rule in domain_rules:
+            rules.append(
+                {
+                    "rule_id": rule["rule_id"],
+                    "name": rule["rule_name"],
+                    "description": rule["description"],
+                    "intent_type": domain,
+                    "severity": rule["severity"],
+                    "section": rule["source_section"],
+                    "active": True,
+                    "amount_threshold": rule.get("amount_threshold"),
+                    "keywords": list(rule["keywords"]),
+                    "policy": rule["source_document"],
+                    "conditions": [dict(c) for c in rule["conditions"]],
+                    "correction_template": CORRECTION_TEMPLATES.get(rule["rule_id"]),
+                }
+            )
+    return rules
+
+
+def _products_from_defaults() -> list[dict[str, Any]]:
+    """The in-memory coverage facts in seed shape."""
+    return [
+        {
+            "name": key,
+            "display_name": plan["plan_name"],
+            "coverages": [dict(cov) for cov in plan["coverages"]],
+        }
+        for key, plan in KnowledgeGraphStore._load_default_facts().items()
+    ]
+
+
+RULES: list[dict[str, Any]] = _rules_from_defaults()
+
+PRODUCTS: list[dict[str, Any]] = _products_from_defaults()
 
 
 # --- Schema Operations ---

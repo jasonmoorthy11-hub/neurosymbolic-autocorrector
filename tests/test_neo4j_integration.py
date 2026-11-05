@@ -92,12 +92,12 @@ class TestSchema:
         from autocorrector.knowledge_graph.schema import get_stats
 
         stats = await get_stats(neo4j_driver)
-        assert stats.get("Policy", 0) == 2  # Credit_Policy, Refund_Policy
-        assert stats.get("Rule", 0) == 3  # CREDIT-001, CREDIT-002, REFUND-001
-        assert stats.get("Condition", 0) == 1  # CREDIT-001 has 1 condition
-        assert stats.get("CorrectionTemplate", 0) == 3  # One per rule
+        assert stats.get("Policy", 0) == 5  # credit, refund, escalation, conduct, SLA
+        assert stats.get("Rule", 0) == 8  # every in-memory rule
+        assert stats.get("Condition", 0) == 2  # CREDIT-001 tenure, REFUND-001 purchase age
+        assert stats.get("CorrectionTemplate", 0) == 6  # ESC-001 and REFUND-002 escalate
         assert stats.get("Product", 0) == 2  # standard_2024, premium_2024
-        assert stats.get("Coverage", 0) == 5  # 3 standard + 2 premium
+        assert stats.get("Coverage", 0) == 6  # 4 standard + 2 premium
 
     async def test_policy_rule_relationships(self, neo4j_driver):
         async with neo4j_driver.session() as session:
@@ -121,9 +121,9 @@ class TestSchema:
             )
             coverages = [r.data() async for r in result]
 
-        # Standard plan has 3 coverages
+        # Standard plan has 4 coverages
         standard = [c for c in coverages if c["product"] == "standard_2024"]
-        assert len(standard) == 3
+        assert len(standard) == 4
         dental = next(c for c in standard if c["category"] == "emergency dental")
         assert dental["limit"] == 2500
 
@@ -255,5 +255,5 @@ class TestCorrectionNeo4j:
 
         await seed_all(neo4j_driver)  # Second seed
         stats = await get_stats(neo4j_driver)
-        assert stats.get("Rule", 0) == 3  # Still 3, not 6
-        assert stats.get("Policy", 0) == 2
+        assert stats.get("Rule", 0) == 8  # Still 8, not 16
+        assert stats.get("Policy", 0) == 5

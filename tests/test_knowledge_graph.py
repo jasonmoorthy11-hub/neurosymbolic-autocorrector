@@ -156,6 +156,7 @@ def _neo4j_store(records: list[dict]) -> KnowledgeGraphStore:
 
 _STANDARD_COVERAGES = [
     {
+        "plan": "standard_2024",
         "category": cov["category"],
         "coverage_limit": cov["limit"],
         "source_doc": cov["source_document"],
@@ -432,3 +433,256 @@ class TestCreditAmountsIgnoreCoverage:
             customer_context={"account_tenure_days": 30, "plan_type": "standard_2024"},
         )
         assert [v.rule_id for v in violations] == ["CREDIT-002"]
+
+
+class TestTemplateTierCitation:
+    """The whole-message template cites every rule it replaces, highest severity first."""
+
+    TEXT = (
+        "I can offer you a credit of seventy-five dollars and "
+        "I promise it will post within 24 hours."
+    )
+    CTX = {"account_tenure_days": 30}
+
+    async def _rewrite(self, store):
+        violations = await store.check_policy_compliance(
+            self.TEXT, "financial_compensation", self.CTX
+        )
+        assert {v.rule_id for v in violations} == {"CREDIT-001", "PROMISE-001", "SLA-001"}
+        return await store.generate_compliant_alternative_with_edits(
+            self.TEXT, [v.model_dump() for v in violations], "financial_compensation", self.CTX
+        )
+
+    async def test_template_edit_cites_every_fired_rule(self, connected_kg_store):
+        result = await self._rewrite(connected_kg_store)
+        assert len(result.edits) == 1
+        edit = result.edits[0]
+        assert edit.tier == "template"
+        assert edit.rule_id == "CREDIT-001, PROMISE-001, SLA-001"
+        assert edit.source_document == (
+            "Credit_Policy_2024_v3.2; Agent_Conduct_Policy_2024_v1.0; SLA_Policy_2024_v1.0"
+        )
+        assert edit.source_section == "Section 4.1; Section 2.3; Section 1.2"
+        assert "$50" in result.text
+
+    async def test_template_comes_from_highest_severity_unresolved_rule(self, connected_kg_store):
+        """Two unresolved rules, the lower-severity one listed last: its template must not win."""
+        violations = [
+            {
+                "rule_id": "SLA-001",
+                "severity": "high",
+                "source_document": "SLA_Policy_2024_v1.0",
+                "source_section": "Section 1.2",
+            },
+            {
+                "rule_id": "DISC-001",
+                "severity": "medium",
+                "source_document": "Agent_Conduct_Policy_2024_v1.0",
+                "source_section": "Section 5.1",
+            },
+        ]
+        result = await connected_kg_store.generate_compliant_alternative_with_edits(
+            "Hello there, thanks for your patience.", violations, "general", {}
+        )
+        assert [e.tier for e in result.edits] == ["template"]
+        assert result.edits[0].rule_id == "SLA-001, DISC-001"
+        assert "prioritize" in result.text  # SLA-001's template, not DISC-001's
+
+    async def test_severity_order_puts_critical_first(self, connected_kg_store):
+        violations = [
+            {"rule_id": "DISC-001", "severity": "medium"},
+            {"rule_id": "CREDIT-002", "severity": "critical"},
+            {"rule_id": "SLA-001", "severity": "high"},
+        ]
+        result = await connected_kg_store.generate_compliant_alternative_with_edits(
+            "Hello there, thanks for your patience.", violations, "general", {}
+        )
+        assert result.edits[0].rule_id == "CREDIT-002, SLA-001, DISC-001"
+        assert "supervisor" in result.text  # CREDIT-002's template
+
+
+_ALL_COVERAGES = [
+    {
+        "plan": plan,
+        "category": cov["category"],
+        "coverage_limit": cov["limit"],
+        "source_doc": cov["source_document"],
+        "source_page": cov["source_page"],
+    }
+    for plan, data in KnowledgeGraphStore._load_default_facts().items()
+    for cov in data["coverages"]
+]
+
+
+class TestNeo4jOtherPlanFacts:
+    """The Neo4j fact path fetches every plan, so other-plan claims are checked too."""
+
+    async def test_neo4j_checks_claim_attributed_to_another_plan(self):
+        store = _neo4j_store(_ALL_COVERAGES)
+        results = await store.verify_facts(
+            text="The Premium plan covers $10,000 in emergency dental.",
+            customer_context={"plan_type": "standard_2024"},
+        )
+        errors = [r for r in results if not r.is_accurate]
+        assert [e.correct_value for e in errors] == ["$5,000"]
+
+    async def test_neo4j_customer_plan_still_checked_by_name(self):
+        store = _neo4j_store(_ALL_COVERAGES)
+        results = await store.verify_facts(
+            text=_DENTAL_OVERSTATED, customer_context={"plan_type": "Standard 2024"}
+        )
+        assert [r.correct_value for r in results if not r.is_accurate] == ["$2,500"]
+
+    async def test_neo4j_unknown_customer_plan_checks_nothing(self):
+        store = _neo4j_store(_ALL_COVERAGES)
+        results = await store.verify_facts(
+            text=_DENTAL_OVERSTATED, customer_context={"plan_type": "gold_2024"}
+        )
+        assert results == []
+
+
+class TestNeo4jSeedParity:
+    """The Neo4j seed data is the in-memory data: one source of truth."""
+
+    def _defaults(self):
+        return {
+            r["rule_id"]: (domain, r)
+            for domain, rules in KnowledgeGraphStore._load_default_rules().items()
+            for r in rules
+        }
+
+    def test_seed_rules_mirror_in_memory_defaults(self):
+        from autocorrector.knowledge_graph import schema
+
+        defaults = self._defaults()
+        seeded = {r["rule_id"]: r for r in schema.RULES}
+        assert len(defaults) == 8
+        assert set(seeded) == set(defaults)
+        for rule_id, (domain, r) in defaults.items():
+            s = seeded[rule_id]
+            assert s["name"] == r["rule_name"], rule_id
+            assert s["description"] == r["description"], rule_id
+            assert s["severity"] == r["severity"], rule_id
+            assert s["intent_type"] == domain, rule_id
+            assert s["section"] == r["source_section"], rule_id
+            assert s["policy"] == r["source_document"], rule_id
+            assert s["keywords"] == r["keywords"], rule_id
+            assert s["conditions"] == r["conditions"], rule_id
+            assert s["amount_threshold"] == r.get("amount_threshold"), rule_id
+            assert s["active"] is True, rule_id
+
+    def test_seed_rules_carry_the_template_tier_text(self):
+        from autocorrector.knowledge_graph import schema
+
+        store = KnowledgeGraphStore()
+        for rule in schema.RULES:
+            expected = store._get_template_correction(rule["rule_id"], {}, "")
+            assert rule.get("correction_template") == expected, rule["rule_id"]
+
+    def test_seed_policies_cover_every_rule(self):
+        from autocorrector.knowledge_graph import schema
+
+        names = {p["name"] for p in schema.POLICIES}
+        assert {r["policy"] for r in schema.RULES} <= names
+
+    def test_seed_products_mirror_in_memory_facts(self):
+        from autocorrector.knowledge_graph import schema
+
+        facts = KnowledgeGraphStore._load_default_facts()
+        assert {p["name"]: p["coverages"] for p in schema.PRODUCTS} == {
+            k: v["coverages"] for k, v in facts.items()
+        }
+        assert {p["name"]: p["display_name"] for p in schema.PRODUCTS} == {
+            k: v["plan_name"] for k, v in facts.items()
+        }
+
+
+def _neo4j_template_store(templates: dict[str, str]) -> KnowledgeGraphStore:
+    """A connected store whose Neo4j template query answers from ``templates``."""
+
+    async def run(query, **params):
+        result = MagicMock()
+        template = templates.get(params.get("rule_id", ""))
+        record = {"template": template} if template else None
+        result.single = AsyncMock(return_value=record)
+        return result
+
+    mock_session = AsyncMock()
+    mock_session.run = AsyncMock(side_effect=run)
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    store = KnowledgeGraphStore()
+    store._connected = True
+    store._driver = MagicMock()
+    store._driver.session.return_value = mock_session
+    return store
+
+
+class TestNeo4jTemplateTierCitation:
+    """Tier 1 (Neo4j templates) cites every rule and picks by severity, like tier 4."""
+
+    VIOLATIONS = [
+        {
+            "rule_id": "SLA-001",
+            "severity": "high",
+            "source_document": "SLA_Policy_2024_v1.0",
+            "source_section": "Section 1.2",
+        },
+        {
+            "rule_id": "CREDIT-002",
+            "severity": "critical",
+            "source_document": "Credit_Policy_2024_v3.2",
+            "source_section": "Section 4.3",
+        },
+    ]
+
+    async def test_neo4j_template_cites_all_rules_highest_severity_first(self):
+        store = _neo4j_template_store({"SLA-001": "SLA wording.", "CREDIT-002": "Credit wording."})
+        result = await store.generate_compliant_alternative_with_edits(
+            "I guarantee a $750 credit within 24 hours.", self.VIOLATIONS, "general", {}
+        )
+        (edit,) = result.edits
+        assert edit.tier == "neo4j"
+        assert result.text == "Credit wording."
+        assert edit.rule_id == "CREDIT-002, SLA-001"
+        assert edit.source_document == "Credit_Policy_2024_v3.2; SLA_Policy_2024_v1.0"
+        assert edit.source_section == "Section 4.3; Section 1.2"
+
+    async def test_neo4j_template_falls_back_to_next_rule_with_a_template(self):
+        store = _neo4j_template_store({"SLA-001": "SLA wording."})
+        result = await store.generate_compliant_alternative_with_edits(
+            "I guarantee a $750 credit within 24 hours.", self.VIOLATIONS, "general", {}
+        )
+        assert result.text == "SLA wording."
+        assert result.edits[0].rule_id == "CREDIT-002, SLA-001"
+
+
+class TestNeo4jPlanWithoutCoverages:
+    async def test_plan_without_coverages_is_known_and_skipped(self):
+        """Parity with memory: a claim naming a plan that has no coverage rows is
+        skipped, not checked against the customer's plan."""
+        records = [
+            *_ALL_COVERAGES,
+            {
+                "plan": "gold_2024",
+                "category": None,
+                "coverage_limit": None,
+                "source_doc": None,
+                "source_page": None,
+            },
+        ]
+        store = _neo4j_store(records)
+        results = await store.verify_facts(
+            text="The Gold plan covers $9,999 in emergency dental.",
+            customer_context={"plan_type": "standard_2024"},
+        )
+        assert [r for r in results if not r.is_accurate] == []
+
+
+class TestCiteAll:
+    def test_empty_rule_ids_are_dropped(self):
+        from autocorrector.knowledge_graph.store import _cite_all
+
+        cited = _cite_all([{"rule_id": "SLA-001"}, {"rule_id": ""}, {}])
+        assert cited["rule_id"] == "SLA-001"
