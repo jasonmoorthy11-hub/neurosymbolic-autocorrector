@@ -8,6 +8,7 @@ import {
   Clock,
   Eye,
 } from "lucide-react";
+import "./MetricsPanel.css";
 
 interface Props {
   metrics: DashboardMetrics | null;

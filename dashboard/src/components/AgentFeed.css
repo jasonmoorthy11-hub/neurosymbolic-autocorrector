@@ -1,0 +1,81 @@
+/* === Agent Feed === */
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.feed-item {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-inset);
+  border-left: 3px solid var(--border);
+}
+
+.feed-item--allow {
+  border-left-color: #10b981;
+}
+
+.feed-item--correct {
+  border-left-color: #f59e0b;
+}
+
+.feed-item--escalate {
+  border-left-color: #ef4444;
+}
+
+.feed-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.agent-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.feed-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.original-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.corrected-text {
+  font-size: 13px;
+  color: var(--ok-strong-text);
+  margin: 4px 0;
+  padding: 6px 10px;
+  background: #10b98110;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.feed-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* === Feed Animation === */
+.feed-item {
+  animation: feedSlideIn 0.3s ease-out;
+}
+@keyframes feedSlideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

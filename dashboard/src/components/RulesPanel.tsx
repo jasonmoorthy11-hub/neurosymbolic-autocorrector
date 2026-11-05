@@ -1,6 +1,7 @@
 import type { RuleInfo } from "../types/api";
 import { ErrorAlert } from "./ErrorAlert";
 import { BookOpen } from "lucide-react";
+import "./RulesPanel.css";
 
 interface Props {
   rules: RuleInfo[];

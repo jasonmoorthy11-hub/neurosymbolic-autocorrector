@@ -10,6 +10,7 @@ import {
 import { AXIS_TICK, LEGEND_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_STYLE, legendText } from "./chartStyle";
 import { ErrorAlert } from "./ErrorAlert";
 import type { TrendBucket, AnalyticsSummary } from "../types/api";
+import "./AnalyticsPanel.css";
 
 interface Props {
   trends: TrendBucket[];

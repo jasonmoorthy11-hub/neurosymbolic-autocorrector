@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Route } from "lucide-react";
 import { useReplayContext } from "../replay/context";
 import type { ReplayEdit, ReplayScenario } from "../types/replay";
+import "./PipelineTrace.css";
 
 const TIER_LABELS: Record<ReplayEdit["tier"], string> = {
   span: "span rewrite",

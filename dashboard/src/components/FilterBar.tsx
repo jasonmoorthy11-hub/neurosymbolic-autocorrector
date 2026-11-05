@@ -1,6 +1,7 @@
 import { Download } from "lucide-react";
 import type { EventFilters } from "../types/api";
 import { useExport } from "../hooks/useApi";
+import "./FilterBar.css";
 
 interface Props {
   filters: EventFilters;

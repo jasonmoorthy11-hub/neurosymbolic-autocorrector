@@ -3,6 +3,7 @@ import type { SupervisorQueueItem, RejectionReason } from "../types/api";
 import { ErrorAlert } from "./ErrorAlert";
 import { useQueueActions } from "../hooks/useApi";
 import { AlertCircle, Check, X } from "lucide-react";
+import "./SupervisorQueue.css";
 
 const REJECTION_REASONS: { value: RejectionReason; label: string }[] = [
   { value: "tone_wrong", label: "Tone incorrect" },

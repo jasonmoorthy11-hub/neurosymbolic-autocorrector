@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { AXIS_TICK, LEGEND_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_STYLE, legendText, pieLabel } from "./chartStyle";
 import type { DashboardMetrics } from "../types/api";
+import "./EventChart.css";
 
 interface Props {
   metrics: DashboardMetrics | null;

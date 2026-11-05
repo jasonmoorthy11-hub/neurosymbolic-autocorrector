@@ -1,0 +1,14 @@
+/* === Charts === */
+.chart-panel {
+  margin-top: 20px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.chart-section {
+  min-height: 240px;
+}

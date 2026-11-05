@@ -1,5 +1,6 @@
 import { Route } from "lucide-react";
 import type { CorrectionEvent } from "../types/api";
+import "./AgentFeed.css";
 
 interface Props {
   events: CorrectionEvent[];
