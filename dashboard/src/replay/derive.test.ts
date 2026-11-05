@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import recorded from "../../public/replay/replay.json";
+import recordedLlm from "../../public/replay/replay_llm.json";
 import type { ReplayFile, ReplayScenario } from "../types/replay";
 import {
   deriveMetrics,
@@ -301,11 +302,37 @@ describe("isReplayFile", () => {
     expect(isReplayFile(recorded as unknown)).toBe(true);
   });
 
+  it("accepts the recorded LLM-tier public/replay/replay_llm.json", () => {
+    const llm: unknown = recordedLlm;
+    if (!isReplayFile(llm)) throw new Error("replay_llm.json rejected");
+    expect(llm.mode).toBe("llm-recorded");
+    expect(llm.llm?.model).toBe("claude-haiku-5-5");
+    expect(llm.scenarios).toHaveLength(25);
+    const corrected = llm.scenarios.filter((s) => s.action === "correct" && s.violations.length);
+    expect(corrected.length).toBeGreaterThan(0);
+    for (const s of corrected) expect(s.edits.map((e) => e.tier)).toContain("llm");
+    expect(JSON.stringify(llm)).not.toMatch(/sk-ant/);
+  });
+
+  it("accepts an llm-tier edit and a file with the llm header", () => {
+    const edit = { ...CORRECT.edits[0], tier: "llm" as const };
+    const withLlm = {
+      ...file,
+      mode: "llm-recorded",
+      llm: { model: "claude-haiku-5-5", calls: 1, input_tokens: 1, output_tokens: 1, usd: 0, recorded_with_sdk: "x" },
+      scenarios: [{ ...CORRECT, edits: [edit] }],
+    };
+    expect(isReplayFile(withLlm)).toBe(true);
+  });
+
   it("rejects other shapes", () => {
     expect(isReplayFile(null)).toBe(false);
     expect(isReplayFile({ ...file, schema_version: 2 })).toBe(false);
     expect(isReplayFile({ ...file, scenarios: "x" })).toBe(false);
     expect(isReplayFile({ ...file, recorded_at: 5 })).toBe(false);
+    // The trace renders both strings without a fallback
+    expect(isReplayFile({ ...file, mode: 5 })).toBe(false);
+    expect(isReplayFile({ ...file, latency_note: undefined })).toBe(false);
   });
 
   it("rejects scenarios and rules the dashboard could not render", () => {

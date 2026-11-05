@@ -14,6 +14,7 @@ import {
   toCorrectionEvent,
   toCsv,
 } from "./derive";
+import { type Lane, laneFromSearch, laneSearch, replayFileFor } from "./lane";
 import * as player from "./player";
 
 const TICK_MS = 100;
@@ -23,8 +24,12 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
-/** Loads replay.json (same origin) and plays it back; no other network access. */
+/**
+ * Loads the lane's recording (same origin: replay.json, or replay_llm.json for
+ * `?lane=llm`) and plays it back; no other network access.
+ */
 export function useReplay(): ReplayValue {
+  const [lane, setLaneState] = useState<Lane>(() => laneFromSearch(window.location.search));
   const [file, setFile] = useState<ReplayFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadKey, setLoadKey] = useState(0);
@@ -32,9 +37,38 @@ export function useReplay(): ReplayValue {
   const [decisions, setDecisions] = useState<Record<string, ReplayDecision>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // A lane change is a fresh load of the other recording: nothing carries over
+  const switchLane = useCallback((next: Lane) => {
+    setFile(null);
+    setError(null);
+    setState(player.initialPlayer(prefersReducedMotion()));
+    setDecisions({});
+    setSelectedId(null);
+    setLaneState(next);
+  }, []);
+
+  const setLane = useCallback(
+    (next: Lane) => {
+      if (next === lane) return;
+      const { pathname, search, hash } = window.location;
+      window.history.pushState(null, "", `${pathname}${laneSearch(search, next)}${hash}`);
+      switchLane(next);
+    },
+    [lane, switchLane],
+  );
+
+  useEffect(() => {
+    const onPopState = () => {
+      const next = laneFromSearch(window.location.search);
+      if (next !== lane) switchLane(next);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [lane, switchLane]);
+
   useEffect(() => {
     let cancelled = false;
-    fetch(`${import.meta.env.BASE_URL}replay/replay.json`)
+    fetch(`${import.meta.env.BASE_URL}${replayFileFor(lane)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<unknown>;
@@ -54,7 +88,7 @@ export function useReplay(): ReplayValue {
     return () => {
       cancelled = true;
     };
-  }, [loadKey]);
+  }, [loadKey, lane]);
 
   const offsets = useMemo(() => file?.scenarios.map((s) => s.t_offset_ms) ?? [], [file]);
 
@@ -129,6 +163,8 @@ export function useReplay(): ReplayValue {
         setError(null);
         setLoadKey((k) => k + 1);
       },
+      lane,
+      setLane,
       player: { playing, speed },
       total: offsets.length,
       visible,
@@ -158,6 +194,6 @@ export function useReplay(): ReplayValue {
       reject: (eventId, _reviewer, _comment, reason = null) => decide(eventId, "rejected", reason),
       exportEvents,
     }),
-    [file, error, playing, speed, offsets, visible, events, derived, queue, selected, pinned, decide, exportEvents],
+    [file, error, lane, setLane, playing, speed, offsets, visible, events, derived, queue, selected, pinned, decide, exportEvents],
   );
 }

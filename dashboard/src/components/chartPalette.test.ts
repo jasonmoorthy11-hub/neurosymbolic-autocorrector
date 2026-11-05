@@ -9,11 +9,13 @@ import { deriveMetrics, isReplayFile, toCorrectionEvent } from "../replay/derive
 import analyticsSrc from "./AnalyticsPanel.tsx?raw";
 import eventChartSrc from "./EventChart.tsx?raw";
 import metricsSrc from "./MetricsPanel.tsx?raw";
+import replayControlsSrc from "./ReplayControls.tsx?raw";
 
 const SOURCES: Record<string, string> = {
   "EventChart.tsx": eventChartSrc,
   "AnalyticsPanel.tsx": analyticsSrc,
   "MetricsPanel.tsx": metricsSrc,
+  "ReplayControls.tsx": replayControlsSrc,
 };
 
 const TOKEN = /^var\(--chart-[a-z0-9-]+\)$/;

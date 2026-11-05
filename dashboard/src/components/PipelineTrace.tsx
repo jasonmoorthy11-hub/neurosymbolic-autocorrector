@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Route } from "lucide-react";
 import { useReplayContext } from "../replay/context";
+import { latencyPrefix } from "../replay/lane";
 import type { ReplayEdit, ReplayScenario } from "../types/replay";
 import "./PipelineTrace.css";
 
@@ -168,7 +169,9 @@ export function PipelineTrace() {
             <Step label="8. Latency">
               <p>
                 {s.latency_ms.toFixed(1)} ms{" "}
-                <span className="muted">(offline path; {file?.latency_note ?? "recorded"})</span>
+                <span className="muted">
+                  ({file ? `${latencyPrefix(file.mode)}; ${file.latency_note}` : "recorded"})
+                </span>
               </p>
             </Step>
           </ol>

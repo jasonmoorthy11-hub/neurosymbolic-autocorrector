@@ -311,6 +311,8 @@ export function isReplayFile(value: unknown): value is ReplayFile {
     value.schema_version === 1 &&
     typeof value.recorded_at === "string" &&
     !Number.isNaN(Date.parse(value.recorded_at)) &&
+    typeof value.mode === "string" &&
+    typeof value.latency_note === "string" &&
     Array.isArray(value.scenarios) &&
     value.scenarios.every(isScenario) &&
     Array.isArray(value.rules) &&

@@ -78,6 +78,15 @@ export interface ReplayFile {
   python: string;
   latency_note: string;
   roi_assumptions: { cost_per_violation: number; cost_per_escalation: number };
+  /** Only in the LLM-tier recording (`mode: "llm-recorded"`): the one run's spend. */
+  llm?: {
+    model: string;
+    calls: number;
+    input_tokens: number;
+    output_tokens: number;
+    usd: number;
+    recorded_with_sdk: string;
+  };
   rules: ReplayRule[];
   scenarios: ReplayScenario[];
 }

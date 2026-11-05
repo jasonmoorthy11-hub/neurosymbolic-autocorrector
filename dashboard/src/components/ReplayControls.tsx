@@ -1,16 +1,32 @@
 import { Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 import { useReplayContext } from "../replay/context";
+import { type Lane, laneLabel } from "../replay/lane";
 import type { Speed } from "../replay/player";
 
 const SPEEDS: Speed[] = [1, 2, 4];
+const LANES: Lane[] = ["deterministic", "llm"];
 
 export function ReplayControls() {
-  const { player, visible, total, file, play, pause, step, reset, setSpeed } = useReplayContext();
+  const { player, visible, total, file, lane, setLane, play, pause, step, reset, setSpeed } =
+    useReplayContext();
   const done = total > 0 && visible.length >= total;
   const disabled = !file;
 
   return (
     <div className="demo-controls replay-controls" role="group" aria-label="Replay controls">
+      <div className="lane-switch" role="group" aria-label="Recording">
+        {LANES.map((l) => (
+          <button
+            key={l}
+            type="button"
+            className="btn btn-secondary btn-lane"
+            aria-pressed={lane === l}
+            onClick={() => setLane(l)}
+          >
+            {laneLabel(l)}
+          </button>
+        ))}
+      </div>
       <span className="replay-progress" aria-live="polite">
         {visible.length} / {total} runs
       </span>

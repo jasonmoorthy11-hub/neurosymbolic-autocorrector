@@ -314,7 +314,8 @@
   cursor: not-allowed;
 }
 
-.btn-follow[aria-pressed="true"] {
+.btn-follow[aria-pressed="true"],
+.btn-lane[aria-pressed="true"] {
   background: var(--pressed-bg);
   color: var(--pressed-text);
 }
@@ -329,8 +330,23 @@
 }
 
 /* A pressed button keeps its pressed background on hover (beats the rule above) */
-.btn-follow[aria-pressed="true"]:hover:not(:disabled) {
+.btn-follow[aria-pressed="true"]:hover:not(:disabled),
+.btn-lane[aria-pressed="true"]:hover:not(:disabled) {
   background: var(--pressed-bg);
+}
+
+/* Segmented lane switch: two pressed-state buttons joined into one control */
+.lane-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.lane-switch .btn-lane {
+  padding: 6px 12px;
+  border-radius: 6px;
 }
 
 /* === Scrollbar === */

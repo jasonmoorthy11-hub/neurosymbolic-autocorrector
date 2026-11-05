@@ -9,6 +9,7 @@ import type {
   TrendBucket,
 } from "../types/api";
 import type { ReplayFile, ReplayScenario } from "../types/replay";
+import type { Lane } from "./lane";
 import type { PlayerState, Speed } from "./player";
 
 export interface ReplayValue {
@@ -16,6 +17,9 @@ export interface ReplayValue {
   error: string | null;
   loading: boolean;
   reload: () => void;
+  /** Which recording is playing; switching resets the player and the decisions. */
+  lane: Lane;
+  setLane: (lane: Lane) => void;
   player: Pick<PlayerState, "playing" | "speed">;
   total: number;
   /** Scenarios revealed so far, in replay order. */
