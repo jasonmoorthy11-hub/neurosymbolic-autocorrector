@@ -12,27 +12,13 @@ import {
   LabelList,
 } from "recharts";
 import { AXIS_TICK, LEGEND_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_STYLE, legendText, pieLabel } from "./chartStyle";
+import { ACTION_FILL, VIOLATION_FILL, intentFill } from "./chartPalette";
 import type { DashboardMetrics } from "../types/api";
 import "./EventChart.css";
 
 interface Props {
   metrics: DashboardMetrics | null;
 }
-
-const ACTION_COLORS = {
-  Corrections: "#10b981",
-  Escalations: "#f59e0b",
-  Allowed: "#3b82f6",
-};
-
-const INTENT_COLORS = [
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#06b6d4",
-];
 
 const RULE_NAMES: Record<string, string> = {
   "CREDIT-001": "Credit Limit",
@@ -55,7 +41,7 @@ export function EventChart({ metrics }: Props) {
     );
   }
 
-  const actionData = [
+  const actionData: { name: keyof typeof ACTION_FILL; value: number }[] = [
     { name: "Corrections", value: metrics.corrections_made },
     { name: "Escalations", value: metrics.escalations },
     { name: "Allowed", value: metrics.allowed_through },
@@ -89,10 +75,7 @@ export function EventChart({ metrics }: Props) {
                 label={pieLabel(true)}
               >
                 {actionData.map((entry) => (
-                  <Cell
-                    key={entry.name}
-                    fill={ACTION_COLORS[entry.name as keyof typeof ACTION_COLORS]}
-                  />
+                  <Cell key={entry.name} fill={ACTION_FILL[entry.name]} />
                 ))}
               </Pie>
               <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
@@ -110,7 +93,7 @@ export function EventChart({ metrics }: Props) {
                 <YAxis allowDecimals={false} tick={AXIS_TICK} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
                 <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
-                <Bar dataKey="value" fill="#ef4444" name="Violations" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="value" fill={VIOLATION_FILL} name="Violations" radius={[4, 4, 0, 0]}>
                   <LabelList dataKey="value" position="top" fill="var(--text)" fontSize={12} />
                 </Bar>
               </BarChart>
@@ -131,11 +114,8 @@ export function EventChart({ metrics }: Props) {
                   dataKey="value"
                   label={pieLabel(false)}
                 >
-                  {intentData.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={INTENT_COLORS[i % INTENT_COLORS.length]}
-                    />
+                  {intentData.map((entry) => (
+                    <Cell key={entry.name} fill={intentFill(entry.name)} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />

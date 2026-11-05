@@ -8,6 +8,7 @@ import {
   Legend,
 } from "recharts";
 import { AXIS_TICK, LEGEND_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_STYLE, legendText } from "./chartStyle";
+import { ACTION_FILL } from "./chartPalette";
 import { ErrorAlert } from "./ErrorAlert";
 import type { TrendBucket, AnalyticsSummary } from "../types/api";
 import "./AnalyticsPanel.css";
@@ -117,7 +118,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry, fineT
                 type="monotone"
                 dataKey="corrections"
                 name="Corrections"
-                stroke="#10b981"
+                stroke={ACTION_FILL.Corrections}
                 strokeWidth={2}
                 dot={false}
               />
@@ -125,7 +126,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry, fineT
                 type="monotone"
                 dataKey="escalations"
                 name="Escalations"
-                stroke="#f59e0b"
+                stroke={ACTION_FILL.Escalations}
                 strokeWidth={2}
                 dot={false}
               />
@@ -133,7 +134,7 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry, fineT
                 type="monotone"
                 dataKey="allowed"
                 name="Allowed"
-                stroke="#3b82f6"
+                stroke={ACTION_FILL.Allowed}
                 strokeWidth={2}
                 dot={false}
               />

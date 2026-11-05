@@ -1,4 +1,5 @@
 import type { DashboardMetrics } from "../types/api";
+import { ACTION_FILL, STAT_FILL, VIOLATION_FILL } from "./chartPalette";
 import { ErrorAlert } from "./ErrorAlert";
 import {
   Activity,
@@ -87,37 +88,37 @@ export function MetricsPanel({ metrics, error, loading, onRetry }: Props) {
           icon={<Activity size={20} />}
           label="Total Events"
           value={metrics.total_events}
-          color="#3b82f6"
+          color={STAT_FILL.total}
         />
         <StatCard
           icon={<CheckCircle size={20} />}
           label="Corrections"
           value={metrics.corrections_made}
-          color="#10b981"
+          color={ACTION_FILL.Corrections}
         />
         <StatCard
           icon={<AlertTriangle size={20} />}
           label="Escalations"
           value={metrics.escalations}
-          color="#f59e0b"
+          color={ACTION_FILL.Escalations}
         />
         <StatCard
           icon={<Shield size={20} />}
           label="PII Detected"
           value={metrics.pii_detected}
-          color="#ef4444"
+          color={VIOLATION_FILL}
         />
         <StatCard
           icon={<Eye size={20} />}
           label="Correction Rate"
           value={`${(metrics.correction_rate * 100).toFixed(1)}%`}
-          color="#8b5cf6"
+          color={STAT_FILL.rate}
         />
         <StatCard
           icon={<Clock size={20} />}
           label="Avg Latency"
           value={`${metrics.avg_latency_ms.toFixed(0)}ms`}
-          color="#06b6d4"
+          color={STAT_FILL.latency}
         />
       </div>
     </div>

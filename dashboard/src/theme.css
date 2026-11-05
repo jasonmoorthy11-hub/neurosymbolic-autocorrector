@@ -61,6 +61,24 @@
   --trace-after-bg: #052e16;
   --trace-after-text: #bbf7d0;
   --trace-removed-bg: #1e293b;
+
+  /* Chart fills (src/components/chartPalette.ts). Dark steps validated against
+     --surface #1e293b: all >= 3:1, worst adjacent CVD dE 12.7, normal 20.1.
+     Slot order blue, emerald, violet, amber, pink, lime, cyan, red is shared
+     with the light theme; "other" is a neutral for unmapped series. */
+  --chart-allow: #3b82f6;
+  --chart-correct: #059669;
+  --chart-escalate: #d97706;
+  --chart-violation: #ef4444;
+  --chart-series-1: #3b82f6;
+  --chart-series-2: #059669;
+  --chart-series-3: #8b5cf6;
+  --chart-series-4: #d97706;
+  --chart-series-5: #ec4899;
+  --chart-series-6: #65a30d;
+  --chart-series-7: #0891b2;
+  --chart-series-8: #ef4444;
+  --chart-series-other: #94a3b8;
 }
 
 :root[data-theme="light"] {
@@ -112,4 +130,21 @@
   --trace-after-bg: #dcfce7;
   --trace-after-text: #14532d;
   --trace-removed-bg: #f1f5f9;
+
+  /* Light steps validated against --surface #ffffff: worst adjacent CVD dE 12.7,
+     normal 21.5; emerald, amber and cyan sit below 3:1 (relief: every chart
+     has a legend and direct labels). */
+  --chart-allow: #3b82f6;
+  --chart-correct: #10b981;
+  --chart-escalate: #f59e0b;
+  --chart-violation: #ef4444;
+  --chart-series-1: #3b82f6;
+  --chart-series-2: #10b981;
+  --chart-series-3: #8b5cf6;
+  --chart-series-4: #f59e0b;
+  --chart-series-5: #ec4899;
+  --chart-series-6: #65a30d;
+  --chart-series-7: #06b6d4;
+  --chart-series-8: #ef4444;
+  --chart-series-other: #64748b;
 }
