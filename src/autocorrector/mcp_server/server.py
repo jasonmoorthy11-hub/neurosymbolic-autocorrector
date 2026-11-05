@@ -4,7 +4,8 @@ The core of the system — exposes autocorrection capabilities as MCP tools
 that any AI agent can call to validate and correct its outputs before
 delivering them to end users.
 
-Tools:
+Tools (each runs the PII rail on its text fields first, so no raw PII from the
+agent text is returned or stored; caller-supplied violations are kept verbatim):
     validate_action  - Check an agent's proposed action/output against policy rules
     get_correction   - Get a corrected version of non-compliant output
     log_correction_event - Record a correction event for audit trail
@@ -33,6 +34,8 @@ from starlette.responses import JSONResponse
 from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
+from autocorrector.guardrails.telemetry import build_pii_guard
+from autocorrector.guardrails.validators import detect_pii_types
 from autocorrector.intent_classifier.classifier import IntentClassifier
 from autocorrector.knowledge_graph.claims import apply_fact_corrections
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
@@ -100,6 +103,14 @@ mcp = FastMCP(
 def _get_resources(ctx: Context) -> tuple[KnowledgeGraphStore, IntentClassifier, AuditStore]:
     lifespan = ctx.request_context.lifespan_context
     return lifespan["kg"], lifespan["classifier"], lifespan["audit_store"]
+
+
+def _redact_pii(text: str) -> tuple[str, list[str]]:
+    """Run the PII rail: return the redacted text and the PII types found."""
+    result = build_pii_guard().validate(text)
+    if result.validated_output and result.validated_output != text:
+        return result.validated_output, detect_pii_types(text)
+    return text, []
 
 
 async def _run_validation(
@@ -220,6 +231,9 @@ async def validate_action(
     if ctx:
         await ctx.info(f"Validating agent output ({len(text)} chars)")
 
+    # 0. PII rail: everything downstream sees the redacted text
+    text, pii_types = _redact_pii(text)
+
     # 1. Classify intent
     if action_type:
         try:
@@ -263,6 +277,9 @@ async def validate_action(
         },
         "detected_language": language,
         "reason": "translation-unavailable" if language != "en" else None,
+        "pii_detected": bool(pii_types),
+        "pii_types": pii_types,
+        "redacted_text": text,
     }
 
 
@@ -288,6 +305,9 @@ async def get_correction(
     if ctx:
         await ctx.info("Generating correction...")
 
+    # PII rail first: neither the original nor the correction may carry raw PII
+    text, pii_types = _redact_pii(text)
+
     # Build typed models from input
     try:
         it = IntentType(intent_type)
@@ -310,6 +330,7 @@ async def get_correction(
 
     # Generate correction
     corrected_text = await _generate_correction(text, validation, intent, customer_ctx, kg)
+    # Relative to the redacted original: a PII-only change shows in pii_detected, not here
     was_modified = corrected_text != text
 
     # Build explainability report
@@ -334,6 +355,8 @@ async def get_correction(
         "was_modified": was_modified,
         "confidence": explanation.confidence,
         "explanation": explanation.model_dump(mode="json"),
+        "pii_detected": bool(pii_types),
+        "pii_types": pii_types,
     }
 
 
@@ -367,6 +390,10 @@ async def log_correction_event(
         it = IntentType(intent_type)
     except ValueError:
         it = IntentType.GENERAL
+
+    # The audit row is append-only and served by the dashboard: store redacted text only
+    original_text, _ = _redact_pii(original_text)
+    corrected_text, _ = _redact_pii(corrected_text)
 
     event = CorrectionEvent(
         event_id=str(uuid.uuid4()),

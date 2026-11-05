@@ -401,3 +401,20 @@ class TestPipelineGuardrails:
         )
         assert result.pii_detected is True
         assert "[CARD REDACTED]" in result.corrected_text
+
+
+class TestRedactionTokensRoundTrip:
+    """Redaction is idempotent: a token never matches a pattern a second time."""
+
+    @pytest.mark.parametrize("pii_type", list(validators._PII_PATTERNS))
+    def test_token_survives_guard(self, pii_type):
+        token = validators._PII_PATTERNS[pii_type][1]
+        text = f"Your {token} is on file."
+        assert build_pii_guard().validate(text).validated_output == text
+
+    @pytest.mark.parametrize("pii_type", list(validators._PII_PATTERNS))
+    def test_token_survives_span_mirror(self, pii_type):
+        token = validators._PII_PATTERNS[pii_type][1]
+        text = f"Your {token} is on file."
+        assert find_pii_spans(text) == []
+        assert redact_spans(text, find_pii_spans(text)) == text

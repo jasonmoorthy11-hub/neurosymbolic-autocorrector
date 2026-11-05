@@ -193,3 +193,118 @@ class TestRunValidationLanguageGuard:
         assert result["action"] == "escalate"
         assert result["detected_language"] == "es"
         assert result["reason"] == "translation-unavailable"
+
+
+class TestMcpToolsPiiRail:
+    """Every MCP tool runs the PII rail: no raw PII leaves or is stored."""
+
+    EMAIL_TEXT = (
+        "I'll go ahead and issue you a $75 credit right now; confirm at jane.doe@example.com."
+    )
+
+    @staticmethod
+    def _ctx(audit_store=None):
+        from unittest.mock import AsyncMock
+
+        from autocorrector.intent_classifier.classifier import IntentClassifier
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context = {
+            "kg": KnowledgeGraphStore(),
+            "classifier": IntentClassifier(),
+            "audit_store": audit_store,
+        }
+        ctx.info = AsyncMock()
+        ctx.warning = AsyncMock()
+        return ctx
+
+    async def test_validate_action_redacts_and_reports_pii(self):
+        from autocorrector.mcp_server.server import validate_action
+
+        result = await validate_action(
+            text=self.EMAIL_TEXT, customer_context={"account_tenure_days": 30}, ctx=self._ctx()
+        )
+        assert result["pii_detected"] is True
+        assert result["pii_types"] == ["email"]
+        assert "jane.doe@example.com" not in result["redacted_text"]
+        assert "[EMAIL REDACTED]" in result["redacted_text"]
+        # the policy check still ran on the redacted text
+        assert result["action"] == "correct"
+
+    async def test_validate_action_clean_text_reports_no_pii(self):
+        from autocorrector.mcp_server.server import validate_action
+
+        result = await validate_action(
+            text="I can help with that.", customer_context={}, ctx=self._ctx()
+        )
+        assert result["pii_detected"] is False
+        assert result["pii_types"] == []
+        assert result["redacted_text"] == "I can help with that."
+
+    async def test_get_correction_never_returns_raw_pii(self):
+        from autocorrector.mcp_server.server import get_correction
+
+        violation = {
+            "rule_id": "CREDIT-001",
+            "rule_name": "Credit Authorization Threshold",
+            "description": "Credits >$50 require 90+ days account tenure",
+            "severity": "high",
+        }
+        result = await get_correction(
+            text=self.EMAIL_TEXT,
+            violations=[violation],
+            customer_context={"account_tenure_days": 30},
+            intent_type="financial_compensation",
+            ctx=self._ctx(),
+        )
+        assert "jane.doe@example.com" not in result["original_text"]
+        assert "jane.doe@example.com" not in result["corrected_text"]
+        assert result["pii_detected"] is True
+        assert result["pii_types"] == ["email"]
+        assert result["was_modified"] is True
+
+    async def test_log_correction_event_stores_redacted_text(self, tmp_path):
+        from autocorrector.audit.store import AuditStore
+        from autocorrector.mcp_server.server import log_correction_event
+
+        audit = AuditStore(db_path=str(tmp_path / "mcp_pii.db"))
+        await audit.connect()
+        try:
+            result = await log_correction_event(
+                original_text="Your SSN 123-45-6789 is on file.",
+                corrected_text="Your SSN 123-45-6789 is on file.",
+                was_modified=False,
+                action_taken="allow",
+                ctx=self._ctx(audit),
+            )
+            event = await audit.get_event_by_id(result["event_id"])
+        finally:
+            await audit.close()
+        assert event is not None
+        assert "123-45-6789" not in event.original_text
+        assert "123-45-6789" not in event.corrected_text
+        assert "[SSN REDACTED]" in event.original_text
+
+    async def test_log_correction_event_keeps_redaction_tokens(self, tmp_path):
+        """Text already redacted by validate_action/get_correction is stored byte-identical."""
+        from autocorrector.audit.store import AuditStore
+        from autocorrector.guardrails.validators import _PII_PATTERNS
+        from autocorrector.mcp_server.server import log_correction_event
+
+        redacted = " ".join(token for _, token in _PII_PATTERNS.values())
+        audit = AuditStore(db_path=str(tmp_path / "mcp_tokens.db"))
+        await audit.connect()
+        try:
+            result = await log_correction_event(
+                original_text=redacted,
+                corrected_text=redacted,
+                was_modified=False,
+                action_taken="allow",
+                ctx=self._ctx(audit),
+            )
+            event = await audit.get_event_by_id(result["event_id"])
+        finally:
+            await audit.close()
+        assert event.original_text == redacted
+        assert event.corrected_text == redacted

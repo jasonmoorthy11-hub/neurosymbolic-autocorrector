@@ -179,7 +179,8 @@ _PII_PATTERNS = {
         "[DOB REDACTED]",
     ),
     "passport": (
-        r"\b(?:passport\s*(?:number|no\.?|#)?[:\s]*)[A-Z0-9]{6,9}\b",
+        # The lookahead keeps a redaction token from matching as the number on a second pass
+        r"\b(?:passport\s*(?:number|no\.?|#)?[:\s]*)(?!REDACTED\])[A-Z0-9]{6,9}\b",
         "[PASSPORT REDACTED]",
     ),
     "bank_account": (
@@ -191,7 +192,8 @@ _PII_PATTERNS = {
         "[ROUTING NUMBER REDACTED]",
     ),
     "drivers_license": (
-        r"\b(?:driver'?s?\s*license\s*(?:number|no\.?|#)?|DL\s*#?)[:\s]*[A-Z0-9]{5,15}\b",
+        r"\b(?:driver'?s?\s*license\s*(?:number|no\.?|#)?|DL\s*#?)[:\s]*"
+        r"(?!REDACTED\])[A-Z0-9]{5,15}\b",
         "[DL REDACTED]",
     ),
     "address": (
