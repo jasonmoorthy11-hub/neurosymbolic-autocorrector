@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1205 passing offline; the 14 Neo4j integration tests need a Neo4j server)
+# Tests (1210 passing offline; the 14 Neo4j integration tests need a Neo4j server)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file

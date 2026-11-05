@@ -686,3 +686,98 @@ class TestCiteAll:
 
         cited = _cite_all([{"rule_id": "SLA-001"}, {"rule_id": ""}, {}])
         assert cited["rule_id"] == "SLA-001"
+
+
+def _neo4j_rules_store() -> KnowledgeGraphStore:
+    """A connected store whose rule query serves the seeded RULES (schema.py)."""
+    from autocorrector.knowledge_graph.schema import RULES
+
+    rows = [
+        {
+            "rule_id": r["rule_id"],
+            "name": r["name"],
+            "description": r["description"],
+            "severity": r["severity"],
+            "source_document": r["policy"],
+            "source_section": r["section"],
+            "amount_threshold": r["amount_threshold"],
+            "keywords": r["keywords"],
+            "intent_type": r["intent_type"],
+            # collect() over an OPTIONAL MATCH yields [None] when there are no conditions
+            "conditions": r["conditions"] or [None],
+        }
+        for r in RULES
+    ]
+
+    class _Record:
+        def __init__(self, data):
+            self._data = data
+
+        def data(self):
+            return self._data
+
+    class _Result:
+        """A fresh async iterator per query (the store queries once per text)."""
+
+        def __aiter__(self):
+            async def gen():
+                for row in rows:
+                    yield _Record(row)
+
+            return gen()
+
+    mock_session = AsyncMock()
+    mock_session.run = AsyncMock(side_effect=lambda *a, **k: _Result())
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    store = KnowledgeGraphStore()
+    store._connected = True
+    store._driver = MagicMock()
+    store._driver.session.return_value = mock_session
+    return store
+
+
+class TestNeo4jPolicyParity:
+    """With the full seed, the Neo4j policy path triggers exactly as the in-memory one."""
+
+    @pytest.mark.parametrize(
+        "text, context",
+        [
+            (
+                "I'll do my best to have this resolved within 24 hours, "
+                "but I can't guarantee a specific timeline.",
+                {},
+            ),
+            ("The $200 credit was applied to your account last week.", {"account_tenure_days": 10}),
+            (
+                "Unfortunately a refund is no longer possible since your purchase was 45 days ago.",
+                {"days_since_purchase": 45},
+            ),
+        ],
+    )
+    async def test_exemptions_apply_on_neo4j(self, text, context):
+        store = _neo4j_rules_store()
+        assert await store.check_policy_compliance(text, "general", context) == []
+
+    async def test_word_amounts_count_on_neo4j(self):
+        store = _neo4j_rules_store()
+        violations = await store.check_policy_compliance(
+            "I can offer you a credit of seventy-five dollars.",
+            "financial_compensation",
+            {"account_tenure_days": 30},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-001"]
+
+    async def test_every_golden_case_triggers_the_same_rules(self, connected_kg_store):
+        from autocorrector.evaluation.dataset import GOLDEN_DATASET
+
+        neo4j = _neo4j_rules_store()
+        mismatches = []
+        for case in GOLDEN_DATASET.cases:
+            args = (case.agent_text, "general", case.customer_context)
+            mem = sorted(v.rule_id for v in await connected_kg_store.check_policy_compliance(*args))
+            neo = sorted(v.rule_id for v in await neo4j.check_policy_compliance(*args))
+            if mem != neo:
+                mismatches.append((case.id, mem, neo))
+        assert mismatches == []

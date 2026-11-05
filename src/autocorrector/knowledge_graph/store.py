@@ -264,14 +264,11 @@ class KnowledgeGraphStore:
     async def _check_compliance_neo4j(
         self, text: str, intent_type: str, customer_context: dict[str, Any]
     ) -> list[PolicyViolation]:
-        """Query Neo4j for applicable rules and check compliance.
+        """Query Neo4j for every active rule and check compliance.
 
-        Fetches rules matching the intent type, evaluates amount thresholds
-        and conditions, and returns any violations found.
+        The rules are evaluated by the same code as the in-memory ones, so the
+        two paths trigger identically for the same rule set.
         """
-        violations = []
-        text_lower = text.lower()
-
         async with self._driver.session() as session:
             # Every active rule, with its conditions; as in memory, the classified
             # intent only puts its domain's rules first
@@ -293,55 +290,27 @@ class KnowledgeGraphStore:
             )
             rules = [record.data() async for record in result]
 
-        for rule in rules:
-            # Step 1: Check keyword triggers
-            keywords = rule.get("keywords") or []
-            if not _mentions_keyword(text_lower, keywords):
-                continue
-
-            # Step 2: Check amount threshold
-            amount_threshold = rule.get("amount_threshold")
-            if amount_threshold is not None:
-                amounts = self._offer_amounts(text, keywords, customer_context)
-                amount_exceeded = any(float(a.replace(",", "")) > amount_threshold for a in amounts)
-                if not amount_exceeded:
-                    continue
-
-            # Step 3: Check conditions
-            conditions = [c for c in (rule.get("conditions") or []) if c is not None]
-            if conditions:
-                all_met = True
-                for cond in conditions:
-                    # Missing context defaults to 0, as in the in-memory path (D-213)
-                    actual = customer_context.get(cond["field"])
-                    if actual is None:
-                        actual = 0
-                    op = cond["operator"]
-                    val = cond["value"]
-                    if (
-                        op == "lt"
-                        and not (actual < val)
-                        or op == "gt"
-                        and not (actual > val)
-                        or op == "eq"
-                        and actual != val
-                    ):
-                        all_met = False
-                        break
-                if not all_met:
-                    continue
-
-            violations.append(
-                PolicyViolation(
-                    rule_id=rule["rule_id"],
-                    rule_name=rule["name"],
-                    description=rule["description"],
-                    severity=Severity(rule.get("severity", "medium")),
-                    source_document=rule.get("source_document"),
-                    source_section=rule.get("source_section"),
-                )
-            )
-        return violations
+        # Same shape as the in-memory rules, so one evaluator (with the non-offer,
+        # hedged, bare and word amount handling) serves both paths
+        shaped = [
+            {
+                "rule_id": rule["rule_id"],
+                "rule_name": rule["name"],
+                "description": rule["description"],
+                "severity": rule.get("severity") or "medium",
+                "source_document": rule.get("source_document"),
+                "source_section": rule.get("source_section"),
+                "keywords": list(rule.get("keywords") or []),
+                "conditions": [c for c in (rule.get("conditions") or []) if c is not None],
+                **(
+                    {"amount_threshold": rule["amount_threshold"]}
+                    if rule.get("amount_threshold") is not None
+                    else {}
+                ),
+            }
+            for rule in rules
+        ]
+        return self._violations_for(shaped, text, customer_context)
 
     def _offer_amounts(
         self, text: str, keywords: list[str], customer_context: dict[str, Any]
@@ -462,6 +431,19 @@ class KnowledgeGraphStore:
         3. All conditions are met (e.g., tenure < 90 days)
         If a rule has no conditions, only keyword + amount_threshold are checked.
         """
+        rules = list(self._policy_rules.get(intent_type, []))
+        for domain, domain_rules in self._policy_rules.items():
+            if domain == intent_type:
+                continue
+            for rule in domain_rules:
+                if not any(r["rule_id"] == rule["rule_id"] for r in rules):
+                    rules.append(rule)
+        return self._violations_for(rules, text, customer_context)
+
+    def _violations_for(
+        self, rules: list[dict[str, Any]], text: str, customer_context: dict[str, Any]
+    ) -> list[PolicyViolation]:
+        """Evaluate in-memory-shaped rules against the text (both store paths)."""
         violations = []
         text_lower = text.lower()
 
@@ -470,14 +452,6 @@ class KnowledgeGraphStore:
 
         # Detect hedged/non-guarantee timeline references
         is_hedged = any(re.search(pat, text_lower) for pat in self._NON_GUARANTEE_PATTERNS)
-
-        rules = list(self._policy_rules.get(intent_type, []))
-        for domain, domain_rules in self._policy_rules.items():
-            if domain == intent_type:
-                continue
-            for rule in domain_rules:
-                if not any(r["rule_id"] == rule["rule_id"] for r in rules):
-                    rules.append(rule)
 
         for rule in rules:
             # Step 1: Check keyword triggers
