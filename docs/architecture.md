@@ -29,8 +29,10 @@ as CORRECT even when it leaves through `allow` (for example PII-only redaction).
 
 ## Policy store
 
-`knowledge_graph/store.py` (`KnowledgeGraphStore`) holds the rules and plan facts.
-Without Neo4j, which is the default, both are in memory:
+`knowledge_graph/store.py` (`KnowledgeGraphStore`) holds the rules and plan facts;
+the defaults live in `knowledge_graph/defaults.py`, rule evaluation in `rules.py`,
+fact checking in `facts.py` and the whole-message templates with their citation
+helpers in `templates.py`. Without Neo4j, which is the default, both are in memory:
 
 - 8 rules, grouped by domain: CREDIT-001 and CREDIT-002 (`financial_compensation`),
   ESC-001 (`escalation_request`), REFUND-001 and REFUND-002 (`refund_processing`),

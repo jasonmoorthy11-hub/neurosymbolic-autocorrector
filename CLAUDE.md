@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1221 passing offline; the 14 Neo4j integration tests need a Neo4j server)
+# Tests (1232 passing offline; the 14 Neo4j integration tests need a Neo4j server)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file
@@ -80,7 +80,7 @@ src/autocorrector/
 ├── explainability/    — Correction reasoning engine
 ├── guardrails/        — PII detection, NeMo rails wrapper
 ├── intent_classifier/ — Rule-based intent detection (9 types)
-├── knowledge_graph/   — store.py (KG + LLM corrections), ingestion, retriever, vector search
+├── knowledge_graph/   — store.py (KG + LLM corrections), defaults.py, rules.py, facts.py, templates.py, ingestion, retriever, vector search
 ├── mcp_server/        — server.py (FastMCP tools + resources)
 ├── multilingual/      — Language detection + LLM translation (detector.py, translator.py)
 └── orchestrator/      — pipeline.py (LangGraph graph definition)

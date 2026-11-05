@@ -27,7 +27,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from autocorrector.knowledge_graph.store import CORRECTION_TEMPLATES, KnowledgeGraphStore
+from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+from autocorrector.knowledge_graph.templates import CORRECTION_TEMPLATES
 
 logger = logging.getLogger(__name__)
 

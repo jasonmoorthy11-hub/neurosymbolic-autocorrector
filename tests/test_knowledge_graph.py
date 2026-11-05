@@ -682,9 +682,9 @@ class TestNeo4jPlanWithoutCoverages:
 
 class TestCiteAll:
     def test_empty_rule_ids_are_dropped(self):
-        from autocorrector.knowledge_graph.store import _cite_all
+        from autocorrector.knowledge_graph.templates import cite_all
 
-        cited = _cite_all([{"rule_id": "SLA-001"}, {"rule_id": ""}, {}])
+        cited = cite_all([{"rule_id": "SLA-001"}, {"rule_id": ""}, {}])
         assert cited["rule_id"] == "SLA-001"
 
 
