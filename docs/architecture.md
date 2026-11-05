@@ -15,13 +15,13 @@ and how the replay demo is built. Paths are relative to `src/autocorrector/`.
 | `nemo_input_check` | NeMo Guardrails input rails (jailbreak, topic) | Off by default; not installed or erroring = pass through (fail-open). A block escalates |
 | `classify_intent` | Rule-based classifier (`intent_classifier/classifier.py`), 9 intents, regex patterns plus keyword scores; below the 0.3 floor the intent is `general` | — |
 | `guardrails_check` | PII rail (`guardrails/validators.py`, 10 regex types) through a Guardrails AI guard built with telemetry off (`guardrails/telemetry.py`); matched PII is replaced with tokens and the redacted text is used from here on | — |
-| `validate` | Policy rules and coverage facts from the knowledge-graph store | If the policy check or the fact check raises, it is logged and all of its rules are skipped, so the reply may be allowed (fail-open) |
+| `validate` | Policy rules and coverage facts from the knowledge-graph store | If the policy check or the fact check raises, it is logged, `validation-unavailable` is added to the guardrails applied and the reply is escalated (fail-closed); what the other check found is kept |
 | `correct` | Fact edits at the claimed spans, then the correction tiers | The policy rewrite raises → logged; the text keeps only its fact edits |
 | `allow` / `deliver` | Return the text (translated back if needed) | — |
-| `escalate` | Returns no text: held for a supervisor | — |
+| `escalate` | Returns no text: held for a supervisor; runs the PII rail first if an early exit (a NeMo block) skipped it | — |
 
-Routing after `validate` (`route_after_validation`): translation failed → escalate;
-compliant → allow; any critical violation → escalate; otherwise correct. After
+Routing after `validate` (`route_after_validation`): translation failed or a check
+raised → escalate; compliant → allow; any critical violation → escalate; otherwise correct. After
 `correct`, the corrected text goes back through `validate`, so it can be allowed,
 corrected again or escalated. After `AUTOCORRECTOR_MAX_CORRECTION_ATTEMPTS` rounds
 (default 3) the text is delivered without another check. A changed text is reported
@@ -96,8 +96,7 @@ Escalations carry no edits and no text.
 corrected text, the edits (empty on escalation), the validation (violations, fact
 errors, severity), PII types, intent, detected language, guardrails applied and an
 explanation (`explainability/engine.py`). On escalation nothing is sent; the
-corrected-text field holds the PII-redacted input. The exception is a NeMo block,
-which escalates before the PII rail runs and so returns the raw input. The confidence
+corrected-text field holds the PII-redacted input, also after a NeMo block. The confidence
 is a fixed heuristic: `AUTOCORRECTOR_CORRECTION_CONFIDENCE_SCORE` (0.92) when the
 text changed, otherwise 1.0. It is not a calibrated probability.
 

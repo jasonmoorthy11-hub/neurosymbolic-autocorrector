@@ -22,9 +22,8 @@ confirm a test fails. The numbers come from [evaluation.md](evaluation.md).
   `translation-unavailable`. The MCP `validate_action` tool also escalates
   non-English text. (`7ee1a40`)
 - **Principle:** fail-open is right for an optional safety layer, but a failure that
-  skips the policy check should not end in "allowed". One such path remains open: if
-  the policy or fact check itself raises an exception, its rules are skipped and the
-  reply can be allowed. It is listed in the README's limitations.
+  skips the policy check should not end in "allowed". The last such path, a policy or
+  fact check that raises, now escalates with the tag `validation-unavailable` (v1.1).
 
 ## 2. The demo called an escalation a correction
 

@@ -204,13 +204,9 @@ Known, measured, or found by the held-out run:
 - When the whole-message template takes over (a rule the span tier cannot fix, such
   as an amount written in words), it replaces the entire reply and its single edit
   cites only one rule, even if other rules fired and their sentences were dropped.
-- With NeMo rails on, a NeMo block escalates before the PII rail runs, so the
-  escalated result holds the raw input.
 - PII detection is US-format regex. On the external benchmark, IBAN/BBAN bank
   accounts have 0% recall and addresses 13.7% recall (all languages); phone and
   card precision are about 22%, so bare digit strings get redacted.
-- If the policy check or the fact check raises an exception, all of its rules are
-  skipped and the reply can be allowed (fail-open, logged).
 - The MCP tools skip the PII rail.
 - The dashboard stores the raw agent text (before PII redaction) in the audit store
   and serves it on `/api/events`, `/api/queue` and the WebSocket; the dashboard API

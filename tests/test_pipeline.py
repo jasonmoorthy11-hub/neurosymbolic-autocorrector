@@ -122,6 +122,84 @@ class TestPipelineEscalate:
         assert result.action_taken == CorrectionAction.ESCALATE
 
 
+class TestPipelineFailClosed:
+    """A validation check that raises escalates (human in the loop), never allows."""
+
+    _TEXT = "I'll go ahead and issue you a $75 credit right now."
+    _CTX = {"customer_id": "C-5678", "plan_type": "standard_2024", "account_tenure_days": 30}
+
+    async def _run_with_raising(self, monkeypatch, method: str):
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+
+        async def _boom(self, *args, **kwargs):
+            raise RuntimeError("store down")
+
+        monkeypatch.setattr(KnowledgeGraphStore, method, _boom)
+        return await run_autocorrection(text=self._TEXT, customer_context=self._CTX)
+
+    async def test_policy_check_exception_escalates(self, monkeypatch):
+        result = await self._run_with_raising(monkeypatch, "check_policy_compliance")
+        assert result.action_taken == CorrectionAction.ESCALATE
+        assert result.validation.action == CorrectionAction.ESCALATE
+        assert result.validation.is_compliant is False
+        assert "validation-unavailable" in result.guardrails_applied
+        assert result.edits == []
+        assert result.corrected_text == self._TEXT
+
+    async def test_fact_check_exception_escalates(self, monkeypatch):
+        result = await self._run_with_raising(monkeypatch, "verify_facts")
+        assert result.action_taken == CorrectionAction.ESCALATE
+        assert "validation-unavailable" in result.guardrails_applied
+        assert result.edits == []
+
+    async def test_fact_check_exception_keeps_policy_violations(self, monkeypatch):
+        """The check that did run still reports what it found."""
+        result = await self._run_with_raising(monkeypatch, "verify_facts")
+        assert len(result.validation.violations) > 0
+
+    async def test_revalidation_exception_escalates(self, monkeypatch):
+        """A raise on the second (post-correction) pass still escalates; the
+        reported validation stays the first pass, by design."""
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+
+        original = KnowledgeGraphStore.check_policy_compliance
+        calls = {"n": 0}
+
+        async def _second_call_raises(self, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                raise RuntimeError("store down")
+            return await original(self, *args, **kwargs)
+
+        monkeypatch.setattr(KnowledgeGraphStore, "check_policy_compliance", _second_call_raises)
+        result = await run_autocorrection(text=self._TEXT, customer_context=self._CTX)
+        assert calls["n"] >= 2
+        assert result.action_taken == CorrectionAction.ESCALATE
+        assert result.edits == []
+        assert "validation-unavailable" in result.guardrails_applied
+        assert result.validation.action == CorrectionAction.CORRECT
+
+    async def test_translation_and_validation_failures_both_tagged(self, monkeypatch):
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+
+        async def _boom(self, *args, **kwargs):
+            raise RuntimeError("store down")
+
+        monkeypatch.setattr(KnowledgeGraphStore, "verify_facts", _boom)
+        result = await run_autocorrection(
+            text="Je peux vous offrir un crédit de 200 $ sur votre compte aujourd'hui.",
+            customer_context=self._CTX,
+        )
+        assert result.action_taken == CorrectionAction.ESCALATE
+        assert "translation-unavailable" in result.guardrails_applied
+        assert "validation-unavailable" in result.guardrails_applied
+
+    async def test_healthy_checks_do_not_flag_validation(self):
+        result = await run_autocorrection(text=self._TEXT, customer_context=self._CTX)
+        assert "validation-unavailable" not in result.guardrails_applied
+        assert result.action_taken == CorrectionAction.CORRECT
+
+
 class TestPipelineMetadata:
     """Test pipeline metadata and tracking."""
 

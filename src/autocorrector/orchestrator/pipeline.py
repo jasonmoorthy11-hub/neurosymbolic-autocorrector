@@ -44,6 +44,14 @@ def _max_correction_attempts() -> int:
     return get_settings().max_correction_attempts
 
 
+_SEVERITY_ORDER = {
+    Severity.LOW: 0,
+    Severity.MEDIUM: 1,
+    Severity.HIGH: 2,
+    Severity.CRITICAL: 3,
+}
+
+
 # --- Pipeline State ---
 
 
@@ -165,12 +173,11 @@ def classify_intent_node(state: PipelineState) -> dict[str, Any]:
     return {"intent": intent}
 
 
-def guardrails_check_node(state: PipelineState) -> dict[str, Any]:
-    """Run Guardrails AI safety validators on the text.
+def _redact_pii(state: PipelineState) -> dict[str, Any]:
+    """Run the PII rail on the current text and return the state updates.
 
-    Currently runs PII detection as an input safety rail.
-    If PII is found, the text is redacted before continuing through
-    the pipeline. This prevents PII from reaching the customer.
+    Sets ``pii_detected``, ``pii_types`` and ``guardrails_applied``; when PII is
+    found, ``corrected_text`` and ``redacted_text`` carry the redacted text.
     """
     text = state.get("corrected_text") or state["agent_text"]
     guardrails_applied: list[str] = list(state.get("guardrails_applied", []))
@@ -201,12 +208,26 @@ def guardrails_check_node(state: PipelineState) -> dict[str, Any]:
     return updates
 
 
+def guardrails_check_node(state: PipelineState) -> dict[str, Any]:
+    """Run Guardrails AI safety validators on the text.
+
+    Currently runs PII detection as an input safety rail.
+    If PII is found, the text is redacted before continuing through
+    the pipeline. This prevents PII from reaching the customer.
+    """
+    return _redact_pii(state)
+
+
 async def validate_node(state: PipelineState) -> dict[str, Any]:
     """Validate the text against policy rules and facts."""
     kg = _get_kg_store()
     text = state.get("corrected_text") or state["agent_text"]
     intent = state["intent"]
     customer_ctx = CustomerContext(**state.get("customer_context", {}))
+
+    # A check that raises cannot vouch for the reply: fail closed (escalate,
+    # keep the human in the loop) rather than skip its rules and allow.
+    validation_failed = False
 
     # Run policy compliance check
     try:
@@ -216,8 +237,9 @@ async def validate_node(state: PipelineState) -> dict[str, Any]:
             customer_context=customer_ctx.model_dump(exclude_none=True),
         )
     except Exception:
-        logger.exception("Policy compliance check failed, treating as compliant")
+        logger.exception("Policy compliance check failed; escalating")
         violations = []
+        validation_failed = True
 
     # Run fact verification
     try:
@@ -227,28 +249,31 @@ async def validate_node(state: PipelineState) -> dict[str, Any]:
         )
         fact_errors = [f for f in fact_results if not f.is_accurate]
     except Exception:
-        logger.exception("Fact verification failed, skipping fact checks")
+        logger.exception("Fact verification failed; escalating")
         fact_errors = []
+        validation_failed = True
+
+    max_severity = Severity.LOW
+    for v in violations:
+        if _SEVERITY_ORDER.get(v.severity, 0) > _SEVERITY_ORDER.get(max_severity, 0):
+            max_severity = v.severity
 
     # Determine action
-    if not violations and not fact_errors:
+    if validation_failed:
+        validation = ValidationResult(
+            is_compliant=False,
+            action=CorrectionAction.ESCALATE,
+            violations=violations,
+            fact_errors=fact_errors,
+            severity=max_severity,
+        )
+    elif not violations and not fact_errors:
         validation = ValidationResult(
             is_compliant=True,
             action=CorrectionAction.ALLOW,
             severity=Severity.LOW,
         )
     else:
-        severity_order = {
-            Severity.LOW: 0,
-            Severity.MEDIUM: 1,
-            Severity.HIGH: 2,
-            Severity.CRITICAL: 3,
-        }
-        max_severity = Severity.LOW
-        for v in violations:
-            if severity_order.get(v.severity, 0) > severity_order.get(max_severity, 0):
-                max_severity = v.severity
-
         if max_severity == Severity.CRITICAL:
             action = CorrectionAction.ESCALATE
         elif violations or fact_errors:
@@ -268,6 +293,11 @@ async def validate_node(state: PipelineState) -> dict[str, Any]:
         f"Validation: compliant={validation.is_compliant}, action={validation.action.value}"
     )
     updates: dict[str, Any] = {"validation": validation}
+    if validation_failed:
+        updates["guardrails_applied"] = [
+            *state.get("guardrails_applied", []),
+            "validation-unavailable",
+        ]
     # Save the first validation as initial_validation (don't overwrite on revalidation)
     if "initial_validation" not in state:
         updates["initial_validation"] = validation
@@ -347,9 +377,15 @@ async def allow_node(state: PipelineState) -> dict[str, Any]:
 
 
 def escalate_node(state: PipelineState) -> dict[str, Any]:
-    """Escalate to a supervisor — critical violation."""
+    """Escalate to a supervisor — critical violation.
+
+    An early exit (a NeMo block) reaches here before the PII rail ran; redact
+    first so the escalation payload never carries raw PII.
+    """
+    updates: dict[str, Any] = {} if "pii_detected" in state else _redact_pii(state)
     elapsed = (time.monotonic() - state.get("start_time", 0)) * 1000
     return {
+        **updates,
         "final_text": None,  # Do not send — needs supervisor review
         "action_taken": CorrectionAction.ESCALATE,
         "latency_ms": elapsed,
