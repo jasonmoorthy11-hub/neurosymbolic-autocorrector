@@ -62,7 +62,7 @@ Agent Output → Language Detection → Translate to English → NeMo Input Rail
 
 - **Correct, don't block** — Never break conversation flow. Corrections must be seamless.
 - **4-tier correction fallback** — Neo4j template (connected only) → LLM (key only) → span rewrite of the offending sentences (cited edits) → whole-message template
-- **Fail-open guardrails** — NeMo/Guardrails failures pass through rather than block
+- **Fail-open guardrails, fail-closed validation** — NeMo/Guardrails failures pass through rather than block; a policy or fact check that raises escalates (`validation-unavailable`), never allows
 - **Async everywhere** — All I/O is async (aiosqlite, httpx, Neo4j driver)
 - **Immutable events** — `correction_events` table is append-only; decisions go in separate table
 
