@@ -10,6 +10,8 @@ deterministically without a model; an LLM tier is optional.
 
 **Live demo:** [jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/) — a replay of recorded offline runs, no backend.
 
+![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
+
 > Personal project, sole author; demoed to a prospect in Feb 2026, never in production there; later reused as a review gate in separate client work.
 
 ## What it does
