@@ -18,7 +18,12 @@ from typing import Any
 
 from cachetools import TTLCache
 
-from autocorrector.knowledge_graph.claims import AMOUNT_PATTERN, assign_amounts, sentence_spans
+from autocorrector.knowledge_graph.claims import (
+    AMOUNT_PATTERN,
+    assign_amounts,
+    nearest_plan,
+    sentence_spans,
+)
 from autocorrector.knowledge_graph.rewriter import RewriteResult, rewrite
 from autocorrector.llm_response import (
     SERVER_SIDE_FALLBACK_BETA,
@@ -49,6 +54,18 @@ _COVERAGE_LINK = (
 _COVERAGE_TAIL = re.compile(
     r"\s*(?:(?:per|a|each)\s+(?:calendar\s+)?(?:year|visit|month)|annually|yearly)?\s*[.!]?\s*$"
 )
+
+
+def _plan_key(plan_type: str) -> str:
+    """Fact-store key for a plan given either way ("Standard 2024" or "standard_2024")."""
+    return plan_type.strip().lower().replace(" ", "_")
+
+
+def _mentions_keyword(text_lower: str, keywords: list[str]) -> bool:
+    """True when a keyword occurs at a word start ("sue" never matches "issue")."""
+    return any(re.search(r"\b" + re.escape(kw.lower()), text_lower) for kw in keywords)
+
+
 # Moving money to the customer makes an amount an offer, whatever its value
 _TRANSFER_VERB = re.compile(
     r"\b(?:put|putting|apply|applying|add|adding|give|giving|cover|covering"
@@ -197,19 +214,21 @@ class KnowledgeGraphStore:
         text_lower = text.lower()
 
         async with self._driver.session() as session:
-            # Get rules with their conditions
+            # Every active rule, with its conditions; as in memory, the classified
+            # intent only puts its domain's rules first
             result = await session.run(
                 """
                 MATCH (p:Policy)-[:HAS_RULE]->(r:Rule)
-                WHERE r.intent_type = $intent_type AND r.active = true
+                WHERE r.active = true
                 OPTIONAL MATCH (r)-[:HAS_CONDITION]->(c:Condition)
                 RETURN r.rule_id AS rule_id, r.name AS name, r.description AS description,
                        r.severity AS severity, p.name AS source_document,
                        r.section AS source_section, r.amount_threshold AS amount_threshold,
-                       r.keywords AS keywords,
+                       r.keywords AS keywords, r.intent_type AS intent_type,
                        collect(CASE WHEN c IS NOT NULL
                            THEN {field: c.field, operator: c.operator, value: c.value}
                        END) AS conditions
+                ORDER BY CASE WHEN r.intent_type = $intent_type THEN 0 ELSE 1 END, r.rule_id
                 """,
                 intent_type=intent_type,
             )
@@ -218,8 +237,7 @@ class KnowledgeGraphStore:
         for rule in rules:
             # Step 1: Check keyword triggers
             keywords = rule.get("keywords") or []
-            has_keyword = any(kw in text_lower for kw in keywords)
-            if not has_keyword:
+            if not _mentions_keyword(text_lower, keywords):
                 continue
 
             # Step 2: Check amount threshold
@@ -280,7 +298,7 @@ class KnowledgeGraphStore:
         counts, including "a $600 emergency dental credit" and "...with a
         credit. I'll put $2,500 toward your emergency dental."
         """
-        plan = self._fact_store.get(str(customer_context.get("plan_type", "")).lower(), {})
+        plan = self._fact_store.get(_plan_key(str(customer_context.get("plan_type", ""))), {})
         limits = {cov["category"].lower(): float(cov["limit"]) for cov in plan.get("coverages", [])}
         if not limits:
             return [m.group(1) for m in AMOUNT_PATTERN.finditer(text)]
@@ -291,7 +309,7 @@ class KnowledgeGraphStore:
         statement_sentences = [
             (start, end)
             for start, end in sentence_spans(text)
-            if not any(kw in lower[start:end] for kw in keywords)
+            if not _mentions_keyword(lower[start:end], keywords)
             and not _TRANSFER_VERB.search(text, start, end)
         ]
 
@@ -332,6 +350,8 @@ class KnowledgeGraphStore:
         r"(?:was|were|has been|had been)\s+(?:applied|issued|given|credited)",
         r"(?:if\s+(?:you were|approved|eligible))|(?:could\s+be\s+eligible)",
         r"(?:policy|policies|credits?)\s+(?:allows?|states?|limits?|requires?)",
+        r"(?:refunds?|returns?)\s+(?:are|is)\s+(?:not|no longer)\s+(?:possible|available)",
+        r"(?:not|isn'?t|no longer)\s+(?:possible|eligible)",
     ]
 
     # Patterns indicating hedged/non-guarantee timeline references (skip SLA-001)
@@ -373,6 +393,10 @@ class KnowledgeGraphStore:
     ) -> list[PolicyViolation]:
         """Check compliance against in-memory rule store.
 
+        Every rule is checked by its own triggers; the classified intent only
+        puts its domain's rules first. (Gating rules on the intent dropped real
+        violations whenever the classifier fell back to ``general``.)
+
         A rule triggers only when ALL of these are true:
         1. At least one keyword matches (and text is not a non-offer context for credit rules)
         2. The extracted dollar amount exceeds the amount_threshold (if defined)
@@ -388,20 +412,21 @@ class KnowledgeGraphStore:
         # Detect hedged/non-guarantee timeline references
         is_hedged = any(re.search(pat, text_lower) for pat in self._NON_GUARANTEE_PATTERNS)
 
-        # Check intent-specific rules + universal rules that apply to all intents
         rules = list(self._policy_rules.get(intent_type, []))
-        for universal_rule in self._policy_rules.get("_universal", []):
-            if not any(r["rule_id"] == universal_rule["rule_id"] for r in rules):
-                rules.append(universal_rule)
+        for domain, domain_rules in self._policy_rules.items():
+            if domain == intent_type:
+                continue
+            for rule in domain_rules:
+                if not any(r["rule_id"] == rule["rule_id"] for r in rules):
+                    rules.append(rule)
 
         for rule in rules:
             # Step 1: Check keyword triggers
-            has_keyword = any(kw in text_lower for kw in rule.get("keywords", []))
-            if not has_keyword:
+            if not _mentions_keyword(text_lower, rule.get("keywords", [])):
                 continue
 
-            # Step 1b: Skip credit rules if non-offer context detected
-            if is_non_offer and rule.get("rule_id", "").startswith("CREDIT"):
+            # Step 1b: Skip credit and refund rules if non-offer context detected
+            if is_non_offer and rule.get("rule_id", "").startswith(("CREDIT", "REFUND")):
                 continue
 
             # Step 1c: Skip SLA rules if hedged/non-guarantee language detected
@@ -537,7 +562,10 @@ class KnowledgeGraphStore:
             }
             for cov in coverages
         ]
-        return self._fact_errors(text, facts)
+        # Other plans are not fetched here: a claim attributed to one is left unchecked
+        customer = _plan_key(plan_type)
+        others = {key: None for key in self._fact_store if key != customer}
+        return self._fact_errors(text, facts, plan_type, others)
 
     # Category aliases for flexible fact matching
     _CATEGORY_ALIASES = {
@@ -556,42 +584,86 @@ class KnowledgeGraphStore:
         self, text: str, customer_context: dict[str, Any]
     ) -> list[FactCheckResult]:
         """Verify facts against in-memory fact store."""
-        plan_type = customer_context.get("plan_type", "").lower()
+        plan_type = _plan_key(str(customer_context.get("plan_type", "")))
 
         if not plan_type or plan_type not in self._fact_store:
             return []
 
-        return self._fact_errors(text, self._fact_store[plan_type].get("coverages", []))
+        others = {
+            key: plan.get("coverages", [])
+            for key, plan in self._fact_store.items()
+            if key != plan_type
+        }
+        return self._fact_errors(
+            text, self._fact_store[plan_type].get("coverages", []), plan_type, others
+        )
 
-    def _fact_errors(self, text: str, facts: list[dict[str, Any]]) -> list[FactCheckResult]:
+    def plan_mentions(self) -> dict[str, list[str]]:
+        """Map each known plan key to the phrases that name it ("premium plan")."""
+        mentions = {}
+        for key, plan in self._fact_store.items():
+            name = str(plan.get("plan_name", key)).lower()
+            first = name.split()[0] if name.split() else key
+            mentions[key] = list(dict.fromkeys([key.replace("_", " "), name, f"{first} plan"]))
+        return mentions
+
+    def _fact_errors(
+        self,
+        text: str,
+        facts: list[dict[str, Any]],
+        plan_type: str = "",
+        others: dict[str, list[dict[str, Any]] | None] | None = None,
+    ) -> list[FactCheckResult]:
         """Compare each amount with the limit of the category that claims it.
 
         ``facts`` holds ``category``, ``limit``, ``source_document`` and
-        ``source_page`` per coverage; aliases come from ``_CATEGORY_ALIASES``.
+        ``source_page`` per coverage of the customer's plan (``plan_type``);
+        aliases come from ``_CATEGORY_ALIASES``. An amount whose sentence
+        names another plan is checked against that plan's entry in ``others``
+        (a plan mapped to ``None`` has no coverages here, so its claims are
+        left alone): "The Premium plan covers up to $5,000, while your Standard
+        plan covers up to $2,500" checks each amount against its own plan.
         """
-        by_category = {fact["category"].lower(): fact for fact in facts}
+        customer = _plan_key(plan_type)
+        by_plan: dict[str, dict[str, dict[str, Any]] | None] = {
+            customer: {fact["category"].lower(): fact for fact in facts}
+        }
+        for key, plan_facts in (others or {}).items():
+            by_plan[_plan_key(key)] = (
+                None
+                if plan_facts is None
+                else {fact["category"].lower(): fact for fact in plan_facts}
+            )
+        categories = {cat for by_category in by_plan.values() if by_category for cat in by_category}
         claims = assign_amounts(
-            text,
-            {cat: [cat, *self._CATEGORY_ALIASES.get(cat, [])] for cat in by_category},
+            text, {cat: [cat, *self._CATEGORY_ALIASES.get(cat, [])] for cat in categories}
         )
+        plan_mentions = {key: self.plan_mentions().get(key, []) for key in by_plan}
+        # "your plan" is the customer's, whatever it is called
+        plan_mentions[customer] = [*plan_mentions.get(customer, []), "your plan", "your coverage"]
         results = []
         for cat, matches in claims.items():
-            fact = by_category[cat]
-            limit = float(fact["limit"])
-            results.extend(
-                FactCheckResult(
-                    claim=match.group(0),
-                    is_accurate=False,
-                    correct_value=f"${limit:,.0f}",
-                    source_document=fact.get("source_document"),
-                    source_page=fact.get("source_page"),
-                    confidence=0.99,
-                    claim_start=match.start(),
-                    claim_end=match.end(),
+            for match in matches:
+                plan = nearest_plan(text, match, plan_mentions) or customer
+                by_category = by_plan.get(plan)
+                fact = (by_category or {}).get(cat)
+                if fact is None:
+                    continue
+                limit = float(fact["limit"])
+                if float(match.group(1).replace(",", "")) == limit:
+                    continue
+                results.append(
+                    FactCheckResult(
+                        claim=match.group(0),
+                        is_accurate=False,
+                        correct_value=f"${limit:,.0f}",
+                        source_document=fact.get("source_document"),
+                        source_page=fact.get("source_page"),
+                        confidence=0.99,
+                        claim_start=match.start(),
+                        claim_end=match.end(),
+                    )
                 )
-                for match in matches
-                if float(match.group(1).replace(",", "")) != limit
-            )
         return sorted(results, key=lambda r: r.claim_start or 0)
 
     # --- Correction Generation ---
@@ -970,6 +1042,7 @@ class KnowledgeGraphStore:
                         "lawsuit",
                         "litigation",
                         "regulatory",
+                        "regulator",
                         "sue",
                     ],
                     "conditions": [],
@@ -983,7 +1056,17 @@ class KnowledgeGraphStore:
                     "severity": "high",
                     "source_document": "Refund_Policy_2024_v2.1",
                     "source_section": "Section 2.1",
-                    "keywords": ["refund", "money back", "return"],
+                    # Granting language only: a bare "return" also means a call or a result
+                    "keywords": [
+                        "refund",
+                        "money back",
+                        "accept the return",
+                        "accept your return",
+                        "accept a return",
+                        "process the return",
+                        "process your return",
+                        "process a return",
+                    ],
                     "conditions": [{"field": "days_since_purchase", "operator": "gt", "value": 30}],
                 },
                 {
@@ -993,10 +1076,14 @@ class KnowledgeGraphStore:
                     "severity": "critical",
                     "source_document": "Refund_Policy_2024_v2.1",
                     "source_section": "Section 3.1",
+                    # "override" alone also describes settings and systems
                     "keywords": [
                         "make an exception",
                         "policy exception",
-                        "override",
+                        "override the policy",
+                        "override our policy",
+                        "override policy",
+                        "policy override",
                         "outside the window",
                         "outside the 30",
                     ],

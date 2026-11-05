@@ -172,7 +172,10 @@ _PII_PATTERNS = {
         "[EMAIL REDACTED]",
     ),
     "date_of_birth": (
-        r"\b(?:DOB|date of birth|born on)[:\s]*\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b",
+        # The date may trail its cue by a few words ("date of birth you gave us, 04/17/1986")
+        # but not cross into the next sentence
+        r"\b(?:DOB|date of birth|birth ?date|born on)\b[^\d\n.;!?]{0,40}?"
+        r"\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b",
         "[DOB REDACTED]",
     ),
     "passport": (

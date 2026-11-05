@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1128 passing offline; the 14 Neo4j integration tests need a Neo4j server)
+# Tests (1140 passing offline; the 14 Neo4j integration tests need a Neo4j server)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file
@@ -14,7 +14,7 @@ python3 -m pytest -k "test_name" -v                          # single test
 # Demo (15 scenarios: 10 step-by-step + 5 full pipeline)
 python3 scripts/demo.py
 
-# Evaluation (410-case golden dataset v3.2, in-sample)
+# Evaluation (421-case golden dataset v3.3, in-sample)
 python3 scripts/evaluate.py
 python3 scripts/evaluate.py --llm-judge              # with LLM quality scoring
 python3 scripts/evaluate.py --category true_positive  # filter by category

@@ -172,6 +172,41 @@ def assign_amounts(
     return {cat: sorted(found, key=lambda m: m.start()) for cat, found in claims.items()}
 
 
+def nearest_plan(
+    text: str, amount: re.Match[str], plans: Mapping[str, Iterable[str]]
+) -> str | None:
+    """The plan whose mention sits nearest to ``amount`` in its sentence, if any.
+
+    ``plans`` maps a plan key to the phrases that name it ("premium plan").
+    A mention claims an amount only when the gap between them crosses no
+    connector word or comma ("The Premium plan covers up to $5,000, while
+    your plan covers up to $2,500" leaves $2,500 to whatever "your plan"
+    maps to); among those, the shorter gap wins, then a mention before the
+    amount. No such mention means ``None``: the amount is about whichever
+    plan the conversation is already about.
+    """
+    lower = text.lower()
+    s_start, s_end = next(
+        ((s, e) for s, e in sentence_spans(text) if s <= amount.start() < e),
+        (0, len(text)),
+    )
+    gaps = _GapIndex(text)
+    best: tuple[tuple, str] | None = None
+    for key, variants in plans.items():
+        for variant in variants:
+            pattern = re.compile(r"\b" + re.escape(variant.lower()))
+            for m in pattern.finditer(lower, s_start, s_end):
+                if m.start() < amount.end() and m.end() > amount.start():
+                    continue
+                crosses_connector, crosses_comma, *_ = gaps.rank((m.start(), m.end(), key), amount)
+                if crosses_connector or crosses_comma:
+                    continue
+                rank = (gaps.rank((m.start(), m.end(), key), amount), key)
+                if best is None or rank < best:
+                    best = rank
+    return best[1] if best else None
+
+
 class _GapIndex:
     """Answers "does text[lo:hi] contain a connector word / a comma?" by bisection."""
 
@@ -227,13 +262,19 @@ def _typed_elsewhere(
 ) -> bool:
     """True when a money word types the amount as something other than this category.
 
-    "a $45 copay" next to a dental mention is typed elsewhere. The word does
+    "a $45 copay" next to a dental mention is typed elsewhere, and so is an
+    amount before a mention that a money word follows ("a $700 emergency
+    room credit", "$650 toward your emergency dental bill"). The word does
     not count when the mention names it ("specialist copay is $60"), or when
     it is a spend word right after the mention followed by limit language
     ("emergency dental charges of up to $5,000"). "Your emergency room bill
     was $1,200" stays typed: it is a bill, not the limit.
     """
     typed = _money_noun(text, amount)
+    if typed is None and amount.end() <= m_start:
+        after = _TYPED_AFTER.match(text, m_end)
+        if after:
+            typed = after.group(1).lower(), after.start(1), after.end(1)
     if typed is None:
         return False
     noun, noun_start, noun_end = typed

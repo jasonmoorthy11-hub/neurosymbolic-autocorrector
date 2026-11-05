@@ -32,10 +32,12 @@ as CORRECT even when it leaves through `allow` (for example PII-only redaction).
 `knowledge_graph/store.py` (`KnowledgeGraphStore`) holds the rules and plan facts.
 Without Neo4j, which is the default, both are in memory:
 
-- 8 rules. Domain rules: CREDIT-001 and CREDIT-002 (`financial_compensation`),
-  ESC-001 (`escalation_request`), REFUND-001 and REFUND-002 (`refund_processing`).
-  Universal rules, checked for every intent: PROMISE-001, SLA-001, DISC-001. Each
-  rule carries a severity, keywords, conditions on the customer context (for example
+- 8 rules, grouped by domain: CREDIT-001 and CREDIT-002 (`financial_compensation`),
+  ESC-001 (`escalation_request`), REFUND-001 and REFUND-002 (`refund_processing`),
+  and the universal PROMISE-001, SLA-001, DISC-001. Every rule is checked on every
+  reply by its own triggers; the classified intent only puts its domain's rules
+  first. Keywords match at a word start ("sue" does not match "issue"). Each rule
+  carries a severity, keywords, conditions on the customer context (for example
   account tenure) and its source document and section. A missing context field
   counts as 0.
 - Coverage facts for two plans (Standard 2024, Premium 2024), each limit with its
@@ -55,10 +57,12 @@ is treated as money being offered.
 
 With Neo4j connected (`AUTOCORRECTOR_NEO4J_*`, `scripts/seed_neo4j.py`), rules,
 facts and correction templates are read with parameterized Cypher. The seed
-(`knowledge_graph/schema.py`) has only CREDIT-001, CREDIT-002 and REFUND-001, and the
-rule query matches on intent, so the universal rules, ESC-001 and REFUND-002 are not
-checked on the Neo4j path. The span tier and the coverage exemption still use the
-in-memory rules and facts.
+(`knowledge_graph/schema.py`) has only CREDIT-001, CREDIT-002 and REFUND-001, so the
+universal rules, ESC-001 and REFUND-002 are not checked on the Neo4j path (the rule
+query reads every active rule; it no longer filters by intent). Fact checks there
+fetch only the customer's plan, so an amount attributed to another plan is left
+unchecked. The span tier and the coverage exemption still use the in-memory rules
+and facts.
 
 ## Correction tiers
 
@@ -152,7 +156,7 @@ The React app in `dashboard/` builds in one of two modes (`VITE_REPLAY`):
 
 ## Evaluation
 
-`evaluation/`: `dataset.py` (410 golden cases, in-sample), `heldout.py` (60 blind
+`evaluation/`: `dataset.py` (421 golden cases, in-sample), `heldout.py` (60 blind
 cases, run once), `scorer.py` (action accuracy, precision/recall, F0.5, secondary
 checks, 95% Wilson intervals, latency percentiles), `runner.py`, `registry.py`
 (`--dataset golden|heldout`), `llm_judge.py` (optional, needs a key).

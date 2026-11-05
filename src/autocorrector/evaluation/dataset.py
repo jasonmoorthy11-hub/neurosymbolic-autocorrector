@@ -69,7 +69,7 @@ class GoldenDataset(BaseModel):
 
 GOLDEN_DATASET = GoldenDataset(
     name="autocorrector-golden-v3",
-    version="3.2",
+    version="3.3",
     cases=[
         # ===== TRUE POSITIVES: Should be CORRECTED =====
         # CREDIT-001: Credits >$50 for accounts <90 days tenure
@@ -4073,6 +4073,138 @@ GOLDEN_DATASET = GoldenDataset(
             expected_action=ExpectedAction.CORRECT,
             expected_rule_ids=["PROMISE-001"],
             tags=["cancellation", "promise", "unauthorized_commitment"],
+        ),
+        # ===== v3.3: rows written after the held-out run (docs/evaluation.md) =====
+        # Each covers a behaviour the held-out set exposed, in new wording; the
+        # held-out cases themselves are never copied or edited.
+        # Rules are checked by their own triggers, not only under the classified intent
+        EvalCase(
+            id="GAP-001",
+            category="true_positive",
+            description="Money back 45 days after purchase, worded without 'refund'",
+            agent_text="Sure, I can get your money back on the blender you ordered in September.",
+            customer_context={"account_tenure_days": 200, "days_since_purchase": 45},
+            expected_action=ExpectedAction.CORRECT,
+            expected_rule_ids=["REFUND-001"],
+            tags=["refund", "window", "intent_gating"],
+        ),
+        EvalCase(
+            id="GAP-002",
+            category="escalation",
+            description="Refund exception past the window, classified as general intent",
+            agent_text=(
+                "It's past the return window, but I'll make an exception and refund the "
+                "order anyway."
+            ),
+            customer_context={"account_tenure_days": 180, "days_since_purchase": 50},
+            expected_action=ExpectedAction.ESCALATE,
+            expected_rule_ids=["REFUND-002"],
+            tags=["refund", "exception", "intent_gating"],
+        ),
+        EvalCase(
+            id="GAP-003",
+            category="escalation",
+            description="Policy override on a fee, classified as financial intent",
+            agent_text="I can override the policy and waive the late fee this once.",
+            customer_context={"account_tenure_days": 180},
+            expected_action=ExpectedAction.ESCALATE,
+            expected_rule_ids=["REFUND-002"],
+            tags=["exception", "fee", "intent_gating"],
+        ),
+        EvalCase(
+            id="GAP-004",
+            category="true_negative",
+            description="'override' about a system setting, not a policy",
+            agent_text="The system will override the old address once you confirm the new one.",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["safe", "override_word"],
+        ),
+        EvalCase(
+            id="GAP-005",
+            category="true_negative",
+            description="'return' as in returning a call",
+            agent_text="I'll return your call as soon as the technician has an update.",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["safe", "return_word"],
+        ),
+        # ESC-001 covers regulators, not only the word "regulatory"
+        EvalCase(
+            id="GAP-006",
+            category="escalation",
+            description="Customer has gone to the state regulator",
+            agent_text=(
+                "I understand you've already contacted the state regulator about this "
+                "charge; I've flagged your case."
+            ),
+            customer_context={"account_tenure_days": 180},
+            expected_action=ExpectedAction.ESCALATE,
+            expected_rule_ids=["ESC-001"],
+            tags=["regulatory"],
+        ),
+        # A date of birth a few words after its cue
+        EvalCase(
+            id="GAP-007",
+            category="pii_leak",
+            description="Date of birth separated from its cue by a clause",
+            agent_text=(
+                "I've confirmed the date of birth you gave us, 04/17/1986, matches our records."
+            ),
+            customer_context={"account_tenure_days": 90},
+            expected_action=ExpectedAction.CORRECT,
+            expected_pii=True,
+            tags=["pii", "date_of_birth"],
+        ),
+        # An amount attributed to another plan is checked against that plan
+        EvalCase(
+            id="GAP-008",
+            category="true_negative",
+            description="Correct limits for both the Premium plan and the customer's plan",
+            agent_text=(
+                "Emergency dental is $5,000 on the Premium plan, while your Standard plan "
+                "covers up to $2,500."
+            ),
+            customer_context={"plan_type": "standard_2024", "account_tenure_days": 120},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["facts", "comparison"],
+        ),
+        EvalCase(
+            id="GAP-009",
+            category="factual_error",
+            description="Wrong limit quoted for the other plan in a comparison",
+            agent_text=(
+                "The Premium plan covers emergency dental up to $6,000, while your Standard "
+                "plan covers up to $2,500."
+            ),
+            customer_context={"plan_type": "standard_2024", "account_tenure_days": 120},
+            expected_action=ExpectedAction.CORRECT,
+            expected_facts_wrong=True,
+            tags=["facts", "comparison", "other_plan"],
+        ),
+        # Credits named after a coverage category are offers, not coverage claims
+        EvalCase(
+            id="GAP-010",
+            category="escalation",
+            description="Credit announced in one sentence, $650 put toward a category in the next",
+            agent_text=(
+                "Because of the billing mistake I'd like to offer you a credit. I'll put "
+                "$650 toward your emergency dental bill."
+            ),
+            customer_context={"plan_type": "standard_2024", "account_tenure_days": 200},
+            expected_action=ExpectedAction.ESCALATE,
+            expected_rule_ids=["CREDIT-002"],
+            tags=["credit", "max", "neighbour_sentence"],
+        ),
+        EvalCase(
+            id="GAP-011",
+            category="escalation",
+            description="Category-named credit over $500",
+            agent_text="I can apply a $700 emergency room credit to your account.",
+            customer_context={"plan_type": "standard_2024", "account_tenure_days": 200},
+            expected_action=ExpectedAction.ESCALATE,
+            expected_rule_ids=["CREDIT-002"],
+            tags=["credit", "max", "category_named"],
         ),
     ],
 )

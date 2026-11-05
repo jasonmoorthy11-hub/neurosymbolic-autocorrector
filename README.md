@@ -106,7 +106,7 @@ Three numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 410 cases | Self-authored, **in-sample**: written alongside the code and used during development | 410/410 actions correct (99.1–100.0) |
+| Golden, 421 cases | Self-authored, **in-sample**: written alongside the code and used during development; 11 rows added after the held-out run | 421/421 actions correct (99.1–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -122,7 +122,7 @@ python3 scripts/evaluate.py --dataset heldout   # already run once (results abov
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
 ```
 
-**Latency:** p50 11.7 ms, p95 13.7 ms per reply over the 410 golden cases (Apple M5,
+**Latency:** p50 11.8 ms, p95 14.1 ms per reply over the 421 golden cases (Apple M5,
 macOS 26.6.2, Python 3.14.7, in-memory store, offline; second of two consecutive
 runs). The first case includes loading the language-detection model and falls above
 p95.
@@ -184,18 +184,18 @@ PII rail or translate: non-English text always escalates there.
 
 Known, measured, or found by the held-out run:
 
-- **Credit, refund and escalation rules are checked only for the classified
-  intent's domain** (the promise, SLA and disclosure rules run for every intent),
-  and the keyword intent score is diluted by the length of the keyword list. One
-  refund keyword of 7 falls under the confidence floor, the intent becomes
-  `general`, and the refund rules are never checked (held-out HO-TP-06, HO-ESC-07).
-  This is the most serious gap.
-- ESC-001's keywords include "regulatory" but not "regulator".
-- The date-of-birth pattern needs the date right after the cue: "date of birth as
-  04/17/1986" is missed.
-- Fact checks attribute every coverage limit to the customer's own plan, so a
-  correct comparison with another plan is flagged and rewritten into a false
-  statement (HO-TRICK-05).
+- Fixed after the held-out run, with new golden rows (GAP-001 to GAP-011) rather
+  than by re-scoring the held-out set: rules were checked only under the classified
+  intent (one refund keyword fell under the classifier's floor, the intent became
+  `general`, and the refund rules never ran), so every rule now runs on its own
+  triggers and keywords match at word starts; ESC-001 knows "regulator"; the
+  date-of-birth pattern tolerates a few words after its cue; a limit quoted for
+  another plan is checked against that plan instead of the customer's. The
+  held-out numbers above are from the first run and stay as reported; a new
+  accuracy claim needs a new blind set.
+- The keyword intent score is still diluted by the length of the keyword list, so
+  the classifier often answers `general`; the rules no longer depend on it, but the
+  intent shown in traces and used for ACE strategies does.
 - A coverage figure in the same sentence as a credit counts as an offer amount and
   escalates. This is deliberate (fail-closed), but it escalates some correct replies.
 - A credit amount next to a coverage category ("a $600 emergency dental credit") is
@@ -216,9 +216,10 @@ Known, measured, or found by the held-out run:
   and serves it on `/api/events`, `/api/queue` and the WebSocket; the dashboard API
   key protects only approve/reject, export and demo endpoints. The replay demo uses
   fake PII only.
-- The Neo4j seed (`scripts/seed_neo4j.py`) has 3 of the 8 rules, and the Neo4j query
-  matches rules by intent, so with Neo4j connected the universal rules, ESC-001 and
-  REFUND-002 are not checked.
+- The Neo4j seed (`scripts/seed_neo4j.py`) has 3 of the 8 rules, so with Neo4j
+  connected the universal rules, ESC-001 and REFUND-002 are not checked; fact
+  checks there fetch only the customer's plan, so another plan's limit in a
+  comparison is left unchecked rather than verified.
 - The fact-claim heuristic misses some phrasings, for example a follow-up sentence
   such as "It covers $5,000." or "Coverage is capped at $5,000.", "I'll check if
   emergency dental covers $5,000.", "After your deductible dental coverage pays

@@ -4,7 +4,7 @@ Three numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 410 cases | Self-authored, **in-sample**: written alongside the code and used during development | 410/410 actions correct (99.1–100.0) |
+| Golden, 421 cases | Self-authored, **in-sample**: written alongside the code and used during development; 11 rows (GAP-001 to GAP-011) added after the held-out run | 421/421 actions correct (99.1–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -42,16 +42,21 @@ python3 scripts/evaluate.py --json             # machine-readable, includes inte
 Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
 
 ```
-  Accuracy:     100.0%  (410/410, 95% CI 99.1-100.0)
-  Precision:    100.0%  (202/202, 95% CI 98.1-100.0)
-  Recall:       100.0%  (202/202, 95% CI 98.1-100.0)
+  Accuracy:     100.0%  (421/421, 95% CI 99.1-100.0)
+  Precision:    100.0%  (210/210, 95% CI 98.2-100.0)
+  Recall:       100.0%  (210/210, 95% CI 98.2-100.0)
   F0.5:         1.000
-  PII Precision: 100.0%  (59/59, 95% CI 93.9-100.0)
-  PII Recall:    100.0%  (59/59, 95% CI 93.9-100.0)
-  PII flag agrees:      100.0%  (410/410, 95% CI 99.1-100.0)
-  Fact flag agrees:     100.0%  (410/410, 95% CI 99.1-100.0)
-  Expected rules found: 100.0%  (119/119, 95% CI 96.9-100.0)
+  PII Precision: 100.0%  (60/60, 95% CI 94.0-100.0)
+  PII Recall:    100.0%  (60/60, 95% CI 94.0-100.0)
+  PII flag agrees:      100.0%  (421/421, 95% CI 99.1-100.0)
+  Fact flag agrees:     100.0%  (421/421, 95% CI 99.1-100.0)
+  Expected rules found: 100.0%  (125/125, 95% CI 97.0-100.0)
 ```
+
+Dataset v3.3 (2026-11-04) adds GAP-001 to GAP-011, new wording for the behaviours
+the held-out run exposed (rules gated on the classified intent, "regulator", a date
+of birth a few words after its cue, another plan's limit in a comparison, a credit
+named after a coverage category). The held-out cases were not copied or edited.
 
 ## Held-out set
 
