@@ -19,3 +19,6 @@ node_modules/
 
 # Local Claude Code permissions (per-machine)
 .claude/settings.local.json
+
+# Local-only working files (plans, QA screenshots); never part of the repo
+.private/
