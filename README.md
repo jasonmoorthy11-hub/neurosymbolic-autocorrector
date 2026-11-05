@@ -8,7 +8,7 @@ allow, correct or escalate, and on the default offline path policy and fact fixe
 are recorded as edits that cite their rule and source. The whole path runs
 deterministically without a model; an LLM tier is optional.
 
-**Live demo:** coming soon (replay of recorded offline runs).
+**Live demo:** [jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/) — a replay of recorded offline runs, no backend.
 
 > Personal project, sole author; demoed to a prospect in Feb 2026, never in production there; later reused as a review gate in separate client work.
 
