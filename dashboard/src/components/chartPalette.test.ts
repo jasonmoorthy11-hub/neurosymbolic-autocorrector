@@ -7,6 +7,7 @@ import { ACTION_FILL, INTENT_SLOTS, STAT_FILL, VIOLATION_FILL, intentFill } from
 import recorded from "../../public/replay/replay.json";
 import { deriveMetrics, isReplayFile, toCorrectionEvent } from "../replay/derive";
 import analyticsSrc from "./AnalyticsPanel.tsx?raw";
+import demoControlsSrc from "./DemoControls.tsx?raw";
 import eventChartSrc from "./EventChart.tsx?raw";
 import metricsSrc from "./MetricsPanel.tsx?raw";
 import replayControlsSrc from "./ReplayControls.tsx?raw";
@@ -16,6 +17,7 @@ const SOURCES: Record<string, string> = {
   "AnalyticsPanel.tsx": analyticsSrc,
   "MetricsPanel.tsx": metricsSrc,
   "ReplayControls.tsx": replayControlsSrc,
+  "DemoControls.tsx": demoControlsSrc,
 };
 
 const TOKEN = /^var\(--chart-[a-z0-9-]+\)$/;

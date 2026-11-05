@@ -32,7 +32,7 @@ export function DemoControls({ connected }: Props) {
       <div className="connection-status">
         <span
           className={`status-dot ${connected ? 'status-connected' : 'status-disconnected'}`}
-          style={{ backgroundColor: connected ? "#10b981" : "#ef4444" }}
+          style={{ backgroundColor: connected ? "var(--ok-strong-text)" : "var(--danger-text)" }}
         />
         {connected ? "Connected" : "Disconnected"}
       </div>
