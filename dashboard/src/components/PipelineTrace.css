@@ -72,11 +72,14 @@
   padding-left: 12px;
 }
 
-.trace-step h3 {
+/* Component files bundle before App.css, so these outrank App.css's
+   ".panel h3" / "… p" rules by specificity instead of by order
+   (stylesheets.test.ts guards this). */
+.trace-steps .trace-step h3 {
   margin-bottom: 4px;
 }
 
-.trace-step-body p {
+.trace-step .trace-step-body p {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
