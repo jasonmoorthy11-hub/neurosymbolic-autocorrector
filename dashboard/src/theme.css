@@ -1,0 +1,115 @@
+/* === Theme tokens ===
+   Dark is the default; data-theme on <html> is set before first paint by the
+   script in index.html and kept in sync by src/theme/useTheme.ts.
+   Text/background pairs keep >= 4.5:1 in both themes (WCAG 1.4.3). */
+:root {
+  color-scheme: dark;
+
+  --bg-page: #0f172a;
+  --bg-inset: #0f172a;
+  --surface: #1e293b;
+  --border: #334155;
+  --border-strong: #475569;
+
+  --text: #e2e8f0;
+  --text-strong: #f1f5f9;
+  --text-soft: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  --btn-neutral-bg: #334155;
+  --btn-neutral-hover: #475569;
+  --btn-neutral-text: #f1f5f9;
+  --pressed-bg: #0369a1;
+  --pressed-text: #f1f5f9;
+
+  --focus: #3b82f6;
+  --accent-text: #3b82f6;
+  --accent-strong-bg: #1d4ed8;
+
+  --danger-bg: #7f1d1d;
+  --danger-hover: #8f1d1d; /* was #991b1b: 4.38:1 with --danger-text */
+  --danger-text: #fca5a5;
+  --high-bg: #7c2d12;
+  --high-text: #fdba74;
+  --warn-bg: #78350f;
+  --warn-text: #fde68a;
+  --ok-bg: #064e3b;
+  --ok-hover: #065f46;
+  --ok-text: #6ee7b7;
+  --ok-strong-text: #10b981;
+  --intent-text: #93c5fd;
+
+  --action-allow-text: #6ee7b7;
+  --action-correct-text: #fcd34d;
+  --action-escalate-text: #fca5a5;
+
+  /* Action badges in the live feed: light pills that read well on both themes */
+  --badge-allow-bg: #dcfce7;
+  --badge-allow-text: #166534;
+  --badge-correct-bg: #fef3c7;
+  --badge-correct-text: #92400e;
+  --badge-escalate-bg: #fee2e2;
+  --badge-escalate-text: #991b1b;
+
+  --banner-bg: #1e3a5f;
+  --banner-text: #e0f2fe;
+  --banner-link: #bae6fd;
+  --selected-outline: #38bdf8;
+  --trace-id-text: #bae6fd;
+  --trace-before-bg: #450a0a;
+  --trace-before-text: #fecaca;
+  --trace-after-bg: #052e16;
+  --trace-after-text: #bbf7d0;
+  --trace-removed-bg: #1e293b;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-page: #f1f5f9;
+  --bg-inset: #f8fafc;
+  --surface: #ffffff;
+  --border: #cbd5e1;
+  --border-strong: #94a3b8;
+
+  --text: #1e293b;
+  --text-strong: #0f172a;
+  --text-soft: #334155;
+  --text-muted: #475569;
+
+  --btn-neutral-bg: #e2e8f0;
+  --btn-neutral-hover: #cbd5e1;
+  --btn-neutral-text: #0f172a;
+
+  --focus: #2563eb;
+  --accent-text: #1d4ed8;
+  --pressed-text: #ffffff;
+
+  --danger-bg: #fee2e2;
+  --danger-hover: #fecaca;
+  --danger-text: #991b1b;
+  --high-bg: #ffedd5;
+  --high-text: #9a3412;
+  --warn-bg: #fef3c7;
+  --warn-text: #92400e;
+  --ok-bg: #d1fae5;
+  --ok-hover: #a7f3d0;
+  --ok-text: #065f46;
+  --ok-strong-text: #047857;
+  --intent-text: #1e40af;
+
+  --action-allow-text: #047857;
+  --action-correct-text: #92400e;
+  --action-escalate-text: #b91c1c;
+
+  --banner-bg: #dbeafe;
+  --banner-text: #1e3a8a;
+  --banner-link: #1d4ed8;
+  --selected-outline: #0284c7;
+  --trace-id-text: #0369a1;
+  --trace-before-bg: #fee2e2;
+  --trace-before-text: #7f1d1d;
+  --trace-after-bg: #dcfce7;
+  --trace-after-text: #14532d;
+  --trace-removed-bg: #f1f5f9;
+}

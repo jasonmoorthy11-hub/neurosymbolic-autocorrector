@@ -9,16 +9,6 @@ interface Props {
   onRetry?: () => void;
 }
 
-function severityColor(severity: string) {
-  const map: Record<string, string> = {
-    low: "#10b981",
-    medium: "#f59e0b",
-    high: "#f97316",
-    critical: "#ef4444",
-  };
-  return map[severity] ?? "#94a3b8";
-}
-
 export function RulesPanel({ rules, error, loading, onRetry }: Props) {
   return (
     <div className="panel rules-panel" role="region" aria-label="Active policy rules">
@@ -37,13 +27,7 @@ export function RulesPanel({ rules, error, loading, onRetry }: Props) {
             <div key={r.rule_id} className="rule-card" role="listitem">
               <div className="rule-header">
                 <span className="rule-id">{r.rule_id}</span>
-                <span
-                  className="badge"
-                  style={{
-                    backgroundColor: severityColor(r.severity) + "20",
-                    color: severityColor(r.severity),
-                  }}
-                >
+                <span className={`badge badge-severity--${r.severity}`}>
                   {r.severity.toUpperCase()}
                 </span>
               </div>

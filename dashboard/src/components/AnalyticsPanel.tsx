@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { AXIS_TICK, LEGEND_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_STYLE, legendText } from "./chartStyle";
 import { ErrorAlert } from "./ErrorAlert";
 import type { TrendBucket, AnalyticsSummary } from "../types/api";
 
@@ -102,19 +103,15 @@ export function AnalyticsPanel({ trends, summary, error, loading, onRetry, fineT
               <XAxis
                 dataKey="timestamp"
                 tickFormatter={(ts: string) => formatTime(ts, fineTime)}
-                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                tick={AXIS_TICK}
               />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+              <YAxis allowDecimals={false} tick={AXIS_TICK} />
               <Tooltip
-                contentStyle={{
-                  background: "#1e293b",
-                  border: "1px solid #334155",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
+                contentStyle={TOOLTIP_STYLE}
+                itemStyle={TOOLTIP_ITEM_STYLE}
                 labelFormatter={(label) => formatTime(String(label), fineTime)}
               />
-              <Legend wrapperStyle={{ color: "#e2e8f0", fontSize: 12 }} />
+              <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
               <Line
                 type="monotone"
                 dataKey="corrections"

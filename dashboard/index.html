@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Neurosymbolic Autocorrector Dashboard</title>
+    <script>
+      // Set the theme before first paint (same key and rules as src/theme/theme.ts).
+      (function () {
+        var pref = null;
+        try {
+          pref = localStorage.getItem("autocorrector-theme");
+        } catch (e) {}
+        if (pref !== "light" && pref !== "dark") {
+          pref = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.dataset.theme = pref;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

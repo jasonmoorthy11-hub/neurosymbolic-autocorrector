@@ -11,7 +11,7 @@ import {
   Legend,
   LabelList,
 } from "recharts";
-import type { PieLabelRenderProps } from "recharts";
+import { AXIS_TICK, LEGEND_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_STYLE, legendText, pieLabel } from "./chartStyle";
 import type { DashboardMetrics } from "../types/api";
 
 interface Props {
@@ -43,9 +43,6 @@ const RULE_NAMES: Record<string, string> = {
   "SLA-001": "SLA",
   "DISC-001": "Disclosure",
 };
-
-const renderPercentLabel = ({ name, percent }: PieLabelRenderProps) =>
-  `${name ?? ""}: ${((percent ?? 0) * 100).toFixed(0)}%`;
 
 export function EventChart({ metrics }: Props) {
   if (!metrics || metrics.total_events === 0) {
@@ -88,7 +85,7 @@ export function EventChart({ metrics }: Props) {
                 innerRadius={40}
                 outerRadius={70}
                 dataKey="value"
-                label={renderPercentLabel}
+                label={pieLabel(true)}
               >
                 {actionData.map((entry) => (
                   <Cell
@@ -97,8 +94,8 @@ export function EventChart({ metrics }: Props) {
                   />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend wrapperStyle={{ color: "#e2e8f0", fontSize: 12 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+              <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -108,12 +105,12 @@ export function EventChart({ metrics }: Props) {
             <h3>Violations by Rule</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={ruleData}>
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} height={40} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend wrapperStyle={{ color: "#e2e8f0", fontSize: 12 }} />
+                <XAxis dataKey="name" tick={{ ...AXIS_TICK, fontSize: 12 }} height={40} />
+                <YAxis allowDecimals={false} tick={AXIS_TICK} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+                <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
                 <Bar dataKey="value" fill="#ef4444" name="Violations" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="value" position="top" fill="#e2e8f0" fontSize={12} />
+                  <LabelList dataKey="value" position="top" fill="var(--text)" fontSize={12} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -131,7 +128,7 @@ export function EventChart({ metrics }: Props) {
                   cy="45%"
                   outerRadius={70}
                   dataKey="value"
-                  label={renderPercentLabel}
+                  label={pieLabel(false)}
                 >
                   {intentData.map((_, i) => (
                     <Cell
@@ -140,8 +137,8 @@ export function EventChart({ metrics }: Props) {
                     />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ color: "#e2e8f0", fontSize: 12 }} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+                <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
               </PieChart>
             </ResponsiveContainer>
           </div>

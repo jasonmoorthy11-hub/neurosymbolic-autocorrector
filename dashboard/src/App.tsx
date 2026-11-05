@@ -14,6 +14,7 @@ import { PipelineTrace } from "./components/PipelineTrace";
 import { ReplayBanner } from "./components/ReplayBanner";
 import { ReplayControls } from "./components/ReplayControls";
 import { ReplayFeed } from "./components/ReplayFeed";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { REPLAY } from "./replay/mode";
 import type { EventFilters } from "./types/api";
 import "./App.css";
@@ -53,7 +54,10 @@ function App() {
               {REPLAY ? "Replay of Recorded Pipeline Runs" : "Real-Time Correction Dashboard"}
             </span>
           </div>
-          {REPLAY ? <ReplayControls /> : <DemoControls connected={connected} />}
+          <div className="header-right">
+            {REPLAY ? <ReplayControls /> : <DemoControls connected={connected} />}
+            <ThemeToggle />
+          </div>
         </header>
 
         <main id="main-content" className="app-main">

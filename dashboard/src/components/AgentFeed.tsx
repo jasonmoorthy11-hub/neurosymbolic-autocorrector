@@ -15,9 +15,9 @@ interface Props {
 
 function actionBadge(action: string) {
   const styles: Record<string, { bg: string; text: string }> = {
-    allow: { bg: "#dcfce7", text: "#166534" },
-    correct: { bg: "#fef3c7", text: "#92400e" },
-    escalate: { bg: "#fee2e2", text: "#991b1b" },
+    allow: { bg: "var(--badge-allow-bg)", text: "var(--badge-allow-text)" },
+    correct: { bg: "var(--badge-correct-bg)", text: "var(--badge-correct-text)" },
+    escalate: { bg: "var(--badge-escalate-bg)", text: "var(--badge-escalate-text)" },
   };
   const s = styles[action] ?? styles.allow;
   return (
