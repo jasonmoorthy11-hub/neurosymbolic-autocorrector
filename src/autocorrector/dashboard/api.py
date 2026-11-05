@@ -30,6 +30,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
+from autocorrector.guardrails.validators import find_pii_spans, redact_spans
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.logging_config import request_id_var, setup_logging
 from autocorrector.models import (
@@ -717,12 +718,17 @@ async def process_and_log(
     )
     latency = (time.monotonic() - start) * 1000
 
+    # The event row is append-only and served unauthenticated: keep raw PII out
+    # of it by storing the original as the PII rail redacts it. Not gated on the
+    # pipeline's flag: that is computed on the translated text, this is the input.
+    original = redact_spans(text, find_pii_spans(text))
+
     event = CorrectionEventOut(
         event_id=str(uuid.uuid4())[:8],
         timestamp=datetime.now(UTC).isoformat(),
         agent_id=agent_id,
         session_id=session_id or str(uuid.uuid4())[:8],
-        original_text=text,
+        original_text=original,
         corrected_text=result.corrected_text,
         was_modified=result.was_modified,
         action=result.action_taken.value,

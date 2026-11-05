@@ -114,9 +114,11 @@ text changed, otherwise 1.0. It is not a calibrated probability.
   passed to the LLM tier only.
 
 Events are written by the callers: the dashboard API and the MCP
-`log_correction_event` tool. An event stores the agent's original text, before PII
-redaction, and the dashboard serves it on `/api/events`, `/api/queue` and the
-WebSocket, none of which the dashboard API key protects.
+`log_correction_event` tool. Both store the original and corrected text as the PII
+rail redacts them (the dashboard redacts the untranslated input itself, since the
+pipeline's flag comes from the translated text), so the rows the dashboard serves on
+`/api/events`, `/api/queue` and the WebSocket (none of which the dashboard API key
+protects) carry no PII the regex rail detects. Rows written before v1.1 are unchanged.
 
 ## MCP server
 
@@ -124,13 +126,15 @@ WebSocket, none of which the dashboard API key protects.
 stdio with `--stdio`, otherwise streamable HTTP on `AUTOCORRECTOR_PORT` with an
 optional API key (`AUTOCORRECTOR_MCP_API_KEY`, compared in constant time).
 
-- Tools: `validate_action` (policy and fact checks), `get_correction` (fact
-  corrections and the correction tiers), `log_correction_event`.
+- Tools: `validate_action` (PII rail, then policy and fact checks on the redacted
+  text; returns `pii_types` and `redacted_text`), `get_correction` (PII rail, fact
+  corrections and the correction tiers), `log_correction_event` (stores redacted
+  text).
 - Resources: `rules://compliance/{domain}`, `metrics://corrections/summary`,
   `policies://active`.
 
-The tools do not run the LangGraph pipeline: there is no PII rail, no translation
-(non-English text always escalates) and no revalidation.
+The tools do not run the LangGraph pipeline: there is no translation (non-English
+text always escalates) and no revalidation.
 `scripts/test_mcp_client.py` starts the server over stdio, calls each tool and reads
 the rules resource.
 

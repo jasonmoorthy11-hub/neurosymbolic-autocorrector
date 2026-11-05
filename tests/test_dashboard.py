@@ -618,3 +618,90 @@ class TestAuditStorePublicMethods:
         audit = clean_state
         event = await audit.get_event_by_id("nope")
         assert event is None
+
+
+class TestRedactedAuditText:
+    """What the dashboard stores, serves and broadcasts never carries raw PII."""
+
+    SSN = "123-45-6789"
+    ESCALATED_WITH_PII = (
+        "I'll issue you a $750 credit to make up for everything; your SSN 123-45-6789 is verified."
+    )
+
+    async def _process(self):
+        from autocorrector.dashboard.api import process_and_log
+
+        return await process_and_log(
+            text=self.ESCALATED_WITH_PII,
+            customer_context={"account_tenure_days": 200},
+            agent_id="agent-test",
+        )
+
+    async def test_stored_event_holds_redacted_original(self, clean_state):
+        event_dict = await self._process()
+        stored = await clean_state.get_event_by_id(event_dict["event_id"])
+        assert stored is not None
+        assert self.SSN not in stored.original_text
+        assert "[SSN REDACTED]" in stored.original_text
+        assert self.SSN not in stored.corrected_text
+        assert stored.action_taken == CorrectionAction.ESCALATE
+
+    async def test_events_endpoint_has_no_raw_pii(self, client, clean_state):
+        await self._process()
+        resp = await client.get("/api/events")
+        assert resp.status_code == 200
+        assert self.SSN not in resp.text
+        assert resp.json()["total"] == 1
+
+    async def test_queue_endpoint_has_no_raw_pii(self, client, clean_state):
+        await self._process()
+        resp = await client.get("/api/queue")
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 1
+        assert self.SSN not in resp.text
+
+    async def test_broadcast_and_recent_log_have_no_raw_pii(self, clean_state):
+        from unittest.mock import AsyncMock
+
+        ws = AsyncMock()
+        _connections.append(ws)
+        event_dict = await self._process()
+        sent = "".join(str(c.args[0]) for c in ws.send_text.call_args_list)
+        assert sent  # the correction_event broadcast reached the client
+        assert self.SSN not in sent
+        assert self.SSN not in event_dict["original_text"]
+        assert all(self.SSN not in e["original_text"] for e in _event_log)
+
+    async def test_stored_original_is_redacted_even_when_translation_changed_it(self, clean_state):
+        """The pipeline's PII flag comes from the translated text; the stored original
+        is the untranslated input, so it is redacted on its own."""
+        from unittest.mock import AsyncMock, patch
+
+        from autocorrector.config import Settings
+        from autocorrector.dashboard.api import process_and_log
+        from autocorrector.multilingual.translator import Translation
+
+        spanish = "Su número de seguro social 123-45-6789 está verificado."
+        settings = Settings(anthropic_api_key="test-key")
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=settings),
+            patch("anthropic.AsyncAnthropic"),
+            patch(
+                "autocorrector.multilingual.translator.translate_to_english_checked",
+                new_callable=AsyncMock,
+                return_value=Translation(
+                    "Your social security number 123456789 is verified.", ok=True
+                ),
+            ),
+            patch(
+                "autocorrector.multilingual.translator.translate_from_english",
+                new_callable=AsyncMock,
+                return_value="Su número 123456789 está verificado.",
+            ),
+        ):
+            event_dict = await process_and_log(
+                text=spanish, customer_context={"account_tenure_days": 200}
+            )
+        stored = await clean_state.get_event_by_id(event_dict["event_id"])
+        assert self.SSN not in stored.original_text
+        assert "[SSN REDACTED]" in stored.original_text

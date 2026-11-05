@@ -79,7 +79,7 @@ another check.
 `run_autocorrection` runs this graph. The dashboard API calls it and writes each
 result to the SQLite audit store (append-only events, supervisor decisions kept
 separately); the replay recorder calls it directly. The MCP tools run a lighter
-path: policy and fact checks and the correction tiers, without the PII rail,
+path: the PII rail, policy and fact checks and the correction tiers, without
 translation or revalidation. More detail in [docs/architecture.md](docs/architecture.md).
 
 ## Quick start (offline, no API key)
@@ -171,8 +171,8 @@ npx @modelcontextprotocol/inspector autocorrector --stdio
 python3 scripts/test_mcp_client.py                       # client check over stdio: calls each tool, reads the rules resource
 ```
 
-The MCP tools check policy and facts and apply corrections, but they do not run the
-PII rail or translate: non-English text always escalates there.
+The MCP tools redact PII, check policy and facts and apply corrections, but they do
+not translate: non-English text always escalates there.
 
 `.mcp.json`:
 
@@ -207,11 +207,10 @@ Known, measured, or found by the held-out run:
 - PII detection is US-format regex. On the external benchmark, IBAN/BBAN bank
   accounts have 0% recall and addresses 13.7% recall (all languages); phone and
   card precision are about 22%, so bare digit strings get redacted.
-- The MCP tools skip the PII rail.
-- The dashboard stores the raw agent text (before PII redaction) in the audit store
-  and serves it on `/api/events`, `/api/queue` and the WebSocket; the dashboard API
-  key protects only approve/reject, export and demo endpoints. The replay demo uses
-  fake PII only.
+- The dashboard API key protects only approve/reject, export and demo endpoints;
+  `/api/events`, `/api/queue` and the WebSocket are open. They serve the audit rows,
+  which hold the text as the regex PII rail above redacts it (rows written before
+  v1.1 are unchanged, the table is append-only). The replay demo uses fake PII only.
 - The Neo4j seed (`scripts/seed_neo4j.py`) has 3 of the 8 rules, so with Neo4j
   connected the universal rules, ESC-001 and REFUND-002 are not checked; fact
   checks there fetch only the customer's plan, so another plan's limit in a
