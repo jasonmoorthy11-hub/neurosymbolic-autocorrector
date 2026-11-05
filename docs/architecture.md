@@ -161,6 +161,9 @@ The React app in `dashboard/` builds in one of two modes (`VITE_REPLAY`):
   `dashboard/src/replay/derive.ts` compute the dashboard's numbers from it with the
   backend's formulas. The recorder refuses to run with an API key set or NeMo on,
   and `--check` (run in CI) fails if the file no longer matches the pipeline.
+  A second lane, `replay_llm.json` (`?lane=llm`), is one recording of the same
+  scenarios with the LLM tier (`--llm`, Claude Haiku 5.5, behind a cost guard;
+  judged in `docs/evaluation.md`); it is recorded by hand, never in CI.
   `.github/workflows/pages.yml` builds this mode and publishes it to GitHub Pages.
 
 ## Evaluation

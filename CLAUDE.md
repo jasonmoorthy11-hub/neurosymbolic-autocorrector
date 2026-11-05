@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1239 passing offline; the 14 Neo4j integration tests need a Neo4j server)
+# Tests (1261 passing offline; the 14 Neo4j integration tests need a Neo4j server)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file
@@ -26,6 +26,9 @@ python3 scripts/bench_pii.py                          # external PII span benchm
 # Replay data for the backend-free dashboard (refuses with an API key set or NeMo on)
 python3 scripts/record_replay.py           # writes dashboard/public/replay/replay.json
 python3 scripts/record_replay.py --check   # exit 1 if stale; re-record after pipeline/scenario/rule changes
+# The one LLM-tier recording (replay_llm.json, Claude Haiku 5.5): paid, needs the key
+# inline as AUTOCORRECTOR_ANTHROPIC_API_KEY and nothing else set; never run in CI
+#   python3 scripts/record_replay.py --llm
 
 # Dashboard
 ./scripts/start_dashboard.sh  # FastAPI :8000 + React :3000

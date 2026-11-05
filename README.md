@@ -8,7 +8,7 @@ allow, correct or escalate, and on the default offline path policy and fact fixe
 are recorded as edits that cite their rule and source. The whole path runs
 deterministically without a model; an LLM tier is optional.
 
-**Live demo:** [jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/) — a replay of recorded offline runs, no backend.
+**Live demo:** [jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/) — a replay of recorded offline runs, no backend. The "LLM tier" switch ([`?lane=llm`](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/?lane=llm)) plays one recorded run with Claude Haiku 5.5 as the correction tier.
 
 ![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
 
@@ -147,6 +147,7 @@ and every edit with its before/after text and policy citation.
 ```bash
 python3 scripts/record_replay.py           # writes dashboard/public/replay/replay.json
 python3 scripts/record_replay.py --check   # exit 1 if the file is stale (CI runs this)
+python3 scripts/record_replay.py --llm     # one paid run with the LLM tier -> replay_llm.json (key inline; never in CI)
 cd dashboard && npm ci && VITE_REPLAY=1 npm run dev
 ```
 
@@ -231,7 +232,10 @@ Known, measured, or found by the held-out run:
 - The confidence shown is a fixed heuristic per outcome, not a calibrated
   probability. The dashboard's ROI figures rest on stated assumptions.
 - The Docker image is not built in CI.
-- The replay has no LLM-tier recording, and its latencies are from one machine.
+- The LLM tier appears in the replay only as one recorded run of the 25 scenarios
+  (Claude Haiku 5.5, the `?lane=llm` switch; every rewrite is judged in
+  [docs/evaluation.md](docs/evaluation.md#one-llm-tier-recording-claude-haiku-55-2026-11-05)).
+  That is a demo lane, not a benchmark, and the replay latencies are from one machine.
 
 ## Supervisor feedback (ACE-style)
 

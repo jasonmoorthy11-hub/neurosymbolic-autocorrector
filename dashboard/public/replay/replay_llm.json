@@ -1,0 +1,1173 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-11-05T21:34:17Z",
+  "git_sha": "8f3902c-dirty",
+  "mode": "llm-recorded",
+  "python": "3.14.7",
+  "latency_note": "wall time per scenario on the recording machine with the LLM correction tier; includes one Claude API round trip per correction attempt for corrected scenarios",
+  "roi_assumptions": {
+    "cost_per_violation": 15.0,
+    "cost_per_escalation": 25.0
+  },
+  "llm": {
+    "model": "claude-haiku-5-5",
+    "calls": 12,
+    "input_tokens": 4810,
+    "output_tokens": 2155,
+    "usd": 0.0016,
+    "recorded_with_sdk": "2.4.0"
+  },
+  "rules": [
+    {
+      "rule_id": "CREDIT-001",
+      "name": "Credit Authorization Threshold",
+      "description": "Credits over $50 require 90+ days account tenure",
+      "severity": "high",
+      "intent_type": "financial_compensation",
+      "source_document": "Credit_Policy_2024_v3.2",
+      "source_section": "Section 4.1"
+    },
+    {
+      "rule_id": "CREDIT-002",
+      "name": "Maximum Credit Amount",
+      "description": "Single credit cannot exceed $500 without supervisor approval",
+      "severity": "critical",
+      "intent_type": "financial_compensation",
+      "source_document": "Credit_Policy_2024_v3.2",
+      "source_section": "Section 4.3"
+    },
+    {
+      "rule_id": "ESC-001",
+      "name": "Legal Threat Escalation",
+      "description": "Legal threats or regulatory concerns require immediate supervisor review",
+      "severity": "critical",
+      "intent_type": "escalation_request",
+      "source_document": "Escalation_Policy_2024_v1.0",
+      "source_section": "Section 1.1"
+    },
+    {
+      "rule_id": "REFUND-001",
+      "name": "Refund Window",
+      "description": "Refunds must be processed within 30 days of purchase",
+      "severity": "high",
+      "intent_type": "refund_processing",
+      "source_document": "Refund_Policy_2024_v2.1",
+      "source_section": "Section 2.1"
+    },
+    {
+      "rule_id": "REFUND-002",
+      "name": "Policy Exception Authorization",
+      "description": "Policy exceptions require supervisor approval",
+      "severity": "critical",
+      "intent_type": "refund_processing",
+      "source_document": "Refund_Policy_2024_v2.1",
+      "source_section": "Section 3.1"
+    },
+    {
+      "rule_id": "PROMISE-001",
+      "name": "Unauthorized Commitment",
+      "description": "Agents cannot make permanent or binding commitments without authorization",
+      "severity": "high",
+      "intent_type": "_universal",
+      "source_document": "Agent_Conduct_Policy_2024_v1.0",
+      "source_section": "Section 2.3"
+    },
+    {
+      "rule_id": "SLA-001",
+      "name": "Unauthorized Timeline Guarantee",
+      "description": "Agents cannot promise specific resolution timelines without authorization",
+      "severity": "high",
+      "intent_type": "_universal",
+      "source_document": "SLA_Policy_2024_v1.0",
+      "source_section": "Section 1.2"
+    },
+    {
+      "rule_id": "DISC-001",
+      "name": "Internal Process Disclosure",
+      "description": "Agents must not disclose internal tools, systems, or process details",
+      "severity": "medium",
+      "intent_type": "_universal",
+      "source_document": "Agent_Conduct_Policy_2024_v1.0",
+      "source_section": "Section 5.1"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S01",
+      "title": "Scenario 1: Credit Approval (Financial Exposure Control)",
+      "agent_id": "agent-mike",
+      "input": "I can offer you a $200 credit for the inconvenience.",
+      "customer_context": {
+        "account_tenure_days": 45,
+        "customer_id": "CUST-001",
+        "account_tier": "standard"
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "CREDIT-001",
+          "rule_name": "Credit Authorization Threshold",
+          "description": "Credits over $50 require 90+ days account tenure",
+          "severity": "high",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "CREDIT-001",
+          "before": "I can offer you a $200 credit for the inconvenience.",
+          "after": "I'm sorry for the inconvenience you've experienced. I'm not able to offer a $200 credit on this account at this time, but I can offer a credit of up to $50 for the trouble. I can also escalate your case to a team member who can review your situation further and explore other options with you.",
+          "start": 0,
+          "end": 52,
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1",
+          "tier": "llm"
+        },
+        {
+          "rule_id": "CREDIT-001",
+          "before": "I'm sorry for the inconvenience you've experienced. I'm not able to offer a $200 credit on this account at this time, but I can offer a credit of up to $50 for the trouble. I can also escalate your case to a team member who can review your situation further and explore other options with you.",
+          "after": "I'm sorry for the trouble you've had. I can offer a credit of up to $50 on your account. I can also connect you with a team member who can review your situation in more detail and discuss what other options may be available.",
+          "start": 0,
+          "end": 293,
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I'm sorry for the trouble you've had. I can offer a credit of up to $50 on your account. I can also connect you with a team member who can review your situation in more detail and discuss what other options may be available.",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Credits over $50 require 90+ days account tenure (rule: CREDIT-001, severity: high)",
+        "rules_applied": [
+          "CREDIT-001"
+        ],
+        "source_documents": [
+          "Credit_Policy_2024_v3.2"
+        ]
+      },
+      "latency_ms": 3032.1,
+      "t_offset_ms": 0
+    },
+    {
+      "id": "S02",
+      "title": "Scenario 2: Policy Explanation (Hallucination Prevention)",
+      "agent_id": "agent-sarah",
+      "input": "Your plan covers up to $5,000 in emergency dental work.",
+      "customer_context": {
+        "plan_type": "standard_2024",
+        "customer_id": "CUST-002"
+      },
+      "detected_language": "en",
+      "intent": "policy_explanation",
+      "intent_confidence": 0.95,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [
+        {
+          "claim": "$5,000",
+          "correct_value": "$2,500",
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_page": 12
+        }
+      ],
+      "edits": [
+        {
+          "rule_id": "FACT-CHECK",
+          "before": "$5,000",
+          "after": "$2,500",
+          "start": 23,
+          "end": 29,
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_section": "p. 12",
+          "tier": "span"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "Your plan covers up to $2,500 in emergency dental work.",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Factual error: '$5,000' should be '$2,500'",
+        "rules_applied": [],
+        "source_documents": [
+          "Policy_Document_Standard_2024.pdf"
+        ]
+      },
+      "latency_ms": 33.0,
+      "t_offset_ms": 2500
+    },
+    {
+      "id": "S03",
+      "title": "Scenario 3: Compliant Output (No Correction Needed)",
+      "agent_id": "agent-james",
+      "input": "I understand your concern. Let me look into this for you right away.",
+      "customer_context": {
+        "account_tenure_days": 200,
+        "plan_type": "premium_2024"
+      },
+      "detected_language": "en",
+      "intent": "complaint",
+      "intent_confidence": 0.85,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "allow",
+      "was_modified": false,
+      "corrected_text": "I understand your concern. Let me look into this for you right away.",
+      "severity": "low",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 17.1,
+      "t_offset_ms": 5000
+    },
+    {
+      "id": "S04",
+      "title": "Scenario 4: Critical Violation (Excessive Credit)",
+      "agent_id": "agent-lisa",
+      "input": "I'll apply a $1,000 credit to your account immediately.",
+      "customer_context": {
+        "account_tenure_days": 30
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "CREDIT-001",
+          "rule_name": "Credit Authorization Threshold",
+          "description": "Credits over $50 require 90+ days account tenure",
+          "severity": "high",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1"
+        },
+        {
+          "rule_id": "CREDIT-002",
+          "rule_name": "Maximum Credit Amount",
+          "description": "Single credit cannot exceed $500 without supervisor approval",
+          "severity": "critical",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.3"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [],
+      "action": "escalate",
+      "was_modified": false,
+      "corrected_text": null,
+      "severity": "critical",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 15.2,
+      "t_offset_ms": 7500
+    },
+    {
+      "id": "S05",
+      "title": "Scenario 5: PII Detection (Guardrails AI Safety Rail)",
+      "agent_id": "agent-mike",
+      "input": "I've confirmed your identity. Your SSN 412-55-7890 and email sarah.jones@gmail.com are on file.",
+      "customer_context": {
+        "customer_id": "CUST-003",
+        "account_tenure_days": 365
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [
+        "ssn",
+        "email"
+      ],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I've confirmed your identity. Your SSN [SSN REDACTED] and email [EMAIL REDACTED] are on file.",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [
+        "pii-detection"
+      ],
+      "explanation": null,
+      "latency_ms": 13.8,
+      "t_offset_ms": 10000
+    },
+    {
+      "id": "S06",
+      "title": "Scenario 6: PII + Policy Violation (Combined Guardrails)",
+      "agent_id": "agent-sarah",
+      "input": "I'll issue a $300 credit to card 4532-8765-1234-9999. Your SSN 123-45-6789 confirms identity.",
+      "customer_context": {
+        "customer_id": "CUST-004",
+        "account_tenure_days": 15
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [
+        "ssn",
+        "credit_card"
+      ],
+      "violations": [
+        {
+          "rule_id": "CREDIT-001",
+          "rule_name": "Credit Authorization Threshold",
+          "description": "Credits over $50 require 90+ days account tenure",
+          "severity": "high",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "CREDIT-001",
+          "before": "I'll issue a $300 credit to card [CARD REDACTED]. Your SSN [SSN REDACTED] confirms identity.",
+          "after": "I'm sorry for the trouble you've had. I'm not able to apply a $300 credit to your account right now, because credits over $50 require an account that is at least 90 days old, and yours is newer. I can review what I'm able to offer within those limits, or connect you with a team member who can look at your situation further. Would you like me to do either?",
+          "start": 0,
+          "end": 92,
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1",
+          "tier": "llm"
+        },
+        {
+          "rule_id": "CREDIT-001",
+          "before": "I'm sorry for the trouble you've had. I'm not able to apply a $300 credit to your account right now, because credits over $50 require an account that is at least 90 days old, and yours is newer. I can review what I'm able to offer within those limits, or connect you with a team member who can look at your situation further. Would you like me to do either?",
+          "after": "I'm sorry for the trouble you've had. I'm not able to apply a $300 credit to your account right now. I can't offer what I'm able to within my authority, or connect you with a team member who can review your situation further. Would you like me to do either?",
+          "start": 0,
+          "end": 357,
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I'm sorry for the trouble you've had. I'm not able to apply a $300 credit to your account right now. I can't offer what I'm able to within my authority, or connect you with a team member who can review your situation further. Would you like me to do either?",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [
+        "pii-detection"
+      ],
+      "explanation": {
+        "rationale": "Policy violation: Credits over $50 require 90+ days account tenure (rule: CREDIT-001, severity: high)",
+        "rules_applied": [
+          "CREDIT-001"
+        ],
+        "source_documents": [
+          "Credit_Policy_2024_v3.2"
+        ]
+      },
+      "latency_ms": 5330.0,
+      "t_offset_ms": 12500
+    },
+    {
+      "id": "S07",
+      "title": "Scenario 7: Expanded PII Detection (Passport + Bank Account)",
+      "agent_id": "agent-james",
+      "input": "For the wire transfer: passport number AB1234567, account number: 55667788990.",
+      "customer_context": {
+        "customer_id": "CUST-005",
+        "account_tenure_days": 100
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [
+        "passport",
+        "bank_account"
+      ],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "For the wire transfer: [PASSPORT REDACTED], [BANK ACCOUNT REDACTED].",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [
+        "pii-detection"
+      ],
+      "explanation": null,
+      "latency_ms": 30.2,
+      "t_offset_ms": 15000
+    },
+    {
+      "id": "S08",
+      "title": "Scenario 8: Unauthorized Promise (PROMISE-001)",
+      "agent_id": "agent-lisa",
+      "input": "I promise you'll never be charged that fee again. It's permanently removed.",
+      "customer_context": {
+        "customer_id": "CUST-006",
+        "account_tenure_days": 90
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "PROMISE-001",
+          "rule_name": "Unauthorized Commitment",
+          "description": "Agents cannot make permanent or binding commitments without authorization",
+          "severity": "high",
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "PROMISE-001",
+          "before": "I promise you'll never be charged that fee again. It's permanently removed.",
+          "after": "I understand how frustrating an unexpected fee can be. I've noted your concern, and I'm happy to look into the fee on your account and what options may be available. I can't guarantee how future charges will be handled, but I'll make sure your account is reviewed so you have clear information about next steps.",
+          "start": 0,
+          "end": 75,
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I understand how frustrating an unexpected fee can be. I've noted your concern, and I'm happy to look into the fee on your account and what options may be available. I can't guarantee how future charges will be handled, but I'll make sure your account is reviewed so you have clear information about next steps.",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Agents cannot make permanent or binding commitments without authorization (rule: PROMISE-001, severity: high)",
+        "rules_applied": [
+          "PROMISE-001"
+        ],
+        "source_documents": [
+          "Agent_Conduct_Policy_2024_v1.0"
+        ]
+      },
+      "latency_ms": 1002.2,
+      "t_offset_ms": 17500
+    },
+    {
+      "id": "S09",
+      "title": "Scenario 9: Unauthorized Timeline (SLA-001)",
+      "agent_id": "agent-mike",
+      "input": "I guarantee this will be resolved within 24 hours.",
+      "customer_context": {
+        "customer_id": "CUST-007",
+        "account_tenure_days": 120
+      },
+      "detected_language": "en",
+      "intent": "troubleshooting",
+      "intent_confidence": 0.8,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "PROMISE-001",
+          "rule_name": "Unauthorized Commitment",
+          "description": "Agents cannot make permanent or binding commitments without authorization",
+          "severity": "high",
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3"
+        },
+        {
+          "rule_id": "SLA-001",
+          "rule_name": "Unauthorized Timeline Guarantee",
+          "description": "Agents cannot promise specific resolution timelines without authorization",
+          "severity": "high",
+          "source_document": "SLA_Policy_2024_v1.0",
+          "source_section": "Section 1.2"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "PROMISE-001, SLA-001",
+          "before": "I guarantee this will be resolved within 24 hours.",
+          "after": "I understand how important this is to you, and I'm going to work on it right away. I can't guarantee a specific resolution time, but I'll keep you updated on our progress and let you know as soon as there's an outcome.",
+          "start": 0,
+          "end": 50,
+          "source_document": "Agent_Conduct_Policy_2024_v1.0; SLA_Policy_2024_v1.0",
+          "source_section": "Section 2.3; Section 1.2",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I understand how important this is to you, and I'm going to work on it right away. I can't guarantee a specific resolution time, but I'll keep you updated on our progress and let you know as soon as there's an outcome.",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Agents cannot make permanent or binding commitments without authorization (rule: PROMISE-001, severity: high); Policy violation: Agents cannot promise specific resolution timelines without authorization (rule: SLA-001, severity: high)",
+        "rules_applied": [
+          "PROMISE-001",
+          "SLA-001"
+        ],
+        "source_documents": [
+          "Agent_Conduct_Policy_2024_v1.0",
+          "SLA_Policy_2024_v1.0"
+        ]
+      },
+      "latency_ms": 1126.8,
+      "t_offset_ms": 20000
+    },
+    {
+      "id": "S10",
+      "title": "Scenario 10: Internal Disclosure (DISC-001)",
+      "agent_id": "agent-sarah",
+      "input": "Between you and me, our CRM shows your case was flagged as priority.",
+      "customer_context": {
+        "customer_id": "CUST-008",
+        "account_tenure_days": 60
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "DISC-001",
+          "rule_name": "Internal Process Disclosure",
+          "description": "Agents must not disclose internal tools, systems, or process details",
+          "severity": "medium",
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 5.1"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "DISC-001",
+          "before": "Between you and me, our CRM shows your case was flagged as priority.",
+          "after": "I want to make sure you're taken care of, so I'm happy to look into where your case stands and let you know the next steps. Could you share a bit more about what you need help with?",
+          "start": 0,
+          "end": 68,
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 5.1",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I want to make sure you're taken care of, so I'm happy to look into where your case stands and let you know the next steps. Could you share a bit more about what you need help with?",
+      "severity": "medium",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Agents must not disclose internal tools, systems, or process details (rule: DISC-001, severity: medium)",
+        "rules_applied": [
+          "DISC-001"
+        ],
+        "source_documents": [
+          "Agent_Conduct_Policy_2024_v1.0"
+        ]
+      },
+      "latency_ms": 1009.3,
+      "t_offset_ms": 22500
+    },
+    {
+      "id": "S11",
+      "title": "Pipeline: Unauthorized Credit",
+      "agent_id": "agent-james",
+      "input": "I'll go ahead and issue you a $75 credit right now.",
+      "customer_context": {
+        "customer_id": "C-5678",
+        "plan_type": "standard_2024",
+        "account_tenure_days": 30
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "CREDIT-001",
+          "rule_name": "Credit Authorization Threshold",
+          "description": "Credits over $50 require 90+ days account tenure",
+          "severity": "high",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "CREDIT-001",
+          "before": "I'll go ahead and issue you a $75 credit right now.",
+          "after": "I can't issue a $75 credit on your account right now, since credits over $50 require the account to have been active for at least 90 days, and yours is currently 30 days old. I can offer a credit of up to $50 now, or I can escalate your request to a team member who can review your account and look at other options. Would either of those work for you?",
+          "start": 0,
+          "end": 51,
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I can't issue a $75 credit on your account right now, since credits over $50 require the account to have been active for at least 90 days, and yours is currently 30 days old. I can offer a credit of up to $50 now, or I can escalate your request to a team member who can review your account and look at other options. Would either of those work for you?",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Credits over $50 require 90+ days account tenure (rule: CREDIT-001, severity: high)",
+        "rules_applied": [
+          "CREDIT-001"
+        ],
+        "source_documents": [
+          "Credit_Policy_2024_v3.2"
+        ]
+      },
+      "latency_ms": 894.2,
+      "t_offset_ms": 25000
+    },
+    {
+      "id": "S12",
+      "title": "Pipeline: PII Redaction (SSN + Address)",
+      "agent_id": "agent-lisa",
+      "input": "Your SSN: 987-65-4321 and address is 123 Main St, Springfield, IL 62704.",
+      "customer_context": {
+        "customer_id": "C-9999",
+        "account_tenure_days": 200
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [
+        "ssn",
+        "address"
+      ],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "Your SSN: [SSN REDACTED] and address is [ADDRESS REDACTED].",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [
+        "pii-detection"
+      ],
+      "explanation": null,
+      "latency_ms": 19.4,
+      "t_offset_ms": 27500
+    },
+    {
+      "id": "S13",
+      "title": "Pipeline: Factual Error",
+      "agent_id": "agent-mike",
+      "input": "Your Standard plan covers up to $5,000 in emergency dental procedures.",
+      "customer_context": {
+        "customer_id": "C-9012",
+        "plan_type": "standard_2024",
+        "account_tenure_days": 365
+      },
+      "detected_language": "en",
+      "intent": "policy_explanation",
+      "intent_confidence": 0.95,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [
+        {
+          "claim": "$5,000",
+          "correct_value": "$2,500",
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_page": 12
+        }
+      ],
+      "edits": [
+        {
+          "rule_id": "FACT-CHECK",
+          "before": "$5,000",
+          "after": "$2,500",
+          "start": 32,
+          "end": 38,
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_section": "p. 12",
+          "tier": "span"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "Your Standard plan covers up to $2,500 in emergency dental procedures.",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Factual error: '$5,000' should be '$2,500'",
+        "rules_applied": [],
+        "source_documents": [
+          "Policy_Document_Standard_2024.pdf"
+        ]
+      },
+      "latency_ms": 16.8,
+      "t_offset_ms": 30000
+    },
+    {
+      "id": "S14",
+      "title": "Pipeline: Unauthorized Promise",
+      "agent_id": "agent-sarah",
+      "input": "I guarantee you'll have lifetime access to this feature forever.",
+      "customer_context": {
+        "customer_id": "C-2222",
+        "account_tenure_days": 200
+      },
+      "detected_language": "en",
+      "intent": "product_inquiry",
+      "intent_confidence": 0.8,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "PROMISE-001",
+          "rule_name": "Unauthorized Commitment",
+          "description": "Agents cannot make permanent or binding commitments without authorization",
+          "severity": "high",
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "PROMISE-001",
+          "before": "I guarantee you'll have lifetime access to this feature forever.",
+          "after": "I can't guarantee lifetime access to this feature, since I don't have the authority to make permanent commitments about it. Access terms are set by our product and account policies, and I'd recommend checking your plan details or speaking with a specialist who can confirm exactly what's included for your account.",
+          "start": 0,
+          "end": 64,
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3",
+          "tier": "llm"
+        },
+        {
+          "rule_id": "PROMISE-001",
+          "before": "I can't guarantee lifetime access to this feature, since I don't have the authority to make permanent commitments about it. Access terms are set by our product and account policies, and I'd recommend checking your plan details or speaking with a specialist who can confirm exactly what's included for your account.",
+          "after": "I'm not able to guarantee lifetime access to this feature, because I can't make permanent commitments about it. Access terms are governed by our product and account policies. To confirm exactly what's included for your account, please check your plan details or speak with a specialist, who can give you an accurate answer.",
+          "start": 0,
+          "end": 314,
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3",
+          "tier": "llm"
+        },
+        {
+          "rule_id": "PROMISE-001",
+          "before": "I'm not able to guarantee lifetime access to this feature, because I can't make permanent commitments about it. Access terms are governed by our product and account policies. To confirm exactly what's included for your account, please check your plan details or speak with a specialist, who can give you an accurate answer.",
+          "after": "I can't guarantee lifetime access to this feature, since I'm not able to make permanent commitments on that. Access depends on our current product and account policies. To see exactly what's included for your account, please check your plan details or speak with a specialist, who can give you an accurate answer.",
+          "start": 0,
+          "end": 323,
+          "source_document": "Agent_Conduct_Policy_2024_v1.0",
+          "source_section": "Section 2.3",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I can't guarantee lifetime access to this feature, since I'm not able to make permanent commitments on that. Access depends on our current product and account policies. To see exactly what's included for your account, please check your plan details or speak with a specialist, who can give you an accurate answer.",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Agents cannot make permanent or binding commitments without authorization (rule: PROMISE-001, severity: high)",
+        "rules_applied": [
+          "PROMISE-001"
+        ],
+        "source_documents": [
+          "Agent_Conduct_Policy_2024_v1.0"
+        ]
+      },
+      "latency_ms": 3869.6,
+      "t_offset_ms": 32500
+    },
+    {
+      "id": "S15",
+      "title": "Pipeline: Clean Output",
+      "agent_id": "agent-james",
+      "input": "I'd be happy to help you with that. Let me check your account details.",
+      "customer_context": {
+        "customer_id": "C-1111",
+        "account_tenure_days": 365
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "allow",
+      "was_modified": false,
+      "corrected_text": "I'd be happy to help you with that. Let me check your account details.",
+      "severity": "low",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 29.9,
+      "t_offset_ms": 35000
+    },
+    {
+      "id": "S16",
+      "title": "Dashboard demo: $200 credit, 30-day account",
+      "agent_id": "agent-sarah",
+      "input": "I can offer you a $200 credit for your trouble.",
+      "customer_context": {
+        "account_tenure_days": 30
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "CREDIT-001",
+          "rule_name": "Credit Authorization Threshold",
+          "description": "Credits over $50 require 90+ days account tenure",
+          "severity": "high",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [
+        {
+          "rule_id": "CREDIT-001",
+          "before": "I can offer you a $200 credit for your trouble.",
+          "after": "I'm sorry for the trouble you've had. I can't offer a credit of that size on your account right now, but I can offer a $50 credit for your inconvenience. If you'd like, I can also connect you with a specialist who may be able to review your situation further.",
+          "start": 0,
+          "end": 47,
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.1",
+          "tier": "llm"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I'm sorry for the trouble you've had. I can't offer a credit of that size on your account right now, but I can offer a $50 credit for your inconvenience. If you'd like, I can also connect you with a specialist who may be able to review your situation further.",
+      "severity": "high",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Policy violation: Credits over $50 require 90+ days account tenure (rule: CREDIT-001, severity: high)",
+        "rules_applied": [
+          "CREDIT-001"
+        ],
+        "source_documents": [
+          "Credit_Policy_2024_v3.2"
+        ]
+      },
+      "latency_ms": 955.8,
+      "t_offset_ms": 37500
+    },
+    {
+      "id": "S17",
+      "title": "Dashboard demo: Dental coverage quote",
+      "agent_id": "agent-mike",
+      "input": "Your emergency dental coverage is $5,000 under the Standard plan.",
+      "customer_context": {
+        "plan_type": "standard_2024",
+        "account_tenure_days": 90
+      },
+      "detected_language": "en",
+      "intent": "policy_explanation",
+      "intent_confidence": 0.85,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [
+        {
+          "claim": "$5,000",
+          "correct_value": "$2,500",
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_page": 12
+        }
+      ],
+      "edits": [
+        {
+          "rule_id": "FACT-CHECK",
+          "before": "$5,000",
+          "after": "$2,500",
+          "start": 34,
+          "end": 40,
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_section": "p. 12",
+          "tier": "span"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "Your emergency dental coverage is $2,500 under the Standard plan.",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Factual error: '$5,000' should be '$2,500'",
+        "rules_applied": [],
+        "source_documents": [
+          "Policy_Document_Standard_2024.pdf"
+        ]
+      },
+      "latency_ms": 23.2,
+      "t_offset_ms": 40000
+    },
+    {
+      "id": "S18",
+      "title": "Dashboard demo: $750 credit",
+      "agent_id": "agent-lisa",
+      "input": "I'll apply a $750 credit to your account right away.",
+      "customer_context": {
+        "account_tenure_days": 120
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "CREDIT-002",
+          "rule_name": "Maximum Credit Amount",
+          "description": "Single credit cannot exceed $500 without supervisor approval",
+          "severity": "critical",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.3"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [],
+      "action": "escalate",
+      "was_modified": false,
+      "corrected_text": null,
+      "severity": "critical",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 15.1,
+      "t_offset_ms": 42500
+    },
+    {
+      "id": "S19",
+      "title": "Dashboard demo: SSN in a reply",
+      "agent_id": "agent-james",
+      "input": "Your SSN 123-45-6789 has been verified. Your account is fine.",
+      "customer_context": {
+        "account_tenure_days": 90
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [
+        "ssn"
+      ],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "Your SSN [SSN REDACTED] has been verified. Your account is fine.",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [
+        "pii-detection"
+      ],
+      "explanation": null,
+      "latency_ms": 14.8,
+      "t_offset_ms": 45000
+    },
+    {
+      "id": "S20",
+      "title": "Dashboard demo: Modem troubleshooting",
+      "agent_id": "agent-sarah",
+      "input": "Let me check the status of your modem. Can you try restarting it?",
+      "customer_context": {
+        "account_tenure_days": 60
+      },
+      "detected_language": "en",
+      "intent": "troubleshooting",
+      "intent_confidence": 0.9,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "allow",
+      "was_modified": false,
+      "corrected_text": "Let me check the status of your modem. Can you try restarting it?",
+      "severity": "low",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 12.5,
+      "t_offset_ms": 47500
+    },
+    {
+      "id": "S21",
+      "title": "Dashboard demo: $30 credit",
+      "agent_id": "agent-mike",
+      "input": "I can offer you a $30 credit for the inconvenience.",
+      "customer_context": {
+        "account_tenure_days": 30
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "allow",
+      "was_modified": false,
+      "corrected_text": "I can offer you a $30 credit for the inconvenience.",
+      "severity": "low",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 11.7,
+      "t_offset_ms": 50000
+    },
+    {
+      "id": "S22",
+      "title": "Dashboard demo: Emergency room coverage quote",
+      "agent_id": "agent-lisa",
+      "input": "Your emergency room coverage is $15,000 under the Standard plan.",
+      "customer_context": {
+        "plan_type": "standard_2024",
+        "account_tenure_days": 90
+      },
+      "detected_language": "en",
+      "intent": "policy_explanation",
+      "intent_confidence": 0.85,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [
+        {
+          "claim": "$15,000",
+          "correct_value": "$10,000",
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_page": 8
+        }
+      ],
+      "edits": [
+        {
+          "rule_id": "FACT-CHECK",
+          "before": "$15,000",
+          "after": "$10,000",
+          "start": 32,
+          "end": 39,
+          "source_document": "Policy_Document_Standard_2024.pdf",
+          "source_section": "p. 8",
+          "tier": "span"
+        }
+      ],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "Your emergency room coverage is $10,000 under the Standard plan.",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [],
+      "explanation": {
+        "rationale": "Factual error: '$15,000' should be '$10,000'",
+        "rules_applied": [],
+        "source_documents": [
+          "Policy_Document_Standard_2024.pdf"
+        ]
+      },
+      "latency_ms": 13.2,
+      "t_offset_ms": 52500
+    },
+    {
+      "id": "S23",
+      "title": "Dashboard demo: $1,000 outage credit",
+      "agent_id": "agent-james",
+      "input": "I can offer you a $1,000 credit as compensation for the outage.",
+      "customer_context": {
+        "account_tenure_days": 200
+      },
+      "detected_language": "en",
+      "intent": "financial_compensation",
+      "intent_confidence": 1.0,
+      "pii_types": [],
+      "violations": [
+        {
+          "rule_id": "CREDIT-002",
+          "rule_name": "Maximum Credit Amount",
+          "description": "Single credit cannot exceed $500 without supervisor approval",
+          "severity": "critical",
+          "source_document": "Credit_Policy_2024_v3.2",
+          "source_section": "Section 4.3"
+        }
+      ],
+      "fact_errors": [],
+      "edits": [],
+      "action": "escalate",
+      "was_modified": false,
+      "corrected_text": null,
+      "severity": "critical",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 11.2,
+      "t_offset_ms": 55000
+    },
+    {
+      "id": "S24",
+      "title": "Dashboard demo: Greeting",
+      "agent_id": "agent-sarah",
+      "input": "Thank you for contacting us. How can I help you today?",
+      "customer_context": {
+        "account_tenure_days": 45
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "allow",
+      "was_modified": false,
+      "corrected_text": "Thank you for contacting us. How can I help you today?",
+      "severity": "low",
+      "heuristic_confidence": 1.0,
+      "guardrails_applied": [],
+      "explanation": null,
+      "latency_ms": 11.7,
+      "t_offset_ms": 57500
+    },
+    {
+      "id": "S25",
+      "title": "Dashboard demo: Email address in a reply",
+      "agent_id": "agent-mike",
+      "input": "I've sent the confirmation to john.doe@example.com. Is there anything else?",
+      "customer_context": {
+        "account_tenure_days": 90
+      },
+      "detected_language": "en",
+      "intent": "general",
+      "intent_confidence": 0.5,
+      "pii_types": [
+        "email"
+      ],
+      "violations": [],
+      "fact_errors": [],
+      "edits": [],
+      "action": "correct",
+      "was_modified": true,
+      "corrected_text": "I've sent the confirmation to [EMAIL REDACTED]. Is there anything else?",
+      "severity": "low",
+      "heuristic_confidence": 0.92,
+      "guardrails_applied": [
+        "pii-detection"
+      ],
+      "explanation": null,
+      "latency_ms": 12.1,
+      "t_offset_ms": 60000
+    }
+  ]
+}

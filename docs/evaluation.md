@@ -14,7 +14,9 @@ are the ones to read.
 
 All pipeline runs are offline and deterministic (no API key, in-memory policy store,
 NeMo rails off), on an Apple M5 laptop, macOS 26.6.2, Python 3.14.7. The external
-benchmark downloads its data once; scoring is offline.
+benchmark downloads its data once; scoring is offline. The one exception is the
+single LLM-tier recording at the end of this page, which is a demo lane, not a
+benchmark.
 
 ## How the pipeline is scored
 
@@ -223,3 +225,45 @@ Rows where spans differ from the validator's redaction: 0
   template text such as `[Shipper's Email Address]`, which no detector should flag.
 - This is a synthetic, document-style benchmark, not agent chat. It measures the PII
   rail in isolation, not the correction pipeline.
+
+## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
+
+The replay demo's second lane (`?lane=llm`, `dashboard/public/replay/replay_llm.json`)
+is one run of the same 25 scenarios with the LLM correction tier switched on:
+`python3 scripts/record_replay.py --llm` with the key passed inline, `claude-haiku-5-5`
+through the Anthropic Python SDK 2.4.0 (`max_tokens` 8192, effort `medium`, no ACE
+strategies). Everything else is the offline pipeline. The recorder runs behind a
+cost guard (abort on any SDK error, at $0.90 spent, or before a call that could pass
+$1.00) and refuses to write the file unless every corrected scenario with a policy
+violation carries an `llm`-tier edit, because the store falls back to the span tier
+silently when a call fails.
+
+**This is one run of 8 prompts, not a benchmark.** It shows what the LLM tier does on
+the demo scenarios; it says nothing about its accuracy in general.
+
+| | |
+|---|---|
+| Scenarios reaching the LLM tier | 8 of 25 (the corrected ones with a policy violation; PII-only and fact-only corrections stay on the deterministic path) |
+| API calls | 12: 8 first attempts plus 4 retries after the rule check re-fired on a rewrite |
+| Tokens | 4,810 input, 2,155 output |
+| Spend at list price | $0.0016 |
+| Wall time | 0.9–5.3 s per LLM-corrected scenario; the other 17 under 35 ms |
+
+Every rewrite was read and re-checked against the offline policy rules. Verdicts:
+
+| Scenario | Rules | Attempts | Verdict | Note |
+|---|---|---|---|---|
+| S01 $200 credit, 45-day account | CREDIT-001 | 2 | ok | First rewrite still named the $200 credit and re-fired the rule; second offers up to $50 and escalation |
+| S06 $300 credit + card + SSN | CREDIT-001 (PII redacted first) | 2 | partial | Rule fixed and no PII, but the second rewrite's wording is garbled ("I can't offer what I'm able to within my authority"); the first attempt read better but re-fired on "$300 credit" |
+| S08 "never be charged again" | PROMISE-001 | 1 | ok | Drops the guarantee, offers a review |
+| S09 "resolved within 24 hours" | PROMISE-001, SLA-001 | 1 | ok | Declines a timeline, promises updates |
+| S10 "our CRM shows…" | DISC-001 | 1 | ok | Drops the internal-system mention |
+| S11 $75 credit, 30-day account | CREDIT-001 | 1 | ok | States the 90-day rule and the account's 30 days (both given in the prompt), offers $50 or escalation |
+| S14 "lifetime access forever" | PROMISE-001 | 3 | partial | Each rewrite declines the guarantee but keeps the words "guarantee"/"permanent", which the keyword check matches; delivered at the three-attempt limit without a final revalidation, and the delivered text still matches PROMISE-001 |
+| S16 $200 credit, 30-day account | CREDIT-001 | 1 | ok | Offers $50 and a specialist review |
+
+6 ok, 2 partial, 0 wrong. The two partials are instructive: the pipeline's
+revalidation is the keyword rule check, so a rewrite that talks *about* the policy
+("I can't guarantee…") can trip the same rule, and after the attempt limit the
+pipeline delivers the last rewrite as is (`route_after_correction`). Nothing in the
+eight outputs invents a policy or an account fact that was not in the prompt.
