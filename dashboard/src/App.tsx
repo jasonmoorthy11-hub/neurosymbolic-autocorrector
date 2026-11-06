@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { RefreshGate } from "./hooks/refreshGate";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useMetrics, useQueue, useRules, useAnalyticsTrends, useAnalyticsSummary } from "./hooks/useApi";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MetricsPanel } from "./components/MetricsPanel";
-import { AgentFeed } from "./components/AgentFeed";
+import { LiveFeed } from "./components/LiveFeed";
 import { RulesPanel } from "./components/RulesPanel";
 import { SupervisorQueue } from "./components/SupervisorQueue";
 import { EventChart } from "./components/EventChart";
@@ -27,6 +28,17 @@ function App() {
   const { rules, error: rulesError, loading: rulesLoading, refresh: refreshRules } = useRules();
   const { data: trends, error: trendsError, loading: trendsLoading, refresh: refreshTrends } = useAnalyticsTrends();
   const { data: summary, error: summaryError, loading: summaryLoading, refresh: refreshSummary } = useAnalyticsSummary();
+
+  // The analytics panel polls every 10 s, so its latency card trailed the 2 s metrics
+  // card while the demo ran. A new event refreshes it, gated to one call per 2 s so a
+  // fast demo cannot push the endpoints past their 60/min limiter.
+  const newest = events[0]?.event_id;
+  const analyticsGate = useRef(new RefreshGate(2000));
+  useEffect(() => {
+    if (REPLAY || !newest || !analyticsGate.current.allow(Date.now())) return;
+    refreshSummary();
+    refreshTrends();
+  }, [newest, refreshSummary, refreshTrends]);
 
   return (
     <ErrorBoundary>
@@ -80,7 +92,7 @@ function App() {
           <FilterBar filters={filters} onChange={setFilters} />
 
           <div className="main-grid">
-            {REPLAY ? <ReplayFeed /> : <AgentFeed events={events} />}
+            {REPLAY ? <ReplayFeed filters={filters} /> : <LiveFeed events={events} filters={filters} />}
             <div className="side-panels">
               {REPLAY && <PipelineTrace />}
               <SupervisorQueue

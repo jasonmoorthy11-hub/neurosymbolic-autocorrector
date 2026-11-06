@@ -81,7 +81,9 @@
 
 .main-grid {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  /* minmax(0, …): a bare 1fr floors at the panels' content width, which pushed the
+     column past a 390px viewport */
+  grid-template-columns: minmax(0, 1fr) 380px;
   gap: 20px;
   margin-top: 20px;
   /* Columns keep their own height: a tall side column must not stretch the feed */
@@ -491,7 +493,7 @@
 /* === Responsive === */
 @media (max-width: 900px) {
   .main-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .stat-grid {

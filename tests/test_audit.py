@@ -1,5 +1,7 @@
 """Tests for the SQLite audit store."""
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from autocorrector.audit.store import AuditStore
@@ -419,6 +421,17 @@ class TestAnalyticsTrends:
         await store.log_event(_make_event(event_id="e1"))
         trends = await store.get_analytics_trends(hours=1)
         assert len(trends) >= 1
+
+    @pytest.mark.asyncio
+    async def test_trends_bucket_timestamp_is_utc_iso(self, store):
+        """A bucket label without its zone is read as local time by a browser."""
+        await store.log_event(_make_event(event_id="e1"))
+        ts = (await store.get_analytics_trends())[0]["timestamp"]
+        assert ts.endswith("Z"), ts
+        parsed = datetime.fromisoformat(ts)
+        assert parsed.utcoffset() == timedelta(0)
+        # The bucket is the event's own hour, so the label is not off by a zone
+        assert (datetime.now(UTC) - parsed) < timedelta(hours=1, minutes=1)
 
 
 class TestAnalyticsSummary:

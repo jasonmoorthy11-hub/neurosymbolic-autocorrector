@@ -48,6 +48,23 @@
   margin-top: 10px;
 }
 
+/* The reason select plus two buttons overflowed the card: the select takes a full
+   row and the buttons wrap under it. */
+.reject-form {
+  flex-wrap: wrap;
+}
+
+.rejection-reason-select {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.rejection-reason {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+
 .btn-approve {
   background: var(--ok-bg);
   color: var(--ok-text);

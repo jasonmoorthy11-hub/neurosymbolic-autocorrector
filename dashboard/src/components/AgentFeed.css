@@ -5,6 +5,10 @@
   gap: 10px;
   max-height: 600px;
   overflow-y: auto;
+  /* a real list (ul/li) for assistive tech; drop the browser's bullets and indent */
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .feed-item {
@@ -61,6 +65,12 @@
   background: #10b98110;
   border-radius: 4px;
   line-height: 1.4;
+}
+
+.feed-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 2px 0 4px;
 }
 
 .feed-meta {

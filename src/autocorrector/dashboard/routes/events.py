@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -23,6 +24,14 @@ from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import CorrectionAction
 
 router = APIRouter()
+
+
+def _utc_iso(dt: datetime) -> str:
+    """The form the JSON export writes: UTC with a Z suffix, so both exports agree."""
+    if dt.tzinfo is None:
+        # Stored timestamps are UTC; a naive one must not pick up the machine's offset
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 @router.get("/api/metrics", response_model=DashboardMetrics)
@@ -158,7 +167,7 @@ async def export_events(
         writer.writerow(
             [
                 e.event_id,
-                e.timestamp.isoformat(),
+                _utc_iso(e.timestamp),
                 e.agent_id,
                 e.session_id,
                 e.original_text,

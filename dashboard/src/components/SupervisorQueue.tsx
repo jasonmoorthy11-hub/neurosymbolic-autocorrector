@@ -21,17 +21,15 @@ interface Props {
   onDecision?: () => void;
 }
 
-function DecisionBadge({ decision, rejectionReason }: { decision: string; rejectionReason?: string | null }) {
+function DecisionBadge({ decision }: { decision: string }) {
   const cls = decision === "approved" ? "badge-approved" : "badge-rejected";
-  const reasonLabel = rejectionReason
-    ? REJECTION_REASONS.find((r) => r.value === rejectionReason)?.label ?? rejectionReason
-    : null;
-  return (
-    <span className={`badge ${cls}`}>
-      {decision === "approved" ? "Approved" : "Rejected"}
-      {reasonLabel && <span className="rejection-reason-tag"> ({reasonLabel})</span>}
-    </span>
-  );
+  return <span className={`badge ${cls}`}>{decision === "approved" ? "Approved" : "Rejected"}</span>;
+}
+
+/** The reason sits on its own line under the text; inside the pill it wrapped mid-badge. */
+function reasonLabel(rejectionReason: string | null | undefined): string | null {
+  if (!rejectionReason) return null;
+  return REJECTION_REASONS.find((r) => r.value === rejectionReason)?.label ?? rejectionReason;
 }
 
 export function SupervisorQueue({ queue, error, loading, onRetry, onDecision }: Props) {
@@ -95,6 +93,7 @@ export function SupervisorQueue({ queue, error, loading, onRetry, onDecision }: 
           {queue.map((item) => {
             const isPending = !item.decision;
             const isRejecting = rejectingId === item.event_id;
+            const reason = reasonLabel(item.rejection_reason);
             return (
               <div
                 key={item.event_id}
@@ -110,12 +109,15 @@ export function SupervisorQueue({ queue, error, loading, onRetry, onDecision }: 
                     {item.severity.toUpperCase()}
                   </span>
                   {item.decision ? (
-                    <DecisionBadge decision={item.decision} rejectionReason={item.rejection_reason} />
+                    <DecisionBadge decision={item.decision} />
                   ) : (
                     <span className="queue-status">pending review</span>
                   )}
                 </div>
                 <p className="original-text">{item.original_text}</p>
+                {item.decision === "rejected" && reason && (
+                  <p className="rejection-reason">Reason: {reason}</p>
+                )}
                 {item.violations.length > 0 && (
                   <div className="violations" role="list" aria-label="Violations">
                     {item.violations.map((v, i) => (

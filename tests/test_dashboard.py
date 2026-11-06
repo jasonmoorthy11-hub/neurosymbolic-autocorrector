@@ -1,5 +1,9 @@
 """Tests for the dashboard API."""
 
+import csv
+import io
+from datetime import UTC
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -421,6 +425,29 @@ class TestExport:
         data = resp.json()
         assert len(data) == 1
         assert data[0]["event_id"] == "e1"
+
+    @pytest.mark.asyncio
+    async def test_export_csv_timestamp_matches_json(self, client, clean_state):
+        """Both exports write the same UTC instant in the same form (Z suffix)."""
+        audit = clean_state
+        await audit.log_event(_make_event(event_id="e1"))
+        json_ts = (await client.get("/api/events/export?format=json")).json()[0]["timestamp"]
+        csv_text = (await client.get("/api/events/export?format=csv")).text
+        csv_ts = next(csv.DictReader(io.StringIO(csv_text)))["timestamp"]
+        assert json_ts.endswith("Z")
+        assert csv_ts == json_ts
+
+    def test_utc_iso_treats_naive_as_utc(self):
+        """A naive datetime must not be shifted by the machine's local offset."""
+        from datetime import datetime
+
+        from autocorrector.dashboard.routes.events import _utc_iso
+
+        assert _utc_iso(datetime(2026, 11, 6, 12, 0, 0)) == "2026-11-06T12:00:00Z"
+        assert (
+            _utc_iso(datetime(2026, 11, 6, 12, 0, 0, 5, tzinfo=UTC))
+            == "2026-11-06T12:00:00.000005Z"
+        )
 
     @pytest.mark.asyncio
     async def test_export_with_filter(self, client, clean_state):

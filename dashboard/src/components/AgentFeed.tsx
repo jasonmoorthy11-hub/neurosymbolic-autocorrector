@@ -61,17 +61,18 @@ export function AgentFeed({
   timeLabel = (e) => timeAgo(e.timestamp),
 }: Props) {
   return (
-    <div className="panel agent-feed" role="feed" aria-label={title} aria-live="polite">
+    // A region landmark, not role="feed": that role allows only article children,
+    // and this panel has a heading and a list (axe aria-required-children).
+    <section className="panel agent-feed" aria-label={title}>
       <h2>{title}</h2>
       {events.length === 0 ? (
         <p className="muted">{emptyMessage}</p>
       ) : (
-        <div className="feed-list" tabIndex={0} role="list" aria-label="Correction events">
+        <ul className="feed-list" tabIndex={0} aria-label="Correction events" aria-live="polite">
           {events.slice(0, 50).map((e) => (
-            <article
+            <li
               key={e.event_id}
               className={`feed-item feed-item--${e.action}${selectedId === e.event_id ? " feed-item--selected" : ""}`}
-              role="listitem"
               aria-label={`${e.agent_id}: ${e.action} — ${e.severity} severity`}
               aria-current={selectedId === e.event_id ? "true" : undefined}
               onClick={onSelect ? () => onSelect(e.event_id) : undefined}
@@ -86,10 +87,25 @@ export function AgentFeed({
                 <span className="feed-time">{timeLabel(e)}</span>
               </div>
               <div className="feed-body">
-                <p className="original-text">{e.original_text}</p>
                 {/* An escalation sends nothing, so there is no corrected text to show */}
-                {e.was_modified && e.action !== "escalate" && (
-                  <p className="corrected-text">{e.corrected_text}</p>
+                {e.action !== "escalate" && e.was_modified && e.original_text === e.corrected_text ? (
+                  <>
+                    {/* The audit log stores the original already redacted, so a PII-only
+                        correction has nothing to strike through: show what was sent once. */}
+                    <p className="corrected-text">{e.corrected_text}</p>
+                    <p className="feed-note">
+                      {e.pii_detected
+                        ? "PII redacted before delivery; the audit log keeps no unredacted copy."
+                        : "Marked modified with no visible text change."}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="original-text">{e.original_text}</p>
+                    {e.was_modified && e.action !== "escalate" && (
+                      <p className="corrected-text">{e.corrected_text}</p>
+                    )}
+                  </>
                 )}
               </div>
               {e.violations.length > 0 && (
@@ -123,10 +139,10 @@ export function AgentFeed({
                   </button>
                 )}
               </div>
-            </article>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </section>
   );
 }

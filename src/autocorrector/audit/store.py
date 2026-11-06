@@ -451,7 +451,7 @@ class AuditStore:
         cursor = await self._db.execute(
             """
             SELECT
-                strftime('%Y-%m-%dT%H:%M',
+                strftime('%Y-%m-%dT%H:%M:%SZ',
                     (strftime('%s', timestamp) / ? * ?) , 'unixepoch'
                 ) AS bucket,
                 COUNT(*) AS total,
