@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { RefreshGate } from "./hooks/refreshGate";
+import { useCallback, useState } from "react";
+import { useAnalyticsRefresh } from "./hooks/useAnalyticsRefresh";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useMetrics, useQueue, useRules, useAnalyticsTrends, useAnalyticsSummary } from "./hooks/useApi";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -30,15 +30,12 @@ function App() {
   const { data: summary, error: summaryError, loading: summaryLoading, refresh: refreshSummary } = useAnalyticsSummary();
 
   // The analytics panel polls every 10 s, so its latency card trailed the 2 s metrics
-  // card while the demo ran. A new event refreshes it, gated to one call per 2 s so a
-  // fast demo cannot push the endpoints past their 60/min limiter.
-  const newest = events[0]?.event_id;
-  const analyticsGate = useRef(new RefreshGate(2000));
-  useEffect(() => {
-    if (REPLAY || !newest || !analyticsGate.current.allow(Date.now())) return;
+  // card while the demo ran; a new event refreshes it (gated, see the hook).
+  const refreshAnalytics = useCallback(() => {
     refreshSummary();
     refreshTrends();
-  }, [newest, refreshSummary, refreshTrends]);
+  }, [refreshSummary, refreshTrends]);
+  useAnalyticsRefresh(events[0]?.event_id, refreshAnalytics, !REPLAY);
 
   return (
     <ErrorBoundary>

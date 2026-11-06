@@ -65,10 +65,18 @@ export function AgentFeed({
     // and this panel has a heading and a list (axe aria-required-children).
     <section className="panel agent-feed" aria-label={title}>
       <h2>{title}</h2>
+      {/* One short status per change. The list itself is not a live region: every new
+          event re-renders every item's "Ns ago" label, which would queue dozens of
+          announcements per event. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {events.length > 0
+          ? `${events.length} event${events.length === 1 ? "" : "s"} shown; newest: ${agentName(events[0].agent_id)}, ${events[0].action}, ${events[0].severity} severity`
+          : ""}
+      </p>
       {events.length === 0 ? (
         <p className="muted">{emptyMessage}</p>
       ) : (
-        <ul className="feed-list" tabIndex={0} aria-label="Correction events" aria-live="polite">
+        <ul className="feed-list" tabIndex={0} aria-label="Correction events">
           {events.slice(0, 50).map((e) => (
             <li
               key={e.event_id}

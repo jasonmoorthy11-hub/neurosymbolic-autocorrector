@@ -17,4 +17,9 @@ export class RefreshGate {
     this.last = nowMs;
     return true;
   }
+
+  /** Milliseconds until the gate opens again; 0 when it is open now. */
+  remainingMs(nowMs: number): number {
+    return Math.max(0, this.last + this.minGapMs - nowMs);
+  }
 }

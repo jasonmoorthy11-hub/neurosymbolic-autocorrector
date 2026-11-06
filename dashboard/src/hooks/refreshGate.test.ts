@@ -17,4 +17,13 @@ describe("RefreshGate", () => {
     expect(gate.allow(13_999)).toBe(false);
     expect(gate.allow(14_000)).toBe(true);
   });
+
+  it("reports how long a blocked caller must wait, and zero once the gate is open", () => {
+    const gate = new RefreshGate(2000);
+    expect(gate.remainingMs(10_000)).toBe(0); // never allowed anything yet
+    expect(gate.allow(10_000)).toBe(true);
+    expect(gate.remainingMs(10_500)).toBe(1500);
+    expect(gate.remainingMs(12_000)).toBe(0);
+    expect(gate.remainingMs(15_000)).toBe(0);
+  });
 });

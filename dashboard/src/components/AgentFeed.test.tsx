@@ -61,3 +61,25 @@ describe("AgentFeed before/after rendering", () => {
     expect(html).not.toContain('class="corrected-text"');
   });
 });
+
+describe("AgentFeed accessibility", () => {
+  it("announces a one-line status instead of making the whole list a live region", () => {
+    // Every new event re-renders every item's "Ns ago" label, so a live list would
+    // queue dozens of announcements per event; the status line says what changed.
+    const html = renderToStaticMarkup(
+      <AgentFeed events={[event({ event_id: "e2", agent_id: "agent-sarah", action: "escalate", severity: "high" }), event({})]} />,
+    );
+    expect(html).toMatch(/<ul class="feed-list"[^>]*>/);
+    expect(html).not.toMatch(/<ul[^>]*aria-live/);
+    expect(html).toMatch(/<p class="sr-only" aria-live="polite" aria-atomic="true">2 events shown; newest: Sarah, escalate, high severity<\/p>/);
+  });
+
+  it("marks exactly the selected item as current", () => {
+    const html = renderToStaticMarkup(
+      <AgentFeed events={[event({ event_id: "e1" }), event({ event_id: "e2" })]} selectedId="e2" onSelect={() => {}} />,
+    );
+    expect(count(html, 'aria-current="true"')).toBe(1);
+    expect(count(html, "feed-item--selected")).toBe(1);
+    expect(html).toMatch(/<li class="feed-item feed-item--correct feed-item--selected"[^>]*aria-current="true"/);
+  });
+});
