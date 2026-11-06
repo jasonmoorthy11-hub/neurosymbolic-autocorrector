@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 import autocorrector.dashboard.state as state_module
 from autocorrector.audit.store import AuditStore
 from autocorrector.dashboard.api import _connections, _event_log, app
+from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import (
     CorrectionAction,
     CorrectionEvent,
@@ -18,6 +19,7 @@ from autocorrector.models import (
     PolicyViolation,
     Severity,
 )
+from autocorrector.orchestrator.pipeline import set_kg_store
 
 
 def _make_event(
@@ -49,16 +51,21 @@ async def clean_state(tmp_path):
     _event_log.clear()
     _connections.clear()
 
-    # Inject a temp audit store so tests don't touch a real DB
+    # Inject a temp audit store so tests don't touch a real DB, and an explicit
+    # in-memory policy store so this suite never reads AUTOCORRECTOR_NEO4J_*
     audit = AuditStore(db_path=str(tmp_path / "test_dashboard.db"))
     await audit.connect()
     state_module._audit_store = audit
+    previous_kg = state_module._kg_store
+    state_module._kg_store = KnowledgeGraphStore()
+    set_kg_store(state_module._kg_store)
 
     yield audit
 
     _event_log.clear()
     _connections.clear()
     await audit.close()
+    state_module._kg_store = previous_kg
     state_module._audit_store = None
 
 

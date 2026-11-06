@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Neo4j
-    neo4j_uri: str = "bolt://localhost:7687"
+    # Empty = in-memory store; only an explicit URI makes a service dial Neo4j
+    neo4j_uri: str = ""
     neo4j_user: str = ""
     neo4j_password: str = ""
     neo4j_database: str = "neo4j"
@@ -78,11 +79,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _warn_missing_neo4j_credentials(self) -> Settings:
-        if (
-            self.neo4j_uri
-            and not self.neo4j_uri.startswith("bolt://localhost")
-            and (not self.neo4j_user or not self.neo4j_password)
-        ):
+        if self.neo4j_uri and (not self.neo4j_user or not self.neo4j_password):
             warnings.warn(
                 "Neo4j URI is configured but credentials are empty. "
                 "Set AUTOCORRECTOR_NEO4J_USER and AUTOCORRECTOR_NEO4J_PASSWORD.",

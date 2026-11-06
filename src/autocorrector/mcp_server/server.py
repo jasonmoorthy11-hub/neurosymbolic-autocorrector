@@ -64,10 +64,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[dict]:
     logger.info("Starting Neurosymbolic Autocorrector...")
 
     settings = get_settings()
-    kg_store = KnowledgeGraphStore(
-        anthropic_api_key=settings.anthropic_api_key,
-        correction_llm=settings.correction_llm,
-    )
+    kg_store = KnowledgeGraphStore.from_settings(settings)
     intent_classifier = IntentClassifier()
     audit_store = AuditStore(db_path=settings.audit_db_path)
 

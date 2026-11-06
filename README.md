@@ -156,7 +156,8 @@ scenarios), run through the offline pipeline. The recorder refuses to run while 
 API key is set or NeMo rails are on, so every recorded correction comes from the
 deterministic path. Latencies are wall time on the recording machine after one
 untimed warm-up run. The live dashboard (FastAPI on :8000, React on :3000) starts
-with `./scripts/start_dashboard.sh`.
+with `./scripts/start_dashboard.sh`, or with Neo4j behind it via
+`docker compose up --build` ([docs/deployment.md](docs/deployment.md)).
 
 ## MCP server
 
@@ -226,7 +227,9 @@ Known, measured, or found by the held-out run:
   use the in-memory rules and facts; REFUND-001 drops sentences that use "return" in
   other senses; fact-check edits put the page number in `source_section`; a credit
   named by category under the threshold goes to the whole-message template.
-- Rules live in memory by default; Neo4j is optional and not part of the demo.
+- Rules live in memory by default; Neo4j is optional and not part of the replay
+  demo. The Docker stack (`docker compose up --build`, [docs/deployment.md](docs/deployment.md))
+  seeds and uses it.
 - Non-English replies escalate when no translation key is available (PII redaction
   still applies).
 - The confidence shown is a fixed heuristic per outcome, not a calibrated
@@ -253,7 +256,7 @@ Environment variables (prefix `AUTOCORRECTOR_`) or a `.env` file; see `.env.exam
 |----------|---------|-------------|
 | `AUTOCORRECTOR_ANTHROPIC_API_KEY` | (empty) | Enables the LLM correction tier and translation |
 | `AUTOCORRECTOR_CORRECTION_LLM` | `claude-opus-5-5` | Model for LLM corrections |
-| `AUTOCORRECTOR_NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection URI (optional) |
+| `AUTOCORRECTOR_NEO4J_URI` | (empty) | Neo4j connection URI (optional); when set, the dashboard API and MCP server connect at startup and fall back to memory if it is unreachable |
 | `AUTOCORRECTOR_NEO4J_USER` / `_PASSWORD` | (empty) | Neo4j credentials |
 | `AUTOCORRECTOR_NEMO_RAILS_ENABLED` | `false` | NeMo input rails (needs the `[nemo]` extra) |
 | `AUTOCORRECTOR_GUARDRAILS_TELEMETRY` | `false` | Guardrails AI telemetry, off unless opted in |
@@ -267,7 +270,7 @@ Environment variables (prefix `AUTOCORRECTOR_`) or a `.env` file; see `.env.exam
 ## Development
 
 ```bash
-python3 -m pytest --ignore=tests/test_neo4j_integration.py   # the 14 Neo4j tests need a server
+python3 -m pytest --ignore=tests/test_neo4j_integration.py   # the 15 Neo4j tests need a server (docs/deployment.md)
 ruff check src tests scripts && ruff format --check src tests scripts
 cd dashboard && npm test                                      # vitest
 ```

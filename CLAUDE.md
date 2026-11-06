@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1264 passing offline; the 14 Neo4j integration tests need a Neo4j server)
+# Tests (1283 passing offline; the 15 Neo4j integration tests need a Neo4j server, e.g. the compose one)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 python3 -m pytest tests/test_pipeline.py -v                  # single file
@@ -40,7 +40,7 @@ ruff check src tests scripts
 ruff format --check src tests scripts
 
 # Docker
-docker compose up --build  # 3 services: autocorrector, neo4j, dashboard
+docker compose up --build  # neo4j → seed (one-shot) → autocorrector :8000; dashboard (nginx, built from source) :3000
 ```
 
 ## Architecture

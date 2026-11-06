@@ -13,20 +13,33 @@ pytest
 ## Docker
 
 ```bash
-# Build and start all services
+# Build and start the stack from a fresh clone; no .env needed
 docker compose up --build
 
-# Services:
-#   autocorrector: http://localhost:8000 (FastAPI + MCP)
-#   neo4j:         http://localhost:7474 (browser), bolt://localhost:7687
-#   dashboard:     http://localhost:3000 (React UI)
+# Services, in start order:
+#   neo4j:         http://localhost:7474 (browser), bolt://localhost:7687; neo4j/changeme
+#   seed:          one-shot, loads the default policies, facts and templates once
+#                  Neo4j is healthy (idempotent; re-run with `docker compose run --rm seed`)
+#   autocorrector: http://localhost:8000 (FastAPI API), starts after the seed
+#   dashboard:     http://localhost:3000, the live-mode build behind nginx, which
+#                  proxies /api and /ws to the API container (dashboard/nginx.conf)
 
-# Seed the knowledge graph
-docker compose exec autocorrector python scripts/seed_neo4j.py
-
-# Health check
+# Health check: expect "neo4j_connected": true
 curl http://localhost:8000/health
+
+# The 15 Neo4j integration tests against the compose database (they clear and reseed it)
+AUTOCORRECTOR_NEO4J_URI=bolt://localhost:7687 AUTOCORRECTOR_NEO4J_PASSWORD=changeme \
+  python3 -m pytest tests/test_neo4j_integration.py -q
+
+docker compose down        # keeps the neo4j_data volume; add -v to drop it
 ```
+
+The API's `environment` entries set the compose Neo4j credentials and take
+precedence over a `.env`, which is read only if present (API keys for the LLM
+tier). `tests/test_docker_config.py` pins these invariants. The image bakes in
+the fastText language-identification model `lid.176.bin` (Facebook AI Research,
+CC BY-SA 3.0) so no download happens at runtime; keep that attribution if the
+image is ever published.
 
 ## Environment Variables
 
@@ -34,7 +47,7 @@ All prefixed with `AUTOCORRECTOR_`:
 
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
-| `NEO4J_URI` | No | `bolt://localhost:7687` | Use `neo4j+s://` for Aura |
+| `NEO4J_URI` | No | (empty: in-memory store) | `bolt://localhost:7687` for a local server, `neo4j+s://` for Aura |
 | `NEO4J_USER` | When URI set | (empty) | |
 | `NEO4J_PASSWORD` | When URI set | (empty) | |
 | `ANTHROPIC_API_KEY` | For the LLM correction tier and translation | (empty) | |

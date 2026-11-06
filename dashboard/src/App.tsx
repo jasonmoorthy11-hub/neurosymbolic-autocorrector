@@ -29,13 +29,15 @@ function App() {
   const { data: trends, error: trendsError, loading: trendsLoading, refresh: refreshTrends } = useAnalyticsTrends();
   const { data: summary, error: summaryError, loading: summaryLoading, refresh: refreshSummary } = useAnalyticsSummary();
 
-  // The analytics panel polls every 10 s, so its latency card trailed the 2 s metrics
-  // card while the demo ran; a new event refreshes it (gated, see the hook).
-  const refreshAnalytics = useCallback(() => {
+  // The analytics panel polls every 10 s (its latency card trailed the 2 s metrics
+  // card while the demo ran) and the rules panel only loads once (its violation
+  // counts went stale); a new event refreshes both, gated by the hook.
+  const refreshPanels = useCallback(() => {
     refreshSummary();
     refreshTrends();
-  }, [refreshSummary, refreshTrends]);
-  useAnalyticsRefresh(events[0]?.event_id, refreshAnalytics, !REPLAY);
+    refreshRules();
+  }, [refreshSummary, refreshTrends, refreshRules]);
+  useAnalyticsRefresh(events[0]?.event_id, refreshPanels, !REPLAY);
 
   return (
     <ErrorBoundary>

@@ -179,12 +179,22 @@ class TestComplianceNeo4j:
         rule_ids = [v.rule_id for v in violations]
         assert "CREDIT-002" in rule_ids
 
-    async def test_no_violations_for_unrelated_intent(self, kg_store):
-        """Troubleshooting intent should not trigger credit rules."""
+    async def test_rules_are_not_gated_on_the_classified_intent(self, kg_store):
+        """Since v1.1 every rule runs on its own triggers (the intent only orders
+        them), on this path as in memory: a mislabelled credit offer still fires."""
         violations = await kg_store.check_policy_compliance(
             text="I can offer you a $75 credit for your trouble.",
             intent_type="troubleshooting",
             customer_context={"account_tenure_days": 30},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-001"]
+
+    async def test_no_violations_for_unrelated_text(self, kg_store):
+        """Text with no offer, promise, disclosure or threat triggers nothing."""
+        violations = await kg_store.check_policy_compliance(
+            text="Please try restarting your router.",
+            intent_type="troubleshooting",
+            customer_context={"account_tenure_days": 45},
         )
         assert len(violations) == 0
 

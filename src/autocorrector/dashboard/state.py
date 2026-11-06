@@ -16,6 +16,7 @@ from slowapi.util import get_remote_address
 from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+from autocorrector.orchestrator.pipeline import set_kg_store
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,12 @@ _start_time = time.monotonic()
 
 
 def get_kg_store() -> KnowledgeGraphStore:
+    """One store for the whole process: built from Settings (so AUTOCORRECTOR_NEO4J_*
+    reaches it) and handed to the pipeline, which would otherwise build its own."""
     global _kg_store
     if _kg_store is None:
-        _kg_store = KnowledgeGraphStore()
+        _kg_store = KnowledgeGraphStore.from_settings(get_settings())
+        set_kg_store(_kg_store)
     return _kg_store
 
 

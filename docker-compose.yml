@@ -1,19 +1,47 @@
+# One command brings the stack up from a fresh clone:
+#   docker compose up --build
+# Neo4j starts first; `seed` loads the default policies once it is healthy (an
+# empty graph answers every policy check with "no rules"); the API waits for the
+# seed; nginx serves the built dashboard and proxies /api and /ws to the API.
+# The Neo4j password is the stack's own default, not a secret. A `.env` is read
+# when present (API keys for the LLM tier) and never required.
+x-neo4j-env: &neo4j-env
+  AUTOCORRECTOR_NEO4J_URI: bolt://neo4j:7687
+  AUTOCORRECTOR_NEO4J_USER: neo4j
+  AUTOCORRECTOR_NEO4J_PASSWORD: changeme
+
 services:
   autocorrector:
     build:
       context: .
       target: production
+    image: neurosymbolic-autocorrector:local
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      - AUTOCORRECTOR_NEO4J_URI=bolt://neo4j:7687
-      - AUTOCORRECTOR_CORS_ORIGINS=["http://localhost:3000","http://localhost:8080"]
+      <<: *neo4j-env
+      AUTOCORRECTOR_CORS_ORIGINS: '["http://localhost:3000","http://localhost:8080"]'
     depends_on:
       neo4j:
         condition: service_healthy
+      seed:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  # One-shot: seeds the default policies, facts and templates (idempotent MERGEs)
+  seed:
+    build:
+      context: .
+      target: production
+    image: neurosymbolic-autocorrector:local
+    command: ["python", "scripts/seed_neo4j.py"]
+    environment: *neo4j-env
+    depends_on:
+      neo4j:
+        condition: service_healthy
 
   neo4j:
     image: neo4j:5-community
@@ -26,18 +54,20 @@ services:
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      # Probe bolt, which the seed and the API use; the HTTP port can answer first
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p changeme 'RETURN 1' || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
 
+  # Built from source (dashboard/Dockerfile): the live-mode bundle behind nginx,
+  # which proxies /api and /ws to the API container (dashboard/nginx.conf)
   dashboard:
-    image: nginx:alpine
+    build:
+      context: ./dashboard
     ports:
       - "3000:80"
-    volumes:
-      - ./dashboard/dist:/usr/share/nginx/html:ro
     depends_on:
       - autocorrector
     restart: unless-stopped

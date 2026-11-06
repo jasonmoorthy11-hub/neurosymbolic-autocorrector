@@ -16,9 +16,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cachetools import TTLCache
+
+if TYPE_CHECKING:
+    from autocorrector.config import Settings
 
 from autocorrector.knowledge_graph.defaults import load_default_facts, load_default_rules
 from autocorrector.knowledge_graph.facts import (
@@ -97,30 +100,57 @@ class KnowledgeGraphStore:
         """Whether a Neo4j URI has been set."""
         return bool(self._uri)
 
+    @classmethod
+    def from_settings(cls, settings: Settings | None = None) -> KnowledgeGraphStore:
+        """The store a long-running service uses: Neo4j and LLM settings from the
+        environment (``AUTOCORRECTOR_NEO4J_*``, ``AUTOCORRECTOR_ANTHROPIC_API_KEY``).
+
+        Scripts that must stay offline (demo, evaluate, record_replay) construct
+        ``KnowledgeGraphStore()`` directly instead.
+        """
+        from autocorrector.config import get_settings
+
+        s = settings or get_settings()
+        return cls(
+            neo4j_uri=s.neo4j_uri or None,
+            neo4j_user=s.neo4j_user,
+            neo4j_password=s.neo4j_password,
+            anthropic_api_key=s.anthropic_api_key,
+            correction_llm=s.correction_llm,
+        )
+
     async def connect(self) -> None:
-        """Connect to Neo4j. Falls back to in-memory store if no URI configured."""
+        """Connect to Neo4j once; falls back to the in-memory store without a URI
+        or when the server cannot be reached. Safe to call again: a connected
+        store keeps its driver."""
+        if self._connected:
+            return
         if self._uri:
+            driver = None
             try:
                 from neo4j import AsyncGraphDatabase
 
-                self._driver = AsyncGraphDatabase.driver(
-                    self._uri, auth=(self._user, self._password)
-                )
-                await self._driver.verify_connectivity()
+                driver = AsyncGraphDatabase.driver(self._uri, auth=(self._user, self._password))
+                await driver.verify_connectivity()
+                self._driver = driver
                 self._connected = True
                 logger.info(f"Connected to Neo4j at {self._uri}")
             except Exception as e:
                 logger.warning(f"Neo4j connection failed ({e}), using in-memory store")
                 self._connected = False
+                if driver is not None:
+                    await driver.close()
         else:
             logger.info("No Neo4j URI configured, using in-memory policy store")
             self._connected = False
 
     async def close(self) -> None:
-        """Close Neo4j connection."""
+        """Close the Neo4j connection; a later ``connect()`` opens a new driver."""
         if self._driver:
             await self._driver.close()
             logger.info("Neo4j connection closed")
+        self._driver = None
+        self._connected = False
 
     @staticmethod
     def _cache_key(*args: Any) -> str:

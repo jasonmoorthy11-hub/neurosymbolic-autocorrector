@@ -12,6 +12,8 @@ import hmac
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +41,22 @@ logger = logging.getLogger(__name__)
 
 setup_logging()
 
-app = FastAPI(title="Autocorrector Dashboard API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Connect the stores at startup so `/health` reports the real Neo4j state
+    from the first request (a failed Neo4j connection falls back to memory)."""
+    kg = get_kg_store()
+    await kg.connect()
+    audit = await get_audit_store()
+    try:
+        yield
+    finally:
+        await kg.close()
+        await audit.close()
+
+
+app = FastAPI(title="Autocorrector Dashboard API", version="1.0.0", lifespan=lifespan)
 
 _settings = get_settings()
 

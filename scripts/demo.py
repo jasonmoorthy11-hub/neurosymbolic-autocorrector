@@ -131,11 +131,13 @@ async def run_scenario(
 
 
 async def run_pipeline_scenario(
+    kg: KnowledgeGraphStore,
     scenario_name: str,
     agent_output: str,
     customer_context: dict,
 ) -> None:
-    """Run a scenario through the full LangGraph pipeline."""
+    """Run a scenario through the full LangGraph pipeline (the demo's own
+    in-memory store, never the settings-built default)."""
     print_header(scenario_name)
 
     print(f'\n  Agent says: "{agent_output}"')
@@ -144,6 +146,7 @@ async def run_pipeline_scenario(
     result = await run_autocorrection(
         text=agent_output,
         customer_context=customer_context,
+        kg_store=kg,
     )
 
     print("\n  Pipeline Result:")
@@ -189,7 +192,7 @@ async def main():
     print("-" * 70)
 
     for scenario in PIPELINE_SCENARIOS:
-        await run_pipeline_scenario(scenario.name, scenario.text, scenario.context)
+        await run_pipeline_scenario(kg, scenario.name, scenario.text, scenario.context)
 
     rule_ids = sorted(kg.rule_index())
     await kg.close()

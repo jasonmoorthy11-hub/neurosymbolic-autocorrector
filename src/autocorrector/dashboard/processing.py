@@ -34,8 +34,9 @@ async def process_and_log(
     request_id: str | None = None,
 ) -> dict[str, Any]:
     """Run text through the pipeline, log the event, and broadcast to clients."""
+    # Connected once by the API lifespan (a per-event connect re-dialled a down
+    # server on every reply); the in-memory rules need no connection.
     kg = get_kg_store()
-    await kg.connect()
 
     audit = await get_audit_store()
 

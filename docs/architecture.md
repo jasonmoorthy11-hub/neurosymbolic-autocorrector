@@ -65,6 +65,15 @@ query reads every active rule and only orders by intent; the fact query reads ev
 plan, so an amount attributed to another plan is checked against that plan). The
 span tier and the coverage exemption still use the in-memory rules and facts.
 
+The dashboard API and the MCP server build their one store from Settings
+(`KnowledgeGraphStore.from_settings`) and connect once at startup; a Neo4j that
+cannot be reached is logged and the store falls back to memory, and `/health`
+reports `neo4j_connected`. The scripts (`demo.py`, `evaluate.py`,
+`record_replay.py`) construct the in-memory store explicitly and never read the
+Neo4j settings, so their results do not depend on a server being up.
+`docker compose up --build` runs this path end to end: the `seed` service loads the
+graph before the API starts ([deployment.md](deployment.md)).
+
 ## Correction tiers
 
 `KnowledgeGraphStore.generate_compliant_alternative_with_edits`; the first tier that

@@ -12,8 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml .
 COPY src/ src/
 
-# Install the package with all dependencies
-RUN pip install --no-cache-dir -e ".[all]"
+# Install the package with all dependencies. A slow route to PyPI must not fail
+# the build (pip's default read timeout is 15 s), and the BuildKit cache mount
+# keeps downloaded wheels across retries and rebuilds without bloating the image.
+ENV PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=10
+RUN --mount=type=cache,target=/root/.cache/pip pip install -e ".[all]"
+
+# Fetch the fastText language model now: otherwise the first request downloads
+# 125 MB inside the container and the API answers nothing until it is done.
+ENV FTLANG_CACHE=/app/.cache/fast_langdetect
+RUN python -c "from autocorrector.multilingual.detector import detect_language; \
+    print(detect_language('Warm up the language detection model before the first request.'))"
 
 # --- Production image ---
 FROM base AS production

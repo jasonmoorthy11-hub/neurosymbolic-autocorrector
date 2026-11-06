@@ -90,11 +90,16 @@ class TestNeo4jCredentialWarning:
             )
             assert any("credentials are empty" in str(warning.message) for warning in w)
 
-    def test_no_warning_for_localhost(self):
+    def test_default_uri_is_empty_so_nothing_dials_neo4j_unasked(self):
+        # A default of bolt://localhost:7687 made every service store (and the
+        # offline test suite) try a real connection; only explicit config connects.
+        assert _NoEnvSettings().neo4j_uri == ""
+
+    def test_warns_for_a_local_uri_without_credentials_too(self):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             _NoEnvSettings(neo4j_uri="bolt://localhost:7687", neo4j_user="", neo4j_password="")
-            assert not any("credentials are empty" in str(warning.message) for warning in w)
+            assert any("credentials are empty" in str(warning.message) for warning in w)
 
     def test_no_warning_when_credentials_provided(self):
         with warnings.catch_warnings(record=True) as w:

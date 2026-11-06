@@ -486,11 +486,7 @@ def _get_kg_store() -> KnowledgeGraphStore:
     if _kg_store is None:
         with _lock:
             if _kg_store is None:
-                settings = get_settings()
-                _kg_store = KnowledgeGraphStore(
-                    anthropic_api_key=settings.anthropic_api_key,
-                    correction_llm=settings.correction_llm,
-                )
+                _kg_store = KnowledgeGraphStore.from_settings(get_settings())
     return _kg_store
 
 

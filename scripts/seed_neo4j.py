@@ -56,12 +56,20 @@ async def main() -> None:
     print(f"Connecting to Neo4j at {uri}...")
     driver = AsyncGraphDatabase.driver(uri, auth=(user, password))
 
-    try:
-        await driver.verify_connectivity()
-        print("Connected successfully!")
-    except Exception as e:
-        print(f"ERROR: Connection failed: {e}")
-        sys.exit(1)
+    # A fresh server (the compose stack) can accept bolt a few seconds after its
+    # healthcheck passes, so a bounded retry is used rather than one attempt.
+    attempts = int(os.getenv("SEED_CONNECT_ATTEMPTS", "10"))
+    for attempt in range(1, attempts + 1):
+        try:
+            await driver.verify_connectivity()
+            print("Connected successfully!")
+            break
+        except Exception as e:
+            if attempt == attempts:
+                print(f"ERROR: Connection failed after {attempts} attempts: {e}")
+                sys.exit(1)
+            print(f"Not ready ({e}); retrying in 3 s ({attempt}/{attempts})...")
+            await asyncio.sleep(3)
 
     from autocorrector.knowledge_graph.schema import (
         clear_all,
