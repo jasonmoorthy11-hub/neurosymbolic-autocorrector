@@ -55,6 +55,10 @@ Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
   Expected rules found: 100.0%  (125/125, 95% CI 97.0-100.0)
 ```
 
+Latency on the golden set, second of two consecutive runs on 2026-11-06: p50 12.0 ms,
+p95 14.2 ms, p99 17.0 ms per reply (the first run: 11.8 / 14.2 / 18.9). The first case
+loads the language-detection model and is the slowest.
+
 Dataset v3.3 (2026-11-04) adds GAP-001 to GAP-011, new wording for the behaviours
 the held-out run exposed (rules gated on the classified intent, "regulator", a date
 of birth a few words after its cue, another plan's limit in a comparison, a credit

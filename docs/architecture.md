@@ -181,7 +181,7 @@ character spans. Results and protocol: [evaluation.md](evaluation.md).
 | Situation | Behaviour |
 |---|---|
 | NeMo missing or erroring | pass through |
-| Policy or fact check raises | logged; all of its rules skipped, may allow |
+| Policy or fact check raises | logged; `validation-unavailable` added to the guardrails applied; escalate (fail-closed) |
 | No translation for non-English text | escalate (PII still redacted) |
 | Policy rewrite raises | logged; text keeps only its fact edits |
 | LLM refuses, truncates or stops early | next tier |

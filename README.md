@@ -122,10 +122,10 @@ python3 scripts/evaluate.py --dataset heldout   # already run once (results abov
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
 ```
 
-**Latency:** p50 11.8 ms, p95 14.1 ms per reply over the 421 golden cases (Apple M5,
+**Latency:** p50 12.0 ms, p95 14.2 ms per reply over the 421 golden cases (Apple M5,
 macOS 26.6.2, Python 3.14.7, in-memory store, offline; second of two consecutive
-runs). The first case includes loading the language-detection model and falls above
-p95.
+runs, 2026-11-06). The first case includes loading the language-detection model and
+falls above p95.
 
 ## How this compares
 

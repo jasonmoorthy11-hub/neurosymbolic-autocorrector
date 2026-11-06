@@ -23,6 +23,17 @@ npm run lint
 npm test                       # vitest
 ```
 
+## Live mode
+
+The filter bar (agent, action, severity, PII) narrows the feed and the CSV/JSON
+export alike (`src/replay/derive.ts` `filterEvents`, shared with replay mode; the
+severity filter matches a violation's severity, as the backend's export does). The
+metrics cards poll every 2 s and the analytics panel every 10 s; a new WebSocket
+event also refreshes the analytics panel, at most once per 2 s
+(`src/hooks/useAnalyticsRefresh.ts`), so the two latency figures agree while the
+demo runs. Timestamps from the API are UTC ISO strings with a `Z` suffix and are
+shown in the browser's local time.
+
 ## Replay data
 
 `public/replay/replay.json` is written by `python3 scripts/record_replay.py` from the
