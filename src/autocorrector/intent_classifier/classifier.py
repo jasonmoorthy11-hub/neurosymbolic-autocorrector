@@ -1,8 +1,7 @@
 """Intent Classification Engine.
 
-Phase 1 (MVP): Rule-based keyword/pattern matching for known intents.
-Phase 2: Fine-tuned BERT/RoBERTa with LoRA for production scale.
-Phase 3: LLM-based classification for edge cases.
+Rule-based keyword and regex matching; there is no trained model. The label
+orders the rules and tags the trace; the policy rules do not depend on it.
 
 Detects what type of action the AI agent is attempting:
 - Financial compensation (credits, refunds, adjustments)
@@ -33,7 +32,7 @@ class IntentPattern:
 
 
 class IntentClassifier:
-    """Rule-based intent classifier for the MVP.
+    """Rule-based intent classifier.
 
     Uses keyword matching and regex patterns to classify agent outputs
     into intent categories. Returns the highest-confidence match.

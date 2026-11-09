@@ -10,7 +10,7 @@ from typing import Any
 
 
 def load_default_rules() -> dict[str, list[dict[str, Any]]]:
-    """Load default policy rules for the MVP in-memory store.
+    """Load the default policy rules, keyed by intent domain.
 
     These mirror the canonical scenarios:
     - Credit approval requires 90+ days tenure for amounts > $50
@@ -195,7 +195,7 @@ def load_default_rules() -> dict[str, list[dict[str, Any]]]:
 
 
 def load_default_facts() -> dict[str, dict[str, Any]]:
-    """Load default fact store for the MVP.
+    """Load the default plan facts.
 
     These mirror the canonical scenario:
     - Standard plan: $2,500 emergency dental (not $5,000)

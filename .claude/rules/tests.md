@@ -10,5 +10,6 @@ globs: tests/**/*.py
 - Fixtures in `tests/conftest.py` for shared setup
 - Golden dataset cases in `src/autocorrector/evaluation/dataset.py`
 - Test naming: `test_{feature}_{scenario}` e.g. `test_pipeline_pii_detected`
-- Use `@pytest.mark.asyncio` only if auto mode fails for specific test
+- New async tests need no marker; many older tests still carry a redundant `@pytest.mark.asyncio`, which is harmless under auto mode
+- The Neo4j integration tests wipe the database and run only with `AUTOCORRECTOR_NEO4J_TEST_WIPE=1`; never point them at a database worth keeping
 - Assertions: prefer specific (`assert result.action == CorrectionAction.CORRECT`) over generic

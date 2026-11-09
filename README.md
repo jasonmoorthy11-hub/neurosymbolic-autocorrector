@@ -84,7 +84,7 @@ translation or revalidation. More detail in [docs/architecture.md](docs/architec
 
 ## Quick start (offline, no API key)
 
-Python 3.12 or newer.
+Python 3.12 or newer; CI runs 3.12 and 3.14.
 
 ```bash
 git clone https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector.git
@@ -96,7 +96,7 @@ python3 scripts/demo.py       # 15 scenarios, step by step and through the full 
 python3 scripts/evaluate.py   # golden set
 ```
 
-`".[all,dev]"` adds Neo4j and Redis. An Anthropic key in `AUTOCORRECTOR_ANTHROPIC_API_KEY`
+`".[all,dev]"` adds the Neo4j driver. An Anthropic key in `AUTOCORRECTOR_ANTHROPIC_API_KEY`
 enables the LLM correction tier and translation; nothing below needs one.
 
 ## Evaluation
@@ -162,15 +162,16 @@ with `./scripts/start_dashboard.sh`, or with Neo4j behind it via
 ## MCP server
 
 The package installs an `autocorrector` command that serves three tools
-(`validate_action`, `get_correction`, `log_correction_event`) and three resources
-over the Model Context Protocol.
+(`validate_action`, `get_correction`, `log_correction_event`), three resources
+(`rules://compliance/{domain}`, `policies://active`, `metrics://corrections/summary`)
+and one prompt (`review_correction`) over the Model Context Protocol.
 
 ```bash
 autocorrector --stdio                                    # stdio transport
-autocorrector                                            # streamable HTTP on AUTOCORRECTOR_PORT (8000, same as the dashboard API); AUTOCORRECTOR_MCP_API_KEY enables auth
+autocorrector                                            # streamable HTTP on AUTOCORRECTOR_PORT (default 8000, which the dashboard API also uses: change one to run both); AUTOCORRECTOR_MCP_API_KEY enables auth
 claude mcp add autocorrector -- autocorrector --stdio    # add to Claude Code
 npx @modelcontextprotocol/inspector autocorrector --stdio
-python3 scripts/test_mcp_client.py                       # client check over stdio: calls each tool, reads the rules resource
+python3 scripts/test_mcp_client.py                       # client check over stdio: calls each tool, reads each resource
 ```
 
 The MCP tools redact PII, check policy and facts and apply corrections, but they do
@@ -270,12 +271,12 @@ Environment variables (prefix `AUTOCORRECTOR_`) or a `.env` file; see `.env.exam
 | `AUTOCORRECTOR_AUDIT_DB_PATH` | `autocorrector_audit.db` | SQLite audit store |
 | `AUTOCORRECTOR_CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
 | `AUTOCORRECTOR_TRUSTED_PROXIES` | `[]` | Reverse proxies (addresses or CIDRs) whose `X-Forwarded-For` names the client for dashboard rate limiting; empty means the header is never read |
-| `AUTOCORRECTOR_PORT` | `8000` | Server port |
+| `AUTOCORRECTOR_PORT` | `8000` | Port of the MCP HTTP server (the `autocorrector` command). The dashboard API's port is uvicorn's `--port` (8000 in `scripts/start_dashboard.sh` and the Docker image) |
 
 ## Development
 
 ```bash
-python3 -m pytest --ignore=tests/test_neo4j_integration.py   # the 15 Neo4j tests need a server (docs/deployment.md)
+python3 -m pytest --ignore=tests/test_neo4j_integration.py   # the 16 Neo4j tests wipe their database and need an opt-in (docs/deployment.md)
 ruff check src tests scripts && ruff format --check src tests scripts
 cd dashboard && npm test                                      # vitest
 ```

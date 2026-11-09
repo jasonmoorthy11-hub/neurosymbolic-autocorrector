@@ -37,7 +37,9 @@ API are UTC ISO strings with a `Z` suffix and are shown in the browser's local t
 The feed is not a history view: it holds the events received over the WebSocket
 since the page connected, plus the last 10 the backend keeps in memory and replays
 on connect (none after a backend restart). The metrics, the analytics and the
-export read the whole audit log, so after a reload in a quiet period the feed can
+export read the audit log instead (the metrics cards, the rules panel's counts and
+the export from its newest 10,000 rows; the one exception is the PII-redactions
+card, which counts the at most 500 events the backend holds in memory since it started), so after a reload in a quiet period the feed can
 be empty under non-zero metrics; its empty state says so and points to the export. `docker compose up --build` from the repo root
 serves this build on :3000 behind nginx, which proxies `/api` and `/ws` to the API
 container (`Dockerfile`, `nginx.conf`; see `../docs/deployment.md`).

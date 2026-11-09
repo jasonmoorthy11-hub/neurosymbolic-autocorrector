@@ -1,8 +1,12 @@
 """Policy document ingestion pipeline.
 
-Extracts structured policy information from markdown documents and loads
-it into the Neo4j knowledge graph. Uses regex-based extraction for the MVP,
-with a path to neo4j-graphrag SimpleKGPipeline for production.
+Extracts structured policy information from markdown documents with regular
+expressions and can load it into the Neo4j knowledge graph.
+
+Experimental: the correction pipeline does not import it (its rules come from
+``defaults.py`` and the Neo4j seed in ``schema.py``). Its parser is what
+``tests/test_ingestion.py`` uses to check that every citation in ``defaults.py``
+resolves to a document in ``policies/``.
 
 Supports ingesting:
 - Policy rules (with rule IDs, severity, keywords, thresholds)

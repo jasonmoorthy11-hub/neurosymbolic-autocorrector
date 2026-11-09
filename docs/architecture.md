@@ -142,13 +142,16 @@ optional API key (`AUTOCORRECTOR_MCP_API_KEY`, compared in constant time).
   text; returns `pii_types` and `redacted_text`), `get_correction` (PII rail, fact
   corrections and the correction tiers), `log_correction_event` (stores redacted
   text).
-- Resources: `rules://compliance/{domain}`, `metrics://corrections/summary`,
-  `policies://active`.
+- Resources: `rules://compliance/{domain}` (the store's rules for one intent
+  domain), `policies://active` (the documents behind the active rules, with their
+  rule ids and the fact count), `metrics://corrections/summary` (audit-store
+  counters). All three read the running server's stores.
+- Prompt: `review_correction`, a template for a supervisor's review of one correction.
 
 The tools do not run the LangGraph pipeline: there is no translation (non-English
 text always escalates) and no revalidation.
 `scripts/test_mcp_client.py` starts the server over stdio, calls each tool and reads
-the rules resource.
+each resource.
 
 ## Dashboard
 

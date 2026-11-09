@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1327 passing offline; the 15 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1339 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -69,7 +69,7 @@ Agent Output → Language Detection → Translate to English → NeMo Input Rail
 - **Correct, don't block** — Never break conversation flow. Corrections must be seamless.
 - **4-tier correction fallback** — Neo4j template (connected only) → LLM (key only) → span rewrite of the offending sentences (cited edits) → whole-message template
 - **Fail-open guardrails, fail-closed validation** — NeMo/Guardrails failures pass through rather than block; a policy or fact check that raises escalates (`validation-unavailable`), never allows
-- **Async everywhere** — All I/O is async (aiosqlite, httpx, Neo4j driver)
+- **Async everywhere** — All I/O is async (aiosqlite, the Anthropic async client, the Neo4j async driver)
 - **Immutable events** — `correction_events` table is append-only; decisions go in separate table
 
 ## Module Layout
@@ -79,14 +79,15 @@ src/autocorrector/
 ├── config.py          — Pydantic Settings (env prefix: AUTOCORRECTOR_)
 ├── models.py          — Shared Pydantic models, enums (Severity, CorrectionAction, IntentType)
 ├── logging_config.py  — JSON structured logging, correlation IDs, request context
-├── ace/               — Self-improving corrections (reflector.py, curator.py)
+├── llm_response.py    — Claude Messages API response helpers (stop-reason allowlist, refusal fallback), shared by the LLM callers
+├── ace/               — Supervisor-feedback strategies for the LLM tier (reflector.py, curator.py)
 ├── audit/store.py     — AuditStore: SQLite async, correction_events + supervisor_decisions
 ├── dashboard/         — api.py (app, middleware, /health), routes/{events,queue,demo,ws}.py, state.py, processing.py, models.py
-├── evaluation/        — dataset.py (golden cases), scorer.py, runner.py, llm_judge.py
+├── evaluation/        — dataset.py (golden cases), heldout.py (blind set: never run or edit), registry.py, scorer.py, runner.py, llm_judge.py
 ├── explainability/    — Correction reasoning engine
-├── guardrails/        — PII detection, NeMo rails wrapper
+├── guardrails/        — validators.py (PII detection), nemo_rails.py (NeMo wrapper), telemetry.py (Guardrails telemetry off switch)
 ├── intent_classifier/ — Rule-based intent detection (9 types)
-├── knowledge_graph/   — store.py (KG + LLM corrections), defaults.py, rules.py, facts.py, templates.py, ingestion, retriever, vector search
+├── knowledge_graph/   — store.py (KG + LLM corrections), defaults.py, rules.py, facts.py, claims.py, rewriter.py (span tier), templates.py, schema.py (Neo4j seed); ingestion.py and retriever.py are experimental (used by their own tests only)
 ├── mcp_server/        — server.py (FastMCP tools + resources)
 ├── multilingual/      — Language detection + LLM translation (detector.py, translator.py)
 └── orchestrator/      — pipeline.py (LangGraph graph definition)
@@ -96,7 +97,7 @@ src/autocorrector/
 
 All settings via env vars with `AUTOCORRECTOR_` prefix or `.env` file. Key ones:
 - `AUTOCORRECTOR_ANTHROPIC_API_KEY` — For LLM corrections
-- `AUTOCORRECTOR_NEO4J_URI/USER/PASSWORD` — Neo4j Aura connection
+- `AUTOCORRECTOR_NEO4J_URI/USER/PASSWORD` — Neo4j connection (any server; unset = in-memory store)
 - `AUTOCORRECTOR_MCP_API_KEY` — MCP auth
 - `AUTOCORRECTOR_NEMO_RAILS_ENABLED` — Toggle NeMo input rails
 - `AUTOCORRECTOR_SUPPORTED_LANGUAGES` — Multilingual support (default: en,es,fr,pt,de,it,nl,ar,zh,ja,ko,ru)

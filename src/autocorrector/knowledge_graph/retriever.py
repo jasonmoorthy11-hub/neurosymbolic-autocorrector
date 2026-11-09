@@ -1,6 +1,6 @@
-"""GraphRAG Retriever — semantic policy search using vector + Cypher hybrid queries.
+"""Policy retriever: semantic policy search using vector + Cypher hybrid queries.
 
-Provides natural language policy lookup for the autocorrection pipeline.
+Experimental: nothing in the correction pipeline imports it; only its tests do.
 Uses a vector similarity search over policy text combined with Cypher
 graph traversal for structured relationship queries.
 
@@ -51,8 +51,8 @@ class PolicyRetriever:
     """Hybrid vector + keyword + graph retriever for policy knowledge.
 
     Supports two modes:
-    1. **Neo4j mode** (production): Vector similarity search with keyword fallback
-    2. **In-memory mode** (MVP): Searches the in-memory rule and fact stores
+    1. **Neo4j mode**: Vector similarity search with keyword fallback
+    2. **In-memory mode**: Searches the in-memory rule and fact stores
 
     Query types:
     - Rule lookup: "What is the credit limit for new accounts?"

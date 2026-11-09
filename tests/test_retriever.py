@@ -1,4 +1,4 @@
-"""Tests for the GraphRAG policy retriever."""
+"""Tests for the experimental policy retriever."""
 
 from __future__ import annotations
 

@@ -4,7 +4,7 @@
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,langgraph,guardrails]"   # offline core; ".[all,dev]" adds Neo4j + Redis
+pip install -e ".[dev,langgraph,guardrails]"   # offline core; ".[all,dev]" adds the Neo4j driver
 pytest
 cp .env.example .env    # optional: every line in it is commented out, uncomment what you need
 ```
@@ -30,7 +30,7 @@ docker compose up --build
 # Health check: expect "neo4j_connected": true
 curl http://localhost:8000/health
 
-# The 15 Neo4j integration tests against the compose database. They DELETE EVERY
+# The 16 Neo4j integration tests against the compose database. They DELETE EVERY
 # NODE and reseed, so they run only with the opt-in variable, read the process
 # environment only (never .env), and must never point at a database you want to keep
 AUTOCORRECTOR_NEO4J_TEST_WIPE=1 \
@@ -58,7 +58,9 @@ All prefixed with `AUTOCORRECTOR_`:
 | `NEO4J_PASSWORD` | When URI set | (empty) | |
 | `ANTHROPIC_API_KEY` | For the LLM correction tier and translation | (empty) | |
 | `OPENAI_API_KEY` | For vector embeddings only (`seed_neo4j.py --embed`) | (empty) | Not used by the correction path |
-| `PORT` | No | `8000` | API server port |
+| `PORT` | No | `8000` | Port of the MCP HTTP server (`autocorrector`) only. The dashboard API listens where uvicorn is told to (`--port 8000` in `scripts/start_dashboard.sh` and the Dockerfile) |
+| `TRUSTED_PROXIES` | No | `[]` | JSON array of proxy addresses or CIDRs whose `X-Forwarded-For` names the client for rate limiting |
+| `DASHBOARD_API_KEY` / `MCP_API_KEY` | No | (empty) | Optional API keys: the dashboard's approve/reject, export and demo endpoints, and the MCP HTTP transport |
 | `CORS_ORIGINS` | No | `["http://localhost:3000"]` | JSON array |
 | `MAX_CORRECTION_ATTEMPTS` | No | `3` | Correct-then-revalidate rounds |
 | `CORRECTION_CONFIDENCE_SCORE` | No | `0.92` | Fixed heuristic reported when the text changed; not a probability |
@@ -78,10 +80,13 @@ Neo4j is included in `docker-compose.yml`. Default credentials: `neo4j/changeme`
 ## Production Checklist
 
 - [ ] Set all API keys in environment (never in code)
-- [ ] Configure `CORS_ORIGINS` to your frontend domain
+- [ ] Configure `AUTOCORRECTOR_CORS_ORIGINS` to your frontend domain
 - [ ] Use Neo4j Aura or a managed Neo4j instance
-- [ ] Set `LOG_LEVEL=WARNING` for production
-- [ ] Set `DEBUG=false`
+- [ ] Set `AUTOCORRECTOR_LOG_LEVEL=WARNING` for production
+- [ ] Set `AUTOCORRECTOR_DASHBOARD_API_KEY` and `AUTOCORRECTOR_MCP_API_KEY`, and put
+      authentication in front of the read-only dashboard routes, which the key does
+      not cover (README, Limitations)
+- [ ] List your reverse proxy in `AUTOCORRECTOR_TRUSTED_PROXIES`
 - [ ] Build React dashboard: `cd dashboard && npm run build`
 - [ ] Serve dashboard via nginx or CDN
 - [ ] Set up monitoring on `/health` endpoint

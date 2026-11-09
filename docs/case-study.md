@@ -157,5 +157,50 @@ confirm a test fails. The numbers come from [evaluation.md](evaluation.md).
 - **What was done:** reported as-is, every miss classified (`37c8c79`). The cases are
   not edited and the set is not re-run; fixes go into new golden rows, and any
   post-fix accuracy claim needs a new blind set.
+- **Fixed since:** in v1.1 every rule runs on its own triggers and the intent only
+  orders them (`2d09adb`), and an amount is checked against the plan its sentence
+  names; in v1.2 one keyword hit scores at the pattern's base confidence instead of
+  being divided by the keyword list's length (`9608bc0`). The held-out numbers above
+  are still the first run's.
 - **Principle:** a perfect in-sample score is a regression suite, not evidence. Write
   the test before you look, run it once, and publish what it says.
+
+## 12. The Docker stack had never been run
+
+- **Broke:** `docker compose up --build` was a documented entry point and did not
+  work from a clone. It required a `.env` the repo does not have; the dashboard
+  container served a build with no proxy, so every `/api` and `/ws` call returned
+  404; the graph was never seeded, and an empty graph answers every policy check
+  with "no rules". Underneath that, no runtime entry point passed the Neo4j settings
+  to the store, so the services logged "No Neo4j URI configured" and used memory.
+  The Neo4j integration module still asserted the intent gating removed in v1.1,
+  because it had not run since.
+- **Found:** running the command for the first time, in the v1.4 verification round.
+- **Fix:** an optional `.env`, a dashboard image built from source behind an nginx
+  proxy, a one-shot seed service the API waits for, one constructor that builds the
+  store from settings for the API (which shares its store with the pipeline) and
+  for the MCP server, and integration tests that
+  match the current behaviour (`ab94ef6`). `tests/test_docker_config.py` pins the
+  compose invariants.
+- **Principle:** an unrun deployment path is an untested claim. Mocked tests showed
+  the code was consistent with itself, not that the stack starts.
+
+## 13. Documented paths that could hurt the reader
+
+- **Broke:** an audit of the docs against the code, after v1.4, found steps that
+  were unsafe when followed exactly. `cp .env.example .env` activated a placeholder
+  Neo4j address that every service then dialled, and a placeholder API key. A bare
+  `pytest` with real Neo4j credentials in `.env` ran the integration module, whose
+  first step deletes every node. The dashboard's default rate limit was configured
+  and never enforced. Three policy documents cited by corrections did not exist in
+  `policies/`. One MCP resource returned an empty stub, and another was registered
+  in a way no client could read; its unit test called the function directly and
+  passed.
+- **Found:** two independent read-throughs that reproduced each claim before it
+  counted, then one test per finding, written to fail first.
+- **Fix:** the v1.5 round. The example file is all comments; the wipe needs an explicit
+  opt-in variable; the limits are enforced and tested through HTTP; every citation
+  resolves through the ingestion parser; the MCP resources are read through a real
+  client session in the tests.
+- **Principle:** test a feature the way its user reaches it. A function called
+  directly, a config file nobody copies and a default nobody exceeds all pass.
