@@ -781,3 +781,76 @@ class TestNeo4jPolicyParity:
             if mem != neo:
                 mismatches.append((case.id, mem, neo))
         assert mismatches == []
+
+
+class TestActivePolicies:
+    async def test_active_policies_groups_rules_by_document(self, kg_store):
+        active = await kg_store.get_active_policies()
+        by_name = {p["name"]: p["rules"] for p in active["policies"]}
+        assert by_name == {
+            "Agent_Conduct_Policy_2024_v1.0": ["DISC-001", "PROMISE-001"],
+            "Credit_Policy_2024_v3.2": ["CREDIT-001", "CREDIT-002"],
+            "Escalation_Policy_2024_v1.0": ["ESC-001"],
+            "Refund_Policy_2024_v2.1": ["REFUND-001", "REFUND-002"],
+            "SLA_Policy_2024_v1.0": ["SLA-001"],
+        }
+        assert [p["name"] for p in active["policies"]] == sorted(by_name)
+        assert active["total_rules"] == 8
+        assert active["total_facts"] == 6
+        assert active["store"] == "memory"
+
+    async def test_active_policies_from_a_connected_store(self):
+        class _Result:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def __aiter__(self):
+                async def gen():
+                    for row in self._rows:
+                        yield row
+
+                return gen()
+
+            async def single(self):
+                return self._rows[0] if self._rows else None
+
+        policy_rows = [
+            {"name": "Refund_Policy_2024_v2.1", "rules": ["REFUND-002", "REFUND-001"]},
+            {"name": "Credit_Policy_2024_v3.2", "rules": ["CREDIT-001"]},
+        ]
+        results = iter([_Result(policy_rows), _Result([{"total": 4}])])
+        mock_session = AsyncMock()
+        mock_session.run = AsyncMock(side_effect=lambda *a, **k: next(results))
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        store = KnowledgeGraphStore()
+        store._connected = True
+        store._driver = MagicMock()
+        store._driver.session.return_value = mock_session
+
+        active = await store.get_active_policies()
+
+        assert active == {
+            "policies": [
+                {"name": "Credit_Policy_2024_v3.2", "rules": ["CREDIT-001"]},
+                {"name": "Refund_Policy_2024_v2.1", "rules": ["REFUND-001", "REFUND-002"]},
+            ],
+            "total_rules": 3,
+            "total_facts": 4,
+            "store": "neo4j",
+        }
+
+    async def test_rules_by_domain_cite_their_source(self, kg_store):
+        rules = await kg_store.get_rules_by_domain("escalation_request")
+        assert rules == [
+            {
+                "id": "ESC-001",
+                "name": "Legal Threat Escalation",
+                "description": (
+                    "Legal threats or regulatory concerns require immediate supervisor review"
+                ),
+                "severity": "critical",
+                "source_document": "Escalation_Policy_2024_v1.0",
+                "source_section": "Section 1.1",
+            }
+        ]

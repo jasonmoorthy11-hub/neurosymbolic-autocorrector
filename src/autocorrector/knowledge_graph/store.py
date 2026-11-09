@@ -55,11 +55,12 @@ DEFAULT_CORRECTION_LLM = "claude-opus-5-5"
 
 
 class KnowledgeGraphStore:
-    """Interface to the Neo4j knowledge graph for policy compliance and fact verification.
+    """Policy compliance, fact verification and corrections over one rule set.
 
-    In production, this connects to Neo4j and runs Cypher queries against
-    the policy knowledge graph. For the MVP, it uses an in-memory rule store
-    that demonstrates the same interface and correction patterns.
+    Without a Neo4j URI (the default, and the offline path the demo, evaluation
+    and replay scripts use) the rules and facts come from ``defaults.py`` in memory. With
+    a URI and a reachable server, rules, facts and correction templates are read
+    from the graph and evaluated by the same code.
     """
 
     def __init__(
@@ -81,7 +82,8 @@ class KnowledgeGraphStore:
         self._correction_llm = correction_llm or DEFAULT_CORRECTION_LLM
         self._anthropic_client: Any = None
 
-        # In-memory policy store for MVP (replaced by Neo4j queries in production)
+        # In-memory rules and facts: the whole store offline, and with Neo4j still
+        # what the span rewriter and the coverage exemption read
         self._policy_rules = self._load_default_rules()
         self._fact_store = self._load_default_facts()
 
@@ -172,12 +174,10 @@ class KnowledgeGraphStore:
         intent_type: str,
         customer_context: dict[str, Any],
     ) -> list[PolicyViolation]:
-        """Check text against policy rules for the given intent type.
+        """Check text against every active policy rule.
 
-        In production, runs Cypher queries like:
-            MATCH (p:Policy)-[:HAS_RULE]->(r:Rule)-[:TRIGGERS]->(a:Action)
-            WHERE r.intent_type = $intent_type
-            RETURN r, a
+        Each rule runs on its own triggers and keywords; ``intent_type`` only
+        orders the classified domain's rules first (it stopped gating them in v1.1).
         """
         key = self._cache_key("compliance", text, intent_type, customer_context)
         if key in self._rule_cache:
@@ -306,10 +306,10 @@ class KnowledgeGraphStore:
         text: str,
         customer_context: dict[str, Any],
     ) -> list[FactCheckResult]:
-        """Verify factual claims in the text against the knowledge graph.
+        """Verify factual claims in the text against the plan facts.
 
-        In production, extracts claims, queries Neo4j for ground truth,
-        and returns mismatches.
+        Extracts coverage claims and returns the ones that differ from the stored
+        limits (from Neo4j when connected, otherwise from memory).
         """
         key = self._cache_key("facts", text, customer_context)
         if key in self._fact_cache:
@@ -685,6 +685,7 @@ class KnowledgeGraphStore:
                 RETURN r.rule_id AS id, r.name AS name, r.description AS description,
                        r.severity AS severity, p.name AS source_document,
                        r.section AS source_section
+                ORDER BY r.rule_id
                 """,
                 domain=domain,
             )
@@ -692,7 +693,7 @@ class KnowledgeGraphStore:
         return rules
 
     def _get_rules_inmemory(self, domain: str) -> list[dict[str, Any]]:
-        """Get rules from the in-memory store for a domain."""
+        """Rules from the in-memory store for a domain, in the Neo4j query's shape and order."""
         raw_rules = self._policy_rules.get(domain, [])
         return [
             {
@@ -700,11 +701,53 @@ class KnowledgeGraphStore:
                 "name": r["rule_name"],
                 "description": r["description"],
                 "severity": r["severity"],
+                "source_document": r["source_document"],
+                "source_section": r["source_section"],
             }
-            for r in raw_rules
+            for r in sorted(raw_rules, key=lambda rule: rule["rule_id"])
         ]
 
-    # --- Default data for MVP ---
+    # --- Active policies ---
+
+    async def get_active_policies(self) -> dict[str, Any]:
+        """The policy documents behind the active rules, with their rule ids, and
+        the number of coverage facts: from Neo4j when connected, else from memory."""
+        if self._connected:
+            by_document, total_facts = await self._active_policies_from_neo4j()
+        else:
+            by_document = {}
+            for rules in self._policy_rules.values():
+                for rule in rules:
+                    by_document.setdefault(rule["source_document"], []).append(rule["rule_id"])
+            total_facts = sum(len(plan["coverages"]) for plan in self._fact_store.values())
+        policies = [
+            {"name": name, "rules": sorted(rule_ids)}
+            for name, rule_ids in sorted(by_document.items())
+        ]
+        return {
+            "policies": policies,
+            "total_rules": sum(len(p["rules"]) for p in policies),
+            "total_facts": total_facts,
+            "store": "neo4j" if self._connected else "memory",
+        }
+
+    async def _active_policies_from_neo4j(self) -> tuple[dict[str, list[str]], int]:
+        async with self._driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (p:Policy)-[:HAS_RULE]->(r:Rule)
+                WHERE r.active = true
+                RETURN p.name AS name, collect(r.rule_id) AS rules
+                """
+            )
+            by_document = {record["name"]: list(record["rules"]) async for record in result}
+            result = await session.run(
+                "MATCH (:Product)-[:HAS_COVERAGE]->(c:Coverage) RETURN count(c) AS total"
+            )
+            record = await result.single()
+        return by_document, int(record["total"]) if record else 0
+
+    # --- Default data ---
 
     _load_default_rules = staticmethod(load_default_rules)
     _load_default_facts = staticmethod(load_default_facts)

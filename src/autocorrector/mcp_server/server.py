@@ -1,8 +1,8 @@
 """Neurosymbolic Autocorrection MCP Server.
 
-The core of the system — exposes autocorrection capabilities as MCP tools
-that any AI agent can call to validate and correct its outputs before
-delivering them to end users.
+Exposes validation and correction as MCP tools an AI agent can call on its
+output before delivering it. A lighter path than the LangGraph pipeline: the
+tools do not translate (non-English text escalates) and do not revalidate.
 
 Tools (each runs the PII rail on its text fields first, so no raw PII from the
 agent text is returned or stored; caller-supplied violations are kept verbatim):
@@ -10,20 +10,23 @@ agent text is returned or stored; caller-supplied violations are kept verbatim):
     get_correction   - Get a corrected version of non-compliant output
     log_correction_event - Record a correction event for audit trail
 
-Resources:
+Resources (each reads the running server's stores):
     rules://compliance/{domain}   - Active compliance rules per domain
-    metrics://corrections/summary - Correction statistics
-    policies://active             - Currently loaded policy documents
+    metrics://corrections/summary - Correction statistics from the audit store
+    policies://active             - Policy documents behind the active rules
+
+Prompt:
+    review_correction             - Template for a supervisor's review of a correction
 """
 
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -158,12 +161,11 @@ async def _run_validation(
         if severity_order.get(v.severity, 0) > severity_order.get(max_severity, 0):
             max_severity = v.severity
 
+    # Something was found (the clean case returned above): escalate or correct
     if max_severity == Severity.CRITICAL:
         action = CorrectionAction.ESCALATE
-    elif violations or fact_errors:
-        action = CorrectionAction.CORRECT
     else:
-        action = CorrectionAction.WARN
+        action = CorrectionAction.CORRECT
 
     return ValidationResult(
         is_compliant=False,
@@ -216,12 +218,12 @@ async def validate_action(
 ) -> dict[str, Any]:
     """Validate an AI agent's proposed output against policy rules and factual accuracy.
 
-    Checks the agent's text against the enterprise knowledge graph for:
+    Checks the agent's text against the policy knowledge graph for:
     - Policy compliance (authorization levels, spending limits, procedures)
     - Factual accuracy (plan details, pricing, coverage amounts)
     - Intent-appropriate behavior (escalation protocols, disclosure requirements)
 
-    Returns validation result with action recommendation: ALLOW, WARN, CORRECT, or ESCALATE.
+    Returns validation result with action recommendation: ALLOW, CORRECT, or ESCALATE.
     """
     kg, classifier, _ = _get_resources(ctx)
 
@@ -419,66 +421,37 @@ async def log_correction_event(
 
 
 @mcp.resource("rules://compliance/{domain}")
-async def get_compliance_rules(domain: str, ctx: Context | None = None) -> str:
-    """Get active compliance rules for a specific domain from KG store."""
-    import json
-
-    # Hardcoded fallback for known domains
-    _fallback_rules = {
-        "financial_compensation": [
-            {
-                "id": "CREDIT-001",
-                "name": "Credit Authorization Threshold",
-                "description": "Credits >$50 require 90+ days account tenure",
-                "severity": "high",
-            },
-            {
-                "id": "CREDIT-002",
-                "name": "Maximum Credit Amount",
-                "description": "Single credit cannot exceed $500 without supervisor approval",
-                "severity": "critical",
-            },
-        ],
-        "policy_explanation": [
-            {
-                "id": "FACT-001",
-                "name": "Coverage Accuracy",
-                "description": "All coverage amounts must match the customer's actual plan",
-                "severity": "high",
-            },
-            {
-                "id": "FACT-002",
-                "name": "Plan Feature Verification",
-                "description": "Plan features must be verified against current product catalog",
-                "severity": "medium",
-            },
-        ],
-    }
-
-    rules = []
-    if ctx:
-        kg: KnowledgeGraphStore = ctx.request_context.lifespan_context["kg"]
-        rules = await kg.get_rules_by_domain(domain)
-
-    # Fallback to hardcoded rules if KG returned empty and domain is known
-    if not rules:
-        rules = _fallback_rules.get(domain, [])
-
+async def get_compliance_rules(domain: str) -> str:
+    """Active compliance rules the store holds for a domain (none is a valid answer:
+    coverage facts, for example, are checked by the fact verifier, not by rules)."""
+    lifespan = _lifespan_context()
+    kg: KnowledgeGraphStore = lifespan["kg"] if lifespan else KnowledgeGraphStore()
+    rules = await kg.get_rules_by_domain(domain)
     return json.dumps({"domain": domain, "rules": rules}, indent=2)
 
 
+def _lifespan_context() -> dict[str, Any] | None:
+    """The running server's shared stores, or None outside a request (a direct call).
+
+    The resources take no `ctx` parameter on purpose: FastMCP registers a resource
+    function that has any parameter, a `ctx` included, as a template, and a
+    template without URI parameters can never be read.
+    """
+    try:
+        return mcp.get_context().request_context.lifespan_context
+    except (LookupError, ValueError):
+        return None
+
+
 @mcp.resource("metrics://corrections/summary")
-async def get_correction_metrics(ctx: Context | None = None) -> str:
-    """Get correction statistics summary from audit store."""
-    import json
-
-    if ctx:
-        lifespan = ctx.request_context.lifespan_context
+async def get_correction_metrics() -> str:
+    """Correction statistics summary from the audit store."""
+    lifespan = _lifespan_context()
+    if lifespan:
         audit_store: AuditStore = lifespan["audit_store"]
-        metrics = await audit_store.get_metrics()
-        return json.dumps(metrics, indent=2)
+        return json.dumps(await audit_store.get_metrics(), indent=2)
 
-    # Fallback when called without context (e.g., tests)
+    # Outside a request there is no audit store to read
     return json.dumps(
         {
             "total_validations": 0,
@@ -492,19 +465,11 @@ async def get_correction_metrics(ctx: Context | None = None) -> str:
 
 
 @mcp.resource("policies://active")
-def get_active_policies() -> str:
-    """List currently loaded policy documents."""
-    import json
-
-    return json.dumps(
-        {
-            "policies": [],
-            "last_updated": datetime.now(UTC).isoformat(),
-            "total_rules": 0,
-            "total_facts": 0,
-        },
-        indent=2,
-    )
+async def get_active_policies() -> str:
+    """The policy documents behind the store's active rules, with their rule ids."""
+    lifespan = _lifespan_context()
+    kg: KnowledgeGraphStore = lifespan["kg"] if lifespan else KnowledgeGraphStore()
+    return json.dumps(await kg.get_active_policies(), indent=2)
 
 
 # --- Prompts ---

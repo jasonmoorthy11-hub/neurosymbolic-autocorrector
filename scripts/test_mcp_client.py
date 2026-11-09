@@ -6,7 +6,9 @@ and verifies the results match expected behavior.
 
 import asyncio
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -20,14 +22,31 @@ async def main():
     print("MCP Autocorrector — Client Integration Test")
     print("=" * 60)
 
+    # The server gets a minimal environment, and the empty values below override a
+    # repo-root `.env` (the process environment wins over the file), so no API key
+    # and no Neo4j URI reach it: the run is offline and free. Its audit rows go to
+    # a temporary file, not the repo's audit database.
+    # The temp and cache locations are passed through: without them the server
+    # looks for the language-detection model under /tmp instead of the cache the
+    # other scripts use, and silently downloads 125 MB on the first call.
+    passthrough = {k: os.environ[k] for k in ("TMPDIR", "FTLANG_CACHE") if k in os.environ}
+    audit_dir = tempfile.TemporaryDirectory(prefix="autocorrector-mcp-check-")
     server_params = StdioServerParameters(
         command=sys.executable,
         args=["-m", "autocorrector.mcp_server.server", "--stdio"],
         cwd=str(REPO_ROOT),
-        env={"PYTHONPATH": str(REPO_ROOT / "src")},
+        env={
+            "PYTHONPATH": str(REPO_ROOT / "src"),
+            "AUTOCORRECTOR_ANTHROPIC_API_KEY": "",
+            "AUTOCORRECTOR_OPENAI_API_KEY": "",
+            "AUTOCORRECTOR_NEO4J_URI": "",
+            "AUTOCORRECTOR_AUDIT_DB_PATH": str(Path(audit_dir.name) / "audit.db"),
+            **passthrough,
+        },
     )
 
-    print("\n[1] Connecting to MCP server via stdio...")
+    print("\n[1] Connecting to MCP server via stdio...", flush=True)
+    print("    (a first run on this machine downloads the 125 MB language model)", flush=True)
     async with (
         stdio_client(server_params) as (read, write),
         ClientSession(read, write) as session,
@@ -262,9 +281,27 @@ async def main():
         assert len(rules_data["rules"]) >= 2
         print("    PASSED!")
 
+        # --- Test 9: Read the two fixed-URI resources ---
         print("\n" + "=" * 60)
-        print("ALL 8 TESTS PASSED!")
+        print("[TEST 9] Read the policies and metrics resources")
         print("=" * 60)
+        result = await session.read_resource("policies://active")
+        policies_data = json.loads(result.contents[0].text)
+        for p in policies_data["policies"]:
+            print(f"    {p['name']}: {', '.join(p['rules'])}")
+        print(f"    Rules: {policies_data['total_rules']}, facts: {policies_data['total_facts']}")
+        assert policies_data["total_rules"] >= 8
+        result = await session.read_resource("metrics://corrections/summary")
+        metrics_data = json.loads(result.contents[0].text)
+        print(f"    Events logged: {metrics_data['total_validations']}")
+        assert metrics_data["total_validations"] >= 1  # test 6 logged one
+        print("    PASSED!")
+
+        print("\n" + "=" * 60)
+        print("ALL 9 TESTS PASSED!")
+        print("=" * 60)
+
+    audit_dir.cleanup()
 
 
 if __name__ == "__main__":

@@ -1,15 +1,18 @@
 """Tests for the MCP server tools, resources, and helpers."""
 
 import json
+from contextlib import asynccontextmanager
 from unittest.mock import MagicMock
 
 import pytest
 
 from autocorrector.explainability.engine import ExplainabilityEngine
+from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.mcp_server.server import (
     get_active_policies,
     get_compliance_rules,
     get_correction_metrics,
+    mcp,
 )
 from autocorrector.models import (
     FactCheckResult,
@@ -32,11 +35,13 @@ class TestComplianceRulesResource:
         assert "CREDIT-002" in rule_ids
 
     @pytest.mark.asyncio
-    async def test_policy_explanation_domain(self):
+    async def test_domain_without_rules_returns_none_not_invented_ones(self):
+        # Coverage facts are checked by the fact verifier; no rule lives in this
+        # domain, and the resource must not make any up (it once returned
+        # hardcoded FACT-001/FACT-002 entries that nothing evaluates)
         result = await get_compliance_rules("policy_explanation")
         data = json.loads(result)
-        assert data["domain"] == "policy_explanation"
-        assert len(data["rules"]) == 2
+        assert data == {"domain": "policy_explanation", "rules": []}
 
     @pytest.mark.asyncio
     async def test_unknown_domain_returns_empty(self):
@@ -44,19 +49,6 @@ class TestComplianceRulesResource:
         data = json.loads(result)
         assert data["domain"] == "nonexistent_domain"
         assert data["rules"] == []
-
-    @pytest.mark.asyncio
-    async def test_rules_from_kg_store(self, connected_kg_store):
-        """When KG store is available, rules should come from it."""
-
-        mock_ctx = MagicMock()
-        mock_ctx.request_context.lifespan_context = {"kg": connected_kg_store}
-        result = await get_compliance_rules("financial_compensation", ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["domain"] == "financial_compensation"
-        assert len(data["rules"]) >= 2
-        rule_ids = [r["id"] for r in data["rules"]]
-        assert "CREDIT-001" in rule_ids
 
 
 class TestCorrectionMetricsResource:
@@ -71,12 +63,149 @@ class TestCorrectionMetricsResource:
 
 
 class TestActivePoliciesResource:
-    def test_returns_structure(self):
-        result = get_active_policies()
-        data = json.loads(result)
-        assert "policies" in data
-        assert "last_updated" in data
-        assert data["total_rules"] == 0
+    async def test_active_policies_lists_the_stores_documents(self):
+        data = json.loads(await get_active_policies())
+        assert [p["name"] for p in data["policies"]] == [
+            "Agent_Conduct_Policy_2024_v1.0",
+            "Credit_Policy_2024_v3.2",
+            "Escalation_Policy_2024_v1.0",
+            "Refund_Policy_2024_v2.1",
+            "SLA_Policy_2024_v1.0",
+        ]
+        assert data["policies"][1]["rules"] == ["CREDIT-001", "CREDIT-002"]
+        assert data["total_rules"] == 8
+        assert data["total_facts"] == 6
+        assert data["store"] == "memory"
+
+
+@asynccontextmanager
+async def _mcp_session(tmp_path, monkeypatch):
+    """A real client session against the server object, lifespan included."""
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    monkeypatch.setenv("AUTOCORRECTOR_AUDIT_DB_PATH", str(tmp_path / "mcp_audit.db"))
+    monkeypatch.setenv("AUTOCORRECTOR_NEO4J_URI", "")
+    async with create_connected_server_and_client_session(mcp) as session:
+        yield session
+
+
+class TestResourcesOverASession:
+    """Calling the resource functions directly cannot show whether a client can
+    read them: `metrics://corrections/summary` was registered as a parameterless
+    template and every read failed with "Unknown resource"."""
+
+    async def test_resources_are_listed_as_two_static_and_one_template(self, tmp_path, monkeypatch):
+        async with _mcp_session(tmp_path, monkeypatch) as session:
+            static = sorted(str(r.uri) for r in (await session.list_resources()).resources)
+            templates = [
+                t.uriTemplate for t in (await session.list_resource_templates()).resourceTemplates
+            ]
+        assert static == ["metrics://corrections/summary", "policies://active"]
+        assert templates == ["rules://compliance/{domain}"]
+
+    async def test_resource_metrics_reflects_a_logged_event(self, tmp_path, monkeypatch):
+        async with _mcp_session(tmp_path, monkeypatch) as session:
+            await session.call_tool(
+                "log_correction_event",
+                {
+                    "original_text": "I can offer you a $200 credit.",
+                    "corrected_text": "I can offer you a $50 credit.",
+                    "was_modified": True,
+                    "action_taken": "correct",
+                    "intent_type": "financial_compensation",
+                },
+            )
+            result = await session.read_resource("metrics://corrections/summary")
+        data = json.loads(result.contents[0].text)
+        assert data["total_validations"] == 1
+        assert data["total_corrections"] == 1
+
+    async def test_resource_policies_reads_the_running_store(
+        self, tmp_path, monkeypatch, sentinel_store
+    ):
+        async with _mcp_session(tmp_path, monkeypatch) as session:
+            result = await session.read_resource("policies://active")
+        data = json.loads(result.contents[0].text)
+        assert {"name": "Sentinel_Policy_v0", "rules": ["SENTINEL-001"]} in data["policies"]
+        assert data["total_rules"] == 9
+
+    async def test_resource_rules_reads_the_running_store(
+        self, tmp_path, monkeypatch, sentinel_store
+    ):
+        async with _mcp_session(tmp_path, monkeypatch) as session:
+            result = await session.read_resource("rules://compliance/sentinel_domain")
+        data = json.loads(result.contents[0].text)
+        assert data["rules"] == [
+            {
+                "id": "SENTINEL-001",
+                "name": "Sentinel",
+                "description": "Only the running server's store has this rule",
+                "severity": "low",
+                "source_document": "Sentinel_Policy_v0",
+                "source_section": "Section 9.9",
+            }
+        ]
+
+    async def test_resources_read_over_streamable_http(self, tmp_path, monkeypatch):
+        """The default transport: stateless JSON over HTTP, one lifespan per request."""
+        from httpx import ASGITransport, AsyncClient
+
+        monkeypatch.setenv("AUTOCORRECTOR_AUDIT_DB_PATH", str(tmp_path / "mcp_http.db"))
+        monkeypatch.setenv("AUTOCORRECTOR_NEO4J_URI", "")
+        app = mcp.streamable_http_app()
+        headers = {"Accept": "application/json, text/event-stream"}
+
+        async def rpc(client, request_id, method, params):
+            body = {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+            response = await client.post("/mcp", json=body, headers=headers)
+            assert response.status_code == 200, response.text
+            return response.json()["result"]
+
+        async with (
+            app.router.lifespan_context(app),
+            AsyncClient(transport=ASGITransport(app=app), base_url="http://127.0.0.1:8000") as c,
+        ):
+            await rpc(
+                c,
+                1,
+                "tools/call",
+                {
+                    "name": "log_correction_event",
+                    "arguments": {
+                        "original_text": "I can offer you a $200 credit.",
+                        "corrected_text": "I can offer you a $50 credit.",
+                        "was_modified": True,
+                        "action_taken": "correct",
+                    },
+                },
+            )
+            metrics = await rpc(c, 2, "resources/read", {"uri": "metrics://corrections/summary"})
+            policies = await rpc(c, 3, "resources/read", {"uri": "policies://active"})
+        assert json.loads(metrics["contents"][0]["text"])["total_validations"] == 1
+        assert json.loads(policies["contents"][0]["text"])["total_rules"] == 8
+
+
+@pytest.fixture
+def sentinel_store(monkeypatch):
+    """Make the server's lifespan build a store no fallback could produce, so a
+    resource that silently used a fresh default store would fail the test."""
+    store = KnowledgeGraphStore()
+    store._policy_rules["sentinel_domain"] = [
+        {
+            "rule_id": "SENTINEL-001",
+            "rule_name": "Sentinel",
+            "description": "Only the running server's store has this rule",
+            "severity": "low",
+            "source_document": "Sentinel_Policy_v0",
+            "source_section": "Section 9.9",
+            "keywords": [],
+            "conditions": [],
+        }
+    ]
+    monkeypatch.setattr(
+        KnowledgeGraphStore, "from_settings", classmethod(lambda cls, s=None: store)
+    )
+    return store
 
 
 # --- Helper Tests ---

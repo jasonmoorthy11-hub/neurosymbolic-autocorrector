@@ -205,6 +205,18 @@ class TestComplianceNeo4j:
 # --- Fact Verification Tests (via KG Store) ---
 
 
+class TestActivePoliciesNeo4j:
+    async def test_active_policies_match_the_in_memory_store(self, neo4j_driver, kg_store):
+        from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+
+        from_graph = await kg_store.get_active_policies()
+        from_memory = await KnowledgeGraphStore().get_active_policies()
+        assert from_graph["store"] == "neo4j"
+        assert from_graph["policies"] == from_memory["policies"]
+        assert from_graph["total_rules"] == from_memory["total_rules"] == 8
+        assert from_graph["total_facts"] == from_memory["total_facts"] == 6
+
+
 class TestFactsNeo4j:
     """Test fact verification against Neo4j."""
 
