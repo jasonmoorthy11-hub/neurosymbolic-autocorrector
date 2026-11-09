@@ -744,6 +744,26 @@ class TestDemoInterval:
             await client.post("/api/demo/stop")
 
 
+class TestCors:
+    ORIGIN = "http://localhost:3000"
+
+    async def _preflight(self, client, method: str):
+        return await client.options(
+            "/api/metrics",
+            headers={"Origin": self.ORIGIN, "Access-Control-Request-Method": method},
+        )
+
+    async def test_cors_allows_the_methods_the_api_has(self, client):
+        for method in ("GET", "POST"):
+            resp = await self._preflight(client, method)
+            assert resp.status_code == 200
+            assert resp.headers["access-control-allow-origin"] == self.ORIGIN
+
+    async def test_cors_refuses_methods_the_api_does_not_have(self, client):
+        for method in ("DELETE", "PUT", "PATCH"):
+            assert (await self._preflight(client, method)).status_code == 400
+
+
 class TestDashboardAuth:
     def test_auth_middleware_allows_when_no_key(self):
         """Dev mode (empty key) should allow all requests."""

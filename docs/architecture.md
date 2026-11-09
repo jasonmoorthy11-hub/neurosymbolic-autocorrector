@@ -135,7 +135,8 @@ protects) carry no PII the regex rail detects. Rows written before v1.1 are unch
 ## MCP server
 
 `mcp_server/server.py` (FastMCP), started by the `autocorrector` console script:
-stdio with `--stdio`, otherwise streamable HTTP on `AUTOCORRECTOR_PORT` with an
+stdio with `--stdio`, otherwise streamable HTTP on `AUTOCORRECTOR_HOST` (loopback
+by default) and `AUTOCORRECTOR_PORT` with an
 optional API key (`AUTOCORRECTOR_MCP_API_KEY`, compared in constant time).
 
 - Tools: `validate_action` (PII rail, then policy and fact checks on the redacted

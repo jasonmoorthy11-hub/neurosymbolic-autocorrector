@@ -72,8 +72,8 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_settings.cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
 
 
@@ -119,7 +119,7 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
             path.endswith("/approve") or path.endswith("/reject")
         ):
             return True
-        if path == "/api/events/export" or path.startswith("/api/events/export?"):
+        if path == "/api/events/export":  # `path` never carries the query string
             return True
         return path.startswith("/api/demo/")
 

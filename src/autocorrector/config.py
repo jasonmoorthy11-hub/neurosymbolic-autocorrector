@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     model_config = {"env_prefix": "AUTOCORRECTOR_", "env_file": ".env", "extra": "ignore"}
 
-    # Server
-    host: str = "0.0.0.0"
+    # MCP HTTP server (the `autocorrector` command); the dashboard API is bound by uvicorn
+    # Loopback by default; set AUTOCORRECTOR_HOST=0.0.0.0 to listen on every interface
+    host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
-    debug: bool = False
 
     # Neo4j
     # Empty = in-memory store; only an explicit URI makes a service dial Neo4j
@@ -45,10 +45,6 @@ class Settings(BaseSettings):
 
     # Dashboard Auth
     dashboard_api_key: str = ""
-
-    # Embeddings
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
 
     # Guardrails AI hub telemetry (OTLP export to the vendor); off unless opted in
     guardrails_telemetry: bool = False
@@ -79,7 +75,6 @@ class Settings(BaseSettings):
     supported_languages: list[str] = Field(
         default=["en", "es", "fr", "pt", "de", "it", "nl", "ar", "zh", "ja", "ko", "ru"]
     )
-    default_language: str = "auto"
 
     @model_validator(mode="after")
     def _warn_missing_neo4j_credentials(self) -> Settings:

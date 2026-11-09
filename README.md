@@ -84,7 +84,9 @@ translation or revalidation. More detail in [docs/architecture.md](docs/architec
 
 ## Quick start (offline, no API key)
 
-Python 3.12 or newer; CI runs 3.12 and 3.14.
+Python 3.12 to 3.14 (CI runs 3.12 and 3.14). Python 3.15 is refused at install:
+one dependency of `guardrails-ai` does not build there yet. If `python3` is newer,
+create the environment with `python3.14 -m venv .venv`.
 
 ```bash
 git clone https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector.git
@@ -168,7 +170,7 @@ and one prompt (`review_correction`) over the Model Context Protocol.
 
 ```bash
 autocorrector --stdio                                    # stdio transport
-autocorrector                                            # streamable HTTP on AUTOCORRECTOR_PORT (default 8000, which the dashboard API also uses: change one to run both); AUTOCORRECTOR_MCP_API_KEY enables auth
+autocorrector                                            # streamable HTTP on 127.0.0.1:AUTOCORRECTOR_PORT (default 8000, which the dashboard API also uses: change one to run both; AUTOCORRECTOR_HOST=0.0.0.0 to listen on every interface); AUTOCORRECTOR_MCP_API_KEY enables auth
 claude mcp add autocorrector -- autocorrector --stdio    # add to Claude Code
 npx @modelcontextprotocol/inspector autocorrector --stdio
 python3 scripts/test_mcp_client.py                       # client check over stdio: calls each tool, reads each resource
@@ -177,7 +179,8 @@ python3 scripts/test_mcp_client.py                       # client check over std
 The MCP tools redact PII, check policy and facts and apply corrections, but they do
 not translate: non-English text always escalates there.
 
-`.mcp.json`:
+To register the server in a project, put this in a `.mcp.json` file at the project
+root (the repo does not ship one):
 
 ```json
 {"mcpServers": {"autocorrector": {"command": "autocorrector", "args": ["--stdio"]}}}
@@ -261,9 +264,11 @@ Environment variables (prefix `AUTOCORRECTOR_`) or a `.env` file; see `.env.exam
 |----------|---------|-------------|
 | `AUTOCORRECTOR_ANTHROPIC_API_KEY` | (empty) | Enables the LLM correction tier and translation |
 | `AUTOCORRECTOR_CORRECTION_LLM` | `claude-opus-5-5` | Model for LLM corrections |
+| `AUTOCORRECTOR_DEFAULT_LLM` | `claude-sonnet-5-5` | Model for translation |
 | `AUTOCORRECTOR_NEO4J_URI` | (empty) | Neo4j connection URI (optional); when set, the dashboard API and MCP server connect at startup and fall back to memory if it is unreachable |
 | `AUTOCORRECTOR_NEO4J_USER` / `_PASSWORD` | (empty) | Neo4j credentials |
-| `AUTOCORRECTOR_NEMO_RAILS_ENABLED` | `false` | NeMo input rails (needs the `[nemo]` extra) |
+| `AUTOCORRECTOR_NEO4J_DATABASE` | `neo4j` | Database the store and the seed script use |
+| `AUTOCORRECTOR_NEMO_RAILS_ENABLED` | `false` | NeMo input rails. Needs the `[nemo]` extra (`nemoguardrails` and `langchain-openai`) and an OpenAI key in `OPENAI_API_KEY`: `configs/nemo/config.yml` runs the rails on OpenAI `gpt-3.5-turbo`. The tests cover it with mocks only, and the evaluation and the replay recordings run with it off, so this path is not verified end to end here |
 | `AUTOCORRECTOR_GUARDRAILS_TELEMETRY` | `false` | Guardrails AI telemetry, off unless opted in |
 | `AUTOCORRECTOR_MAX_CORRECTION_ATTEMPTS` | `3` | Correct-then-revalidate rounds |
 | `AUTOCORRECTOR_MCP_API_KEY` | (empty) | Auth for the MCP HTTP transport |
@@ -271,6 +276,7 @@ Environment variables (prefix `AUTOCORRECTOR_`) or a `.env` file; see `.env.exam
 | `AUTOCORRECTOR_AUDIT_DB_PATH` | `autocorrector_audit.db` | SQLite audit store |
 | `AUTOCORRECTOR_CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
 | `AUTOCORRECTOR_TRUSTED_PROXIES` | `[]` | Reverse proxies (addresses or CIDRs) whose `X-Forwarded-For` names the client for dashboard rate limiting; empty means the header is never read |
+| `AUTOCORRECTOR_HOST` | `127.0.0.1` | Address the MCP HTTP server binds; `0.0.0.0` to listen on every interface |
 | `AUTOCORRECTOR_PORT` | `8000` | Port of the MCP HTTP server (the `autocorrector` command). The dashboard API's port is uvicorn's `--port` (8000 in `scripts/start_dashboard.sh` and the Docker image) |
 
 ## Development
@@ -291,7 +297,8 @@ the dashboard (the build in both live and replay modes). No secrets are used.
 src/autocorrector/
 ├── intent_classifier/   rule-based intent detection (9 types)
 ├── guardrails/          PII rail (10 types), Guardrails AI wrappers, NeMo input rails
-├── knowledge_graph/     policy rules + coverage facts (in-memory, optional Neo4j), correction tiers, span rewriter
+├── knowledge_graph/     policy rules + coverage facts (in-memory, optional Neo4j), correction tiers, span rewriter;
+│                        ingestion.py and retriever.py are experimental and not on the correction path
 ├── orchestrator/        LangGraph pipeline
 ├── multilingual/        language detection + LLM translation
 ├── ace/                 supervisor-feedback reflector and curator

@@ -70,10 +70,13 @@ class KnowledgeGraphStore:
         neo4j_password: str | None = None,
         anthropic_api_key: str | None = None,
         correction_llm: str | None = None,
+        *,
+        neo4j_database: str = "neo4j",
     ):
         self._uri = neo4j_uri
         self._user = neo4j_user
         self._password = neo4j_password
+        self._database = neo4j_database
         self._driver = None
         self._connected = False
 
@@ -117,6 +120,7 @@ class KnowledgeGraphStore:
             neo4j_uri=s.neo4j_uri or None,
             neo4j_user=s.neo4j_user,
             neo4j_password=s.neo4j_password,
+            neo4j_database=s.neo4j_database,
             anthropic_api_key=s.anthropic_api_key,
             correction_llm=s.correction_llm,
         )
@@ -132,7 +136,10 @@ class KnowledgeGraphStore:
             try:
                 from neo4j import AsyncGraphDatabase
 
-                driver = AsyncGraphDatabase.driver(self._uri, auth=(self._user, self._password))
+                # `database` here is the default for every session this driver opens
+                driver = AsyncGraphDatabase.driver(
+                    self._uri, auth=(self._user, self._password), database=self._database
+                )
                 await driver.verify_connectivity()
                 self._driver = driver
                 self._connected = True
@@ -158,7 +165,7 @@ class KnowledgeGraphStore:
     def _cache_key(*args: Any) -> str:
         """Build a deterministic cache key from arguments."""
         raw = json.dumps(args, sort_keys=True, default=str)
-        return hashlib.md5(raw.encode()).hexdigest()
+        return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
 
     def clear_cache(self) -> None:
         """Clear all TTL caches."""

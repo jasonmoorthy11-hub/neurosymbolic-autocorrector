@@ -92,6 +92,12 @@ def test_dockerignore_keeps_local_builds_out_of_the_context():
     assert ".env*" in ignored  # a local VITE_* .env must not be baked into the bundle
 
 
+def test_root_dockerignore_keeps_private_and_local_state_out_of_the_image():
+    ignored = (ROOT / ".dockerignore").read_text().split()
+    for entry in (".env", ".private/", ".cache/", "*.db", ".git/", ".venv/"):
+        assert entry in ignored, entry
+
+
 def test_api_trusts_exactly_the_dashboard_proxy_address():
     # The rate limiter reads X-Forwarded-For only from this address, so it must be
     # the nginx container's fixed address and nothing wider

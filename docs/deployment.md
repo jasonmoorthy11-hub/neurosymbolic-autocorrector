@@ -58,6 +58,8 @@ All prefixed with `AUTOCORRECTOR_`:
 | `NEO4J_PASSWORD` | When URI set | (empty) | |
 | `ANTHROPIC_API_KEY` | For the LLM correction tier and translation | (empty) | |
 | `OPENAI_API_KEY` | For vector embeddings only (`seed_neo4j.py --embed`) | (empty) | Not used by the correction path |
+| `NEO4J_DATABASE` | No | `neo4j` | Database the store and `seed_neo4j.py` use |
+| `HOST` | No | `127.0.0.1` | Address the MCP HTTP server binds |
 | `PORT` | No | `8000` | Port of the MCP HTTP server (`autocorrector`) only. The dashboard API listens where uvicorn is told to (`--port 8000` in `scripts/start_dashboard.sh` and the Dockerfile) |
 | `TRUSTED_PROXIES` | No | `[]` | JSON array of proxy addresses or CIDRs whose `X-Forwarded-For` names the client for rate limiting |
 | `DASHBOARD_API_KEY` / `MCP_API_KEY` | No | (empty) | Optional API keys: the dashboard's approve/reject, export and demo endpoints, and the MCP HTTP transport |
@@ -87,6 +89,8 @@ Neo4j is included in `docker-compose.yml`. Default credentials: `neo4j/changeme`
       authentication in front of the read-only dashboard routes, which the key does
       not cover (README, Limitations)
 - [ ] List your reverse proxy in `AUTOCORRECTOR_TRUSTED_PROXIES`
+- [ ] The MCP HTTP server listens on loopback unless `AUTOCORRECTOR_HOST` says
+      otherwise; set it only together with `AUTOCORRECTOR_MCP_API_KEY`
 - [ ] Build React dashboard: `cd dashboard && npm run build`
 - [ ] Serve dashboard via nginx or CDN
 - [ ] Set up monitoring on `/health` endpoint

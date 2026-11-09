@@ -7,7 +7,8 @@ name = "neurosymbolic-autocorrector"
 dynamic = ["version"]
 description = "Real-time policy-grounded correction of LLM agent outputs (knowledge-graph rules + symbolic checks + optional LLM rewrite)"
 license = "MIT"
-requires-python = ">=3.12"
+# guardrails-ai pulls in fastuuid, whose build (PyO3) does not support 3.15 yet
+requires-python = ">=3.12,<3.15"
 authors = [
     { name = "Jason Moorthy", email = "jasonmoorthy11@gmail.com" },
 ]
@@ -30,7 +31,6 @@ dependencies = [
     "fast-langdetect>=1.0",
 
     # Infrastructure
-    "httpx>=0.28",
     "aiosqlite>=0.20",
     "cachetools>=5.5",
     "slowapi>=0.1.9",
@@ -41,6 +41,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "httpx>=0.28",  # the dashboard tests drive the app through httpx's ASGI transport
     "pyyaml>=6.0",  # tests/test_docker_config.py reads docker-compose.yml
     "ruff>=0.9",
 ]
@@ -58,15 +59,13 @@ graphrag = [
 ]
 langgraph = [
     "langgraph>=1.0,<2",
-    "langchain-mcp-adapters>=0.1",
-    "langchain-anthropic>=0.3",
-    "langchain-openai>=0.3",
 ]
 guardrails = [
     "guardrails-ai>=0.9",
 ]
 nemo = [
     "nemoguardrails>=0.20",
+    "langchain-openai>=0.3",  # configs/nemo/config.yml uses `engine: openai`
 ]
 all = [
     "neurosymbolic-autocorrector[neo4j,langgraph,guardrails]",
@@ -94,4 +93,14 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+# Deprecations raised inside third-party packages on Python 3.14 (about 4,500 per
+# run, all from these five). Warnings from this package's own code still show.
+filterwarnings = [
+    "ignore::DeprecationWarning:guardrails.*",
+    "ignore::DeprecationWarning:uvloop.*",
+    "ignore::DeprecationWarning:typer.*",
+    "ignore::DeprecationWarning:slowapi.*",
+    "ignore::DeprecationWarning:langsmith.*",
+]

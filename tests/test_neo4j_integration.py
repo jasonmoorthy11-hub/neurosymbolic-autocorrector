@@ -76,6 +76,7 @@ async def kg_store():
         neo4j_uri=NEO4J_URI,
         neo4j_user=NEO4J_USER,
         neo4j_password=NEO4J_PASSWORD,
+        neo4j_database=NEO4J_DATABASE,
     )
     await store.connect()
     assert store._connected, "KG store should be connected to Neo4j"

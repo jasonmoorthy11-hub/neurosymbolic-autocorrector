@@ -62,9 +62,19 @@ async def test_connect_creates_one_driver_however_often_it_is_called(fake_neo4j)
     await store.connect()
     await store.connect()
     await store.connect()
-    factory.assert_called_once_with("bolt://graph:7687", auth=("neo4j", "stack-default"))
+    factory.assert_called_once_with(
+        "bolt://graph:7687", auth=("neo4j", "stack-default"), database="neo4j"
+    )
     assert store.is_connected
     driver.close.assert_not_awaited()
+
+
+async def test_connect_uses_the_configured_database(fake_neo4j):
+    # AUTOCORRECTOR_NEO4J_DATABASE was a setting nothing passed to the driver
+    factory, _ = fake_neo4j
+    store = KnowledgeGraphStore.from_settings(_settings(neo4j_database="policies"))
+    await store.connect()
+    assert factory.call_args.kwargs["database"] == "policies"
 
 
 async def test_close_resets_the_store_so_a_later_connect_opens_a_new_driver(fake_neo4j):

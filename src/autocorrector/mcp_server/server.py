@@ -543,17 +543,26 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 # --- Entry point ---
 
 
-def main():
-    """Run the MCP server."""
-    import sys
+def main(argv: list[str] | None = None) -> None:
+    """Run the MCP server: stdio with `--stdio`, otherwise streamable HTTP."""
+    import argparse
 
     from autocorrector.logging_config import setup_logging
 
+    parser = argparse.ArgumentParser(
+        prog="autocorrector",
+        description=(
+            "Neurosymbolic Autocorrector MCP server. Without --stdio it serves "
+            "streamable HTTP on AUTOCORRECTOR_HOST:AUTOCORRECTOR_PORT "
+            "(default 127.0.0.1:8000); AUTOCORRECTOR_MCP_API_KEY enables auth."
+        ),
+    )
+    parser.add_argument("--stdio", action="store_true", help="serve over stdio instead of HTTP")
+    args = parser.parse_args(argv)
+
     setup_logging()
 
-    transport = "streamable-http"
-    if "--stdio" in sys.argv:
-        transport = "stdio"
+    transport = "stdio" if args.stdio else "streamable-http"
 
     settings = get_settings()
 

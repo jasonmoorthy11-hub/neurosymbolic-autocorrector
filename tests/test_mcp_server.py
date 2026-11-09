@@ -8,6 +8,7 @@ import pytest
 
 from autocorrector.explainability.engine import ExplainabilityEngine
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+from autocorrector.mcp_server import server as server_module
 from autocorrector.mcp_server.server import (
     get_active_policies,
     get_compliance_rules,
@@ -206,6 +207,39 @@ def sentinel_store(monkeypatch):
         KnowledgeGraphStore, "from_settings", classmethod(lambda cls, s=None: store)
     )
     return store
+
+
+class TestEntryPoint:
+    """`autocorrector --help` used to start the HTTP server: the entry point only
+    looked for "--stdio" in the arguments and ignored everything else."""
+
+    def _no_server(self, monkeypatch):
+        started = []
+        monkeypatch.setattr(server_module.mcp, "run", lambda **kw: started.append(kw))
+        monkeypatch.setattr(
+            server_module.mcp, "streamable_http_app", lambda: started.append("http") or MagicMock()
+        )
+        return started
+
+    def test_entry_point_help_prints_usage_and_starts_nothing(self, monkeypatch, capsys):
+        started = self._no_server(monkeypatch)
+        with pytest.raises(SystemExit) as exit_info:
+            server_module.main(["--help"])
+        assert exit_info.value.code == 0
+        assert "--stdio" in capsys.readouterr().out
+        assert started == []
+
+    def test_entry_point_rejects_an_unknown_flag(self, monkeypatch):
+        started = self._no_server(monkeypatch)
+        with pytest.raises(SystemExit) as exit_info:
+            server_module.main(["--sdtio"])
+        assert exit_info.value.code == 2
+        assert started == []
+
+    def test_entry_point_stdio_runs_the_stdio_transport(self, monkeypatch):
+        started = self._no_server(monkeypatch)
+        server_module.main(["--stdio"])
+        assert started == [{"transport": "stdio"}]
 
 
 # --- Helper Tests ---

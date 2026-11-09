@@ -1,11 +1,25 @@
 """Shared test fixtures for the autocorrector test suite."""
 
+import os
 import sys
 
 import pytest
 
 from autocorrector.intent_classifier.classifier import IntentClassifier
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
+
+# Settings reads `.env` from the working directory, and the process environment
+# wins over that file. Pinning these empty keeps a developer's real key or Neo4j
+# URI out of the suite: no test can make a paid API call or dial a database by
+# accident. A test that needs a value passes it explicitly or uses monkeypatch.
+# The one exception is the opt-in Neo4j integration run, which names its server
+# on the command line (tests/test_neo4j_integration.py).
+_PINNED_EMPTY = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+if os.environ.get("AUTOCORRECTOR_NEO4J_TEST_WIPE") != "1":
+    _PINNED_EMPTY.append("NEO4J_URI")
+for _name in _PINNED_EMPTY:
+    os.environ[f"AUTOCORRECTOR_{_name}"] = ""
+os.environ["AUTOCORRECTOR_NEMO_RAILS_ENABLED"] = "false"
 
 
 @pytest.fixture

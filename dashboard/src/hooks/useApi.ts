@@ -3,7 +3,6 @@ import type {
   DashboardMetrics,
   SupervisorQueueItem,
   RuleInfo,
-  CorrectionEvent,
   EventFilters,
   TrendBucket,
   AnalyticsSummary,
@@ -110,51 +109,6 @@ function useLiveRules() {
   }, [refresh]);
 
   return { rules, error, loading, refresh };
-}
-
-export function useEvents(filters: EventFilters = {}, refreshInterval = 5000) {
-  const [events, setEvents] = useState<CorrectionEvent[]>([]);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filters.date_from) params.set("date_from", filters.date_from);
-      if (filters.date_to) params.set("date_to", filters.date_to);
-      if (filters.intent_type) params.set("intent_type", filters.intent_type);
-      if (filters.action) params.set("action", filters.action);
-      if (filters.severity) params.set("severity", filters.severity);
-      if (filters.agent_id) params.set("agent_id", filters.agent_id);
-
-      const qs = params.toString();
-      const path = `/api/events${qs ? `?${qs}` : ""}`;
-      const data = await fetchJson<{ events: CorrectionEvent[]; total: number }>(path);
-      setEvents(data.events);
-      setTotal(data.total);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load events");
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    filters.date_from,
-    filters.date_to,
-    filters.intent_type,
-    filters.action,
-    filters.severity,
-    filters.agent_id,
-  ]);
-
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, refreshInterval);
-    return () => clearInterval(id);
-  }, [refresh, refreshInterval]);
-
-  return { events, total, error, loading, refresh };
 }
 
 function useLiveAnalyticsTrends(hours = 24, refreshInterval = 10000) {

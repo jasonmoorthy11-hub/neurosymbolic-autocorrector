@@ -10,10 +10,21 @@ cd "$DIR"
 echo "=== Neurosymbolic Autocorrector Dashboard ==="
 echo ""
 
-# Start FastAPI backend
-echo "[1/2] Starting FastAPI backend on :8000 ..."
+# Both halves must be installed first; a missing one would otherwise fail in the
+# background while the other keeps running
+if [ ! -f .venv/bin/activate ]; then
+    echo "No .venv found. Run:  python3 -m venv .venv && source .venv/bin/activate && pip install -e \".[dev,langgraph,guardrails]\""
+    exit 1
+fi
+if [ ! -d dashboard/node_modules ]; then
+    echo "Dashboard dependencies are missing. Run:  (cd dashboard && npm ci)"
+    exit 1
+fi
+
+# Start FastAPI backend (loopback only: the read routes are unauthenticated)
+echo "[1/2] Starting FastAPI backend on 127.0.0.1:8000 ..."
 source .venv/bin/activate
-uvicorn autocorrector.dashboard.api:app --host 0.0.0.0 --port 8000 --reload &
+uvicorn autocorrector.dashboard.api:app --host 127.0.0.1 --port 8000 --reload &
 BACKEND_PID=$!
 
 # Start React frontend

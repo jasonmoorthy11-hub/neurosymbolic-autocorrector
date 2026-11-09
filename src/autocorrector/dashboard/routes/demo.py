@@ -78,6 +78,7 @@ DEMO_SCENARIOS = [
 ]
 
 _demo_running = False
+_demo_task: asyncio.Task[None] | None = None
 
 # Each tick runs the pipeline and writes an audit row; an interval of 0 would spin
 MIN_INTERVAL_SECONDS = 0.5
@@ -91,12 +92,14 @@ async def start_demo(
     interval: float = Query(default=3.0, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS),
 ):
     """Start the demo simulation — sends a correction event every `interval` seconds."""
-    global _demo_running
+    global _demo_running, _demo_task
     if _demo_running:
         return {"status": "already_running"}
 
     _demo_running = True
-    asyncio.create_task(_run_demo(interval))
+    # Keep a reference: the event loop holds tasks weakly, so an unreferenced one
+    # can be garbage-collected mid-run
+    _demo_task = asyncio.create_task(_run_demo(interval))
     return {"status": "started", "interval": interval, "scenarios": len(DEMO_SCENARIOS)}
 
 

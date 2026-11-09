@@ -41,6 +41,7 @@ async def main() -> None:
     uri = os.getenv("AUTOCORRECTOR_NEO4J_URI") or os.getenv("NEO4J_URI")
     user = os.getenv("AUTOCORRECTOR_NEO4J_USER") or os.getenv("NEO4J_USER", "neo4j")
     password = os.getenv("AUTOCORRECTOR_NEO4J_PASSWORD") or os.getenv("NEO4J_PASSWORD")
+    database = os.getenv("AUTOCORRECTOR_NEO4J_DATABASE") or os.getenv("NEO4J_DATABASE", "neo4j")
 
     if not uri or not password:
         print("ERROR: Neo4j connection details not found.")
@@ -54,7 +55,7 @@ async def main() -> None:
     from neo4j import AsyncGraphDatabase
 
     print(f"Connecting to Neo4j at {uri}...")
-    driver = AsyncGraphDatabase.driver(uri, auth=(user, password))
+    driver = AsyncGraphDatabase.driver(uri, auth=(user, password), database=database)
 
     # A fresh server (the compose stack) can accept bolt a few seconds after its
     # healthcheck passes, so a bounded retry is used rather than one attempt.

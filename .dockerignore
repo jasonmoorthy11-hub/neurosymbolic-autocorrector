@@ -4,6 +4,9 @@
 __pycache__/
 *.pyc
 .env
+.private/
+.cache/
+*.db
 node_modules/
 dashboard/node_modules/
 .ruff_cache/

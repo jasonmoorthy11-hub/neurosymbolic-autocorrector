@@ -4,7 +4,7 @@ globs: src/**/*.py
 
 # Backend Conventions
 
-- Python 3.12+ (`requires-python = ">=3.12"`; CI runs 3.12 and 3.14, the Docker image 3.12); async/await for all I/O
+- Python 3.12 to 3.14 (`requires-python = ">=3.12,<3.15"`; CI runs 3.12 and 3.14, the Docker image 3.12); async/await for all I/O
 - Pydantic v2 models with `from __future__ import annotations`
 - FastAPI with async endpoints; shared state comes from the accessors in `dashboard/state.py` (`get_kg_store()`, `get_audit_store()`), not `Depends()`
 - Type hints on all function signatures

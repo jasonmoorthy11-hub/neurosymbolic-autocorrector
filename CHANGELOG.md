@@ -24,6 +24,17 @@ Audit round: things a reader following the docs could trip over.
   resource"); `rules://compliance/{domain}` no longer invents `FACT-001` and
   `FACT-002` for a domain without rules, and each rule carries its source.
 - The `[redis]` extra is removed: nothing imported it.
+- Local servers bind loopback by default: the MCP HTTP server
+  (`AUTOCORRECTOR_HOST`, was every interface) and `scripts/start_dashboard.sh`.
+  `autocorrector --help` prints usage instead of starting a server.
+- The dashboard API's CORS policy names what it serves: GET and POST, and the
+  headers `Content-Type`, `Authorization`, `X-API-Key`, `X-Request-ID` (it was `*`).
+- `AUTOCORRECTOR_NEO4J_DATABASE` reaches the driver, so sessions now open the
+  database it names (default `neo4j`) instead of the server's home database; the settings nothing read
+  (`DEBUG`, `EMBEDDING_*`, `DEFAULT_LANGUAGE`) are gone.
+- Installs are refused on Python 3.15 (a dependency does not build there yet);
+  three unused `langchain-*` packages left the `[langgraph]` extra and `httpx`
+  moved to `[dev]`.
 - One version source, and this changelog.
 
 ## [1.4] - 2026-11-09

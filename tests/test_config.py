@@ -1,6 +1,7 @@
 """Tests for application configuration."""
 
 import importlib.util
+import os
 import re
 import warnings
 from pathlib import Path
@@ -18,9 +19,11 @@ class _NoEnvSettings(Settings):
 
 
 class TestSettingsDefaults:
-    def test_default_host(self):
+    def test_default_host_is_loopback(self):
+        # The MCP HTTP server has optional auth; it must not listen on every
+        # interface unless someone asks for that
         s = _NoEnvSettings()
-        assert s.host == "0.0.0.0"
+        assert s.host == "127.0.0.1"
 
     def test_default_port(self):
         s = _NoEnvSettings()
@@ -113,6 +116,30 @@ class TestNeo4jCredentialWarning:
             assert not any("credentials are empty" in str(warning.message) for warning in w)
 
 
+_ROOT = Path(__file__).resolve().parent.parent
+
+
+class TestEverySettingIsRead:
+    def test_settings_have_no_field_that_nothing_reads(self):
+        # A documented setting that no code reads is a false promise to whoever sets
+        # it (`debug`, `embedding_*`, `default_language` and an unwired
+        # `neo4j_database` were all removed or wired for this reason).
+        sources = "\n".join(
+            path.read_text(encoding="utf-8")
+            for folder in ("src", "scripts")
+            for path in (_ROOT / folder).rglob("*.py")
+            if path.name != "config.py"
+        )
+        unread = [
+            name
+            for name in Settings.model_fields
+            # a read through a settings object, not any attribute of that name
+            # (`logger.debug`, `request.client.host`)
+            if not re.search(rf"(\bsettings|\b_settings|\bs|get_settings\(\))\.{name}\b", sources)
+        ]
+        assert unread == []
+
+
 _ENV_EXAMPLE = Path(__file__).resolve().parent.parent / ".env.example"
 _ENV_LINE = re.compile(r"^(?P<comment>#\s*)?(?P<key>AUTOCORRECTOR_[A-Z0-9_]+)=", re.MULTILINE)
 
@@ -200,3 +227,44 @@ class TestGetSettings:
     def test_returns_settings_instance(self):
         s = get_settings()
         assert isinstance(s, Settings)
+
+
+class TestSuiteIsolation:
+    def test_suite_ignores_keys_and_neo4j_from_a_local_dotenv(self, tmp_path, monkeypatch):
+        # Settings reads `.env` from the working directory. A developer's real key
+        # there must not turn a test into a paid API call or a Neo4j connection:
+        # tests/conftest.py pins these variables empty in the process environment,
+        # which wins over the file.
+        (tmp_path / ".env").write_text(
+            "AUTOCORRECTOR_ANTHROPIC_API_KEY=sk-ant-from-dotenv\n"
+            "AUTOCORRECTOR_OPENAI_API_KEY=sk-from-dotenv\n"
+            "AUTOCORRECTOR_NEO4J_URI=bolt://from-dotenv:7687\n"
+            "AUTOCORRECTOR_NEMO_RAILS_ENABLED=true\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        settings = Settings()
+        assert settings.anthropic_api_key == ""
+        assert settings.openai_api_key == ""
+        if os.environ.get("AUTOCORRECTOR_NEO4J_TEST_WIPE") != "1":
+            assert settings.neo4j_uri == ""
+        assert settings.nemo_rails_enabled is False
+
+    @pytest.mark.parametrize("opted_in, expected", [(False, ""), (True, "bolt://disposable:7687")])
+    def test_suite_keeps_the_neo4j_uri_only_for_the_opt_in_run(
+        self, monkeypatch, opted_in, expected
+    ):
+        # conftest writes os.environ directly; monkeypatch restores it afterwards
+        monkeypatch.setenv("AUTOCORRECTOR_NEO4J_URI", "bolt://disposable:7687")
+        monkeypatch.setenv("AUTOCORRECTOR_ANTHROPIC_API_KEY", "sk-ant-leaked")
+        monkeypatch.setenv("AUTOCORRECTOR_NEMO_RAILS_ENABLED", "true")
+        if opted_in:
+            monkeypatch.setenv("AUTOCORRECTOR_NEO4J_TEST_WIPE", "1")
+        else:
+            monkeypatch.delenv("AUTOCORRECTOR_NEO4J_TEST_WIPE", raising=False)
+        conftest = Path(__file__).resolve().parent / "conftest.py"
+        spec = importlib.util.spec_from_file_location("_conftest_probe", conftest)
+        spec.loader.exec_module(importlib.util.module_from_spec(spec))
+        assert os.environ["AUTOCORRECTOR_NEO4J_URI"] == expected
+        assert os.environ["AUTOCORRECTOR_ANTHROPIC_API_KEY"] == ""
+        assert os.environ["AUTOCORRECTOR_NEMO_RAILS_ENABLED"] == "false"
