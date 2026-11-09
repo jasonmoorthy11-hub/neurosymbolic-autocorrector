@@ -31,8 +31,14 @@ severity filter matches a violation's severity, as the backend's export does). T
 metrics cards poll every 2 s and the analytics panel every 10 s; the rules panel
 loads once. A new WebSocket event also refreshes the analytics and rules panels, at
 most once per 2 s (`src/hooks/useAnalyticsRefresh.ts`), so the latency figures and
-the per-rule violation counts stay current while the demo runs. Timestamps from the API are UTC ISO strings with a `Z` suffix and are
-shown in the browser's local time. `docker compose up --build` from the repo root
+the per-rule violation counts stay current while the demo runs. Timestamps from the
+API are UTC ISO strings with a `Z` suffix and are shown in the browser's local time.
+
+The feed is not a history view: it holds the events received over the WebSocket
+since the page connected, plus the last 10 the backend keeps in memory and replays
+on connect (none after a backend restart). The metrics, the analytics and the
+export read the whole audit log, so after a reload in a quiet period the feed can
+be empty under non-zero metrics; its empty state says so and points to the export. `docker compose up --build` from the repo root
 serves this build on :3000 behind nginx, which proxies `/api` and `/ws` to the API
 container (`Dockerfile`, `nginx.conf`; see `../docs/deployment.md`).
 

@@ -6,6 +6,8 @@ interface Props {
   events: CorrectionEvent[];
   title?: string;
   emptyMessage?: string;
+  /** A second, smaller line under the empty message (what the feed does not show). */
+  emptyNote?: string;
   /** Selection for the pipeline trace (replay mode); omitted in live mode. */
   selectedId?: string | null;
   /** The run the user pinned (null while the trace follows the newest run). */
@@ -55,6 +57,7 @@ export function AgentFeed({
   events,
   title = "Live Agent Feed",
   emptyMessage = "No events yet — start the demo to see live corrections.",
+  emptyNote,
   selectedId,
   pinnedId = null,
   onSelect,
@@ -74,7 +77,10 @@ export function AgentFeed({
           : ""}
       </p>
       {events.length === 0 ? (
-        <p className="muted">{emptyMessage}</p>
+        <>
+          <p className="muted">{emptyMessage}</p>
+          {emptyNote && <p className="feed-note">{emptyNote}</p>}
+        </>
       ) : (
         <ul className="feed-list" tabIndex={0} aria-label="Correction events">
           {events.slice(0, 50).map((e) => (

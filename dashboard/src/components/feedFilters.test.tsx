@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ReplayContext, type ReplayValue } from "../replay/context";
 import type { CorrectionEvent } from "../types/api";
+import { AgentFeed } from "./AgentFeed";
 import { LiveFeed } from "./LiveFeed";
 import { ReplayFeed } from "./ReplayFeed";
 
@@ -78,6 +79,25 @@ describe("the filter bar narrows the feed", () => {
     expect(html).toContain("escalated text");
     expect(html).toContain("corrected text after");
     expect(html).toContain("allowed text");
+  });
+
+  it("LiveFeed's empty state says the feed starts at connect and where history lives", () => {
+    // Metrics and exports cover the whole audit log; the feed only holds events
+    // received since this page connected, so an empty feed is not an empty log.
+    const html = renderToStaticMarkup(<LiveFeed events={[]} filters={{}} />);
+    expect(html).toContain("No events yet");
+    expect(html).toMatch(/<p class="feed-note">Showing events since this page connected; earlier ones are in the CSV and JSON export\.<\/p>/);
+  });
+
+  it("LiveFeed says so when the filters hide every received event", () => {
+    const html = renderToStaticMarkup(<LiveFeed events={EVENTS} filters={{ agent_id: "agent-nobody" }} />);
+    expect(html).toContain("No received events match the filters.");
+    expect(html).not.toContain("start the demo");
+  });
+
+  it("the replay feed carries no since-connect note", () => {
+    const html = renderToStaticMarkup(<AgentFeed events={[]} title="Agent Feed (recorded)" emptyMessage="Press Play." />);
+    expect(html).not.toContain("feed-note");
   });
 
   it("ReplayFeed applies the same filter to the recorded events", () => {
