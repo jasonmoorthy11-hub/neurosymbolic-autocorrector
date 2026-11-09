@@ -1,3 +1,5 @@
-"""Neurosymbolic Autocorrector - Enterprise AI Quality Assurance & Autocorrection System."""
+"""Neurosymbolic Autocorrector: policy-grounded correction of LLM agent outputs."""
 
-__version__ = "0.1.0"
+# The single version source: pyproject.toml, the dashboard API and /health read
+# it; tests/test_version.py checks dashboard/package.json and CHANGELOG.md against it.
+__version__ = "1.5.0.dev0"

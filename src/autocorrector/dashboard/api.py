@@ -22,6 +22,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from autocorrector import __version__
 from autocorrector.config import get_settings
 from autocorrector.dashboard.processing import process_and_log
 from autocorrector.dashboard.routes import demo, events, queue, ws
@@ -57,7 +58,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await audit.close()
 
 
-app = FastAPI(title="Autocorrector Dashboard API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Autocorrector Dashboard API", version=__version__, lifespan=lifespan)
 
 _settings = get_settings()
 
@@ -166,8 +167,6 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 @app.get("/health")
 async def health_check():
     """Health check endpoint for load balancers and Docker."""
-    from autocorrector import __version__
-
     kg = get_kg_store()
     audit = await get_audit_store()
     event_count = await audit.count()

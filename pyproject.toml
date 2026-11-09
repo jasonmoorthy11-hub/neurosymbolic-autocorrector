@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "neurosymbolic-autocorrector"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Real-time policy-grounded correction of LLM agent outputs (knowledge-graph rules + symbolic checks + optional LLM rewrite)"
 license = "MIT"
 requires-python = ">=3.12"
@@ -68,15 +68,15 @@ guardrails = [
 nemo = [
     "nemoguardrails>=0.20",
 ]
-redis = [
-    "redis>=5.2",
-]
 all = [
-    "neurosymbolic-autocorrector[neo4j,langgraph,guardrails,redis]",
+    "neurosymbolic-autocorrector[neo4j,langgraph,guardrails]",
 ]
 
 [project.scripts]
 autocorrector = "autocorrector.mcp_server.server:main"
+
+[tool.hatch.version]
+path = "src/autocorrector/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autocorrector"]
