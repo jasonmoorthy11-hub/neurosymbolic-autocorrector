@@ -1,5 +1,7 @@
 """Shared test fixtures for the autocorrector test suite."""
 
+import sys
+
 import pytest
 
 from autocorrector.intent_classifier.classifier import IntentClassifier
@@ -25,3 +27,19 @@ async def connected_kg_store():
 def classifier():
     """Create a fresh IntentClassifier."""
     return IntentClassifier()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """The dashboard's limiter is process-wide and in memory: without a reset on
+    both sides, a test that exhausts a bucket fails whichever test hits the same
+    route next, in any file."""
+
+    def reset() -> None:
+        state = sys.modules.get("autocorrector.dashboard.state")
+        if state is not None:
+            state.limiter.reset()
+
+    reset()
+    yield
+    reset()

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
+from autocorrector.knowledge_graph.defaults import load_default_facts, load_default_rules
 from autocorrector.knowledge_graph.ingestion import (
     _extract_coverages,
     _extract_field,
@@ -229,3 +231,64 @@ class TestDirectoryIngestion:
     async def test_ingest_nonexistent_directory_raises(self):
         with pytest.raises(FileNotFoundError):
             await ingest_directory("/nonexistent/path")
+
+
+# --- Citations Resolve ---
+
+
+def _default_rules() -> list[dict]:
+    return [rule for rules in load_default_rules().values() for rule in rules]
+
+
+def _default_coverages() -> list[tuple[str, dict]]:
+    return [
+        (plan, coverage)
+        for plan, facts in load_default_facts().items()
+        for coverage in facts["coverages"]
+    ]
+
+
+class TestDefaultCitationsResolve:
+    """Every correction cites a document and a section or page. Each citation in
+    `defaults.py` must lead to that text in `policies/`, read with the same parser
+    the ingestion pipeline uses."""
+
+    @pytest.fixture
+    async def policies(self):
+        return await ingest_directory(str(POLICIES_DIR))
+
+    @pytest.mark.parametrize("rule", _default_rules(), ids=lambda r: r["rule_id"])
+    async def test_citation_rule_resolves_to_its_policy_section(self, policies, rule):
+        cited = [
+            found
+            for policy in policies
+            if policy.name == rule["source_document"]
+            for found in policy.rules
+            if found.rule_id == rule["rule_id"]
+        ]
+        assert len(cited) == 1, f"{rule['rule_id']} not found in {rule['source_document']}"
+        assert cited[0].section == rule["source_section"]
+        assert cited[0].name == rule["rule_name"]
+        assert cited[0].severity == rule["severity"]
+        assert cited[0].description.startswith(rule["description"])
+        assert cited[0].keywords
+        assert set(cited[0].keywords) <= set(rule["keywords"])
+
+    @pytest.mark.parametrize(
+        "plan,coverage",
+        _default_coverages(),
+        ids=lambda v: v if isinstance(v, str) else v["category"],
+    )
+    async def test_citation_fact_resolves_to_its_coverage_page(self, policies, plan, coverage):
+        rows = [
+            found
+            for policy in policies
+            for found in policy.coverages
+            if found.plan_name == plan and found.category == coverage["category"]
+        ]
+        assert len(rows) == 1, f"{plan} / {coverage['category']} not in policies/"
+        assert rows[0].limit == coverage["limit"]
+        assert rows[0].source_page == coverage["source_page"]
+        text = (POLICIES_DIR / rows[0].source_document).read_text(encoding="utf-8")
+        cited = re.escape(f"{coverage['source_document']}, Page {coverage['source_page']}")
+        assert re.search(cited + r"\b", text)

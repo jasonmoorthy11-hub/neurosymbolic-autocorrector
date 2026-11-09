@@ -218,6 +218,10 @@ Known, measured, or found by the held-out run:
   `/api/events`, `/api/queue` and the WebSocket are open. They serve the audit rows,
   which hold the text as the regex PII rail above redacts it (rows written before
   v1.1 are unchanged, the table is append-only). The replay demo uses fake PII only.
+- The bundled React dashboard never sends that key, so with
+  `AUTOCORRECTOR_DASHBOARD_API_KEY` set its approve/reject, export and demo buttons
+  get a 401; the key is for API clients (`X-API-Key` or `Authorization: Bearer`).
+  A key compiled into a browser bundle would be public, so the UI does not take one.
 - The fact-claim heuristic misses some phrasings, for example a follow-up sentence
   such as "It covers $5,000." or "Coverage is capped at $5,000.", "I'll check if
   emergency dental covers $5,000.", "After your deductible dental coverage pays
@@ -265,6 +269,7 @@ Environment variables (prefix `AUTOCORRECTOR_`) or a `.env` file; see `.env.exam
 | `AUTOCORRECTOR_DASHBOARD_API_KEY` | (empty) | Auth for dashboard approve/reject, export and demo endpoints |
 | `AUTOCORRECTOR_AUDIT_DB_PATH` | `autocorrector_audit.db` | SQLite audit store |
 | `AUTOCORRECTOR_CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
+| `AUTOCORRECTOR_TRUSTED_PROXIES` | `[]` | Reverse proxies (addresses or CIDRs) whose `X-Forwarded-For` names the client for dashboard rate limiting; empty means the header is never read |
 | `AUTOCORRECTOR_PORT` | `8000` | Server port |
 
 ## Development

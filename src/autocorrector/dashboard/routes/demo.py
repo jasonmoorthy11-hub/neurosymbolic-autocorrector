@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from autocorrector.dashboard.processing import process_and_log
 from autocorrector.dashboard.state import limiter
@@ -79,10 +79,17 @@ DEMO_SCENARIOS = [
 
 _demo_running = False
 
+# Each tick runs the pipeline and writes an audit row; an interval of 0 would spin
+MIN_INTERVAL_SECONDS = 0.5
+MAX_INTERVAL_SECONDS = 60.0
+
 
 @router.post("/api/demo/start")
 @limiter.limit("5/minute")
-async def start_demo(request: Request, interval: float = 3.0):
+async def start_demo(
+    request: Request,
+    interval: float = Query(default=3.0, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS),
+):
     """Start the demo simulation — sends a correction event every `interval` seconds."""
     global _demo_running
     if _demo_running:
@@ -94,7 +101,8 @@ async def start_demo(request: Request, interval: float = 3.0):
 
 
 @router.post("/api/demo/stop")
-async def stop_demo():
+@limiter.limit("30/minute")
+async def stop_demo(request: Request):
     """Stop the demo simulation."""
     global _demo_running
     _demo_running = False
@@ -102,7 +110,8 @@ async def stop_demo():
 
 
 @router.post("/api/demo/step")
-async def demo_step(index: int = 0):
+@limiter.limit("30/minute")
+async def demo_step(request: Request, index: int = 0):
     """Run a single demo scenario by index."""
     scenario = DEMO_SCENARIOS[index % len(DEMO_SCENARIOS)]
     event = await process_and_log(

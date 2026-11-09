@@ -1,10 +1,13 @@
 """Integration tests for Neo4j knowledge graph.
 
-These tests require a running Neo4j instance. They are skipped automatically
-when Neo4j is not available (no URI configured or connection fails).
+These tests DELETE EVERY NODE in the target database and reseed it, so they run
+only against a disposable Neo4j and only with an explicit opt-in. They read the
+process environment alone (never a `.env` file), and are skipped unless all three
+variables are set:
 
-To run: Set NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD env vars, then:
-    pytest tests/test_neo4j_integration.py -v
+    AUTOCORRECTOR_NEO4J_TEST_WIPE=1 \
+    AUTOCORRECTOR_NEO4J_URI=bolt://localhost:7687 AUTOCORRECTOR_NEO4J_PASSWORD=changeme \
+      python3 -m pytest tests/test_neo4j_integration.py -v
 
 The graph is seeded once per module (using a module-level flag).
 """
@@ -14,19 +17,19 @@ from __future__ import annotations
 import os
 
 import pytest
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# Skip entire module if no Neo4j URI configured
-NEO4J_URI = os.getenv("AUTOCORRECTOR_NEO4J_URI") or os.getenv("NEO4J_URI")
-NEO4J_USER = os.getenv("AUTOCORRECTOR_NEO4J_USER") or os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("AUTOCORRECTOR_NEO4J_PASSWORD") or os.getenv("NEO4J_PASSWORD")
-NEO4J_DATABASE = os.getenv("AUTOCORRECTOR_NEO4J_DATABASE") or os.getenv("NEO4J_DATABASE", "neo4j")
+NEO4J_URI = os.getenv("AUTOCORRECTOR_NEO4J_URI")
+NEO4J_USER = os.getenv("AUTOCORRECTOR_NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("AUTOCORRECTOR_NEO4J_PASSWORD")
+NEO4J_DATABASE = os.getenv("AUTOCORRECTOR_NEO4J_DATABASE", "neo4j")
+WIPE_OPT_IN = os.getenv("AUTOCORRECTOR_NEO4J_TEST_WIPE") == "1"
 
 pytestmark = pytest.mark.skipif(
-    not NEO4J_URI or not NEO4J_PASSWORD,
-    reason="Neo4j not configured (set AUTOCORRECTOR_NEO4J_URI and AUTOCORRECTOR_NEO4J_PASSWORD)",
+    not (WIPE_OPT_IN and NEO4J_URI and NEO4J_PASSWORD),
+    reason=(
+        "these tests wipe the database: set AUTOCORRECTOR_NEO4J_TEST_WIPE=1 with "
+        "AUTOCORRECTOR_NEO4J_URI and AUTOCORRECTOR_NEO4J_PASSWORD for a disposable Neo4j"
+    ),
 )
 
 _seeded = False

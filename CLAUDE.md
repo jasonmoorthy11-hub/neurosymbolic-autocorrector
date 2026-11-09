@@ -5,9 +5,12 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1283 passing offline; the 15 Neo4j integration tests need a Neo4j server, e.g. the compose one)
+# Tests (1327 passing offline; the 15 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
+# Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
+AUTOCORRECTOR_NEO4J_TEST_WIPE=1 AUTOCORRECTOR_NEO4J_URI=bolt://localhost:7687 \
+  AUTOCORRECTOR_NEO4J_PASSWORD=changeme python3 -m pytest tests/test_neo4j_integration.py
 python3 -m pytest tests/test_pipeline.py -v                  # single file
 python3 -m pytest -k "test_name" -v                          # single test
 

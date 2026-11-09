@@ -19,6 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from autocorrector.config import get_settings
@@ -59,6 +60,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Autocorrector Dashboard API", version="1.0.0", lifespan=lifespan)
 
 _settings = get_settings()
+
+app.state.limiter = limiter
+# Without this middleware `rate_limit_default` is inert: slowapi applies default
+# limits only through it (routes with their own @limiter.limit are left to that).
+# Added first, so it is innermost: its 429 still gets CORS headers, the request
+# log line and X-Request-ID from the middlewares below.
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -141,11 +149,11 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
 if _settings.dashboard_api_key:
     app.add_middleware(DashboardAuthMiddleware, api_key=_settings.dashboard_api_key)
 
-app.state.limiter = limiter
 
-
+# A plain function on purpose: SlowAPIMiddleware cannot await a handler and would
+# answer with slowapi's own body instead of this one.
 @app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(
         status_code=429,
         content={"detail": "Rate limit exceeded. Please try again later."},

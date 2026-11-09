@@ -5,10 +5,13 @@
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,langgraph,guardrails]"   # offline core; ".[all,dev]" adds Neo4j + Redis
-cp .env.example .env
-# Edit .env with your API keys
 pytest
+cp .env.example .env    # optional: every line in it is commented out, uncomment what you need
 ```
+
+An unedited copy of `.env.example` changes nothing (`tests/test_config.py` pins
+that): no API key and no Neo4j URI means the offline path, with the in-memory
+policy store.
 
 ## Docker
 
@@ -27,7 +30,10 @@ docker compose up --build
 # Health check: expect "neo4j_connected": true
 curl http://localhost:8000/health
 
-# The 15 Neo4j integration tests against the compose database (they clear and reseed it)
+# The 15 Neo4j integration tests against the compose database. They DELETE EVERY
+# NODE and reseed, so they run only with the opt-in variable, read the process
+# environment only (never .env), and must never point at a database you want to keep
+AUTOCORRECTOR_NEO4J_TEST_WIPE=1 \
 AUTOCORRECTOR_NEO4J_URI=bolt://localhost:7687 AUTOCORRECTOR_NEO4J_PASSWORD=changeme \
   python3 -m pytest tests/test_neo4j_integration.py -q
 

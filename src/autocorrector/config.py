@@ -62,7 +62,11 @@ class Settings(BaseSettings):
     cost_per_escalation: float = 25.0
 
     # Rate limiting
+    # Applies to routes without their own limit (/health, /docs, /openapi.json)
     rate_limit_default: str = "60/minute"
+    # Reverse proxies (addresses or CIDRs) whose X-Forwarded-For names the client
+    # for rate limiting. Empty = the header is never read.
+    trusted_proxies: list[str] = Field(default=[])
 
     # CORS
     cors_origins: list[str] = Field(default=["http://localhost:3000"])

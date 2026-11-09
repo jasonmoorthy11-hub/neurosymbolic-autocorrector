@@ -24,6 +24,9 @@ services:
     environment:
       <<: *neo4j-env
       AUTOCORRECTOR_CORS_ORIGINS: '["http://localhost:3000","http://localhost:8080"]'
+      # The dashboard's nginx (fixed address below): the only peer whose
+      # X-Forwarded-For the rate limiter believes
+      AUTOCORRECTOR_TRUSTED_PROXIES: '["172.31.250.10"]'
     depends_on:
       neo4j:
         condition: service_healthy
@@ -71,6 +74,17 @@ services:
     depends_on:
       - autocorrector
     restart: unless-stopped
+    networks:
+      default:
+        ipv4_address: 172.31.250.10
+
+# A fixed subnet so the proxy has a known address (AUTOCORRECTOR_TRUSTED_PROXIES).
+# If it collides with a network on your machine, change both together.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
 
 volumes:
   neo4j_data:

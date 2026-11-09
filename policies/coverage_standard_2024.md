@@ -5,11 +5,12 @@
 
 ## Coverage Summary
 
-| Coverage Category | Annual Limit | Source Page |
+| Coverage Category | Annual Limit (copay: per visit) | Source Page |
 |---|---|---|
 | Emergency Dental | $2,500 | Page 12 |
 | Emergency Room | $10,000 | Page 8 |
 | Prescription Drugs | $5,000 | Page 15 |
+| Specialist Visit Copay | $40 | Page 22 |
 
 ## Emergency Dental Coverage
 **Annual Limit:** $2,500
@@ -45,3 +46,11 @@ Covers prescription medications on the approved formulary:
 - Tier 2 (Preferred Brand): $30 copay
 - Tier 3 (Non-Preferred): $50 copay
 - Specialty medications: 20% coinsurance up to annual limit
+
+## Specialist Visits
+**Copay:** $40 per visit
+**Source:** Policy_Document_Standard_2024.pdf, Page 22
+
+Applies to in-network specialist office visits with a referral:
+- The member pays the $40 copay at the time of the visit
+- Out-of-network specialist visits are not covered by the copay

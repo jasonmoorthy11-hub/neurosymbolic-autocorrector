@@ -42,6 +42,19 @@ be empty under non-zero metrics; its empty state says so and points to the expor
 serves this build on :3000 behind nginx, which proxies `/api` and `/ws` to the API
 container (`Dockerfile`, `nginx.conf`; see `../docs/deployment.md`).
 
+This UI sends no API key. If the backend runs with `AUTOCORRECTOR_DASHBOARD_API_KEY`
+set, the approve/reject, export and demo buttons get a 401 while the read-only
+panels keep working: the key is meant for API clients, and a key built into a
+browser bundle would be readable by anyone who loads the page.
+
+The backend rate-limits per client address and per endpoint, with limits fixed in
+the code: 60 requests a minute on the data routes, 30 on approve, reject, demo stop
+and demo step, 10 on export and 5 on demo start. `AUTOCORRECTOR_RATE_LIMIT_DEFAULT`
+(60/minute) covers only the remaining routes such as `/health`. The client is the
+direct peer; `X-Forwarded-For` is read only from the proxies listed in
+`AUTOCORRECTOR_TRUSTED_PROXIES`, which the compose file sets to the nginx
+container's fixed address.
+
 ## Replay data
 
 `public/replay/replay.json` is written by `python3 scripts/record_replay.py` from the

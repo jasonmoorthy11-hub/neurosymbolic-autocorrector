@@ -226,7 +226,7 @@ class TestHealthEndpoint:
 class TestDemoEndpoints:
     @pytest.mark.asyncio
     async def test_demo_start_stop(self, client):
-        resp = await client.post("/api/demo/start?interval=100")
+        resp = await client.post("/api/demo/start?interval=60")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "started"
@@ -601,6 +601,147 @@ class TestRateLimiting:
         from autocorrector.dashboard.api import limiter
 
         assert limiter is not None
+
+    async def test_rate_limit_default_applies_to_an_undecorated_route(self, client):
+        # /health carries no @limiter.limit; only the middleware enforces the default
+        responses = [await client.get("/health") for _ in range(61)]
+        assert [r.status_code for r in responses] == [200] * 60 + [429]
+        # The middleware's 429 is the app's own response and still passes through
+        # the request-logging middleware
+        assert responses[-1].json() == {"detail": "Rate limit exceeded. Please try again later."}
+        assert responses[-1].headers["x-request-id"]
+
+    async def test_rate_limit_demo_stop_is_limited(self, client):
+        codes = [(await client.post("/api/demo/stop")).status_code for _ in range(31)]
+        assert codes == [200] * 30 + [429]
+
+    async def test_rate_limit_demo_step_is_limited(self, client):
+        codes = [(await client.post("/api/demo/step?index=4")).status_code for _ in range(31)]
+        assert codes == [200] * 30 + [429]
+
+    async def test_rate_limit_buckets_are_per_forwarded_client(self, client, trust_test_peer):
+        # Behind the bundled nginx every request arrives from the proxy's address;
+        # the entry nginx appended to X-Forwarded-For is the real client.
+        first = {"X-Forwarded-For": "203.0.113.7"}
+        for _ in range(30):
+            await client.post("/api/demo/stop", headers=first)
+        assert (await client.post("/api/demo/stop", headers=first)).status_code == 429
+        other = await client.post("/api/demo/stop", headers={"X-Forwarded-For": "203.0.113.8"})
+        assert other.status_code == 200
+
+    async def test_rate_limit_key_ignores_client_supplied_forwarded_entries(
+        self, client, trust_test_peer
+    ):
+        # nginx appends the peer address, so only the LAST entry is trustworthy:
+        # rotating the first entry must not buy a fresh bucket.
+        for i in range(30):
+            await client.post(
+                "/api/demo/stop", headers={"X-Forwarded-For": f"10.9.9.{i}, 203.0.113.7"}
+            )
+        resp = await client.post(
+            "/api/demo/stop", headers={"X-Forwarded-For": "10.9.9.99, 203.0.113.7"}
+        )
+        assert resp.status_code == 429
+
+    async def test_rate_limit_header_buys_nothing_from_an_untrusted_peer(self, client):
+        # Default: no trusted proxy, so the header is whatever the client typed,
+        # even from a loopback or private peer (a LAN client, the Docker gateway)
+        for i in range(30):
+            await client.post("/api/demo/stop", headers={"X-Forwarded-For": f"203.0.113.{i}"})
+        resp = await client.post("/api/demo/stop", headers={"X-Forwarded-For": "203.0.113.99"})
+        assert resp.status_code == 429
+
+
+@pytest.fixture
+def trust_test_peer(monkeypatch):
+    """Treat the ASGI test client's address (127.0.0.1) as the trusted proxy."""
+    monkeypatch.setattr(
+        state_module, "TRUSTED_PROXIES", state_module.parse_trusted_proxies(["127.0.0.1"])
+    )
+
+
+class TestClientKey:
+    PROXY = "172.31.250.10"
+
+    @pytest.fixture(autouse=True)
+    def _trust_the_proxy(self, monkeypatch):
+        monkeypatch.setattr(
+            state_module, "TRUSTED_PROXIES", state_module.parse_trusted_proxies([self.PROXY])
+        )
+
+    def _request(self, peer: str | None, *forwarded: str):
+        from starlette.requests import Request
+
+        headers = [(b"x-forwarded-for", value.encode()) for value in forwarded]
+        scope = {"type": "http", "headers": headers, "client": (peer, 1234) if peer else None}
+        return Request(scope)
+
+    def test_client_key_is_the_peer_without_a_forwarded_header(self):
+        assert state_module.client_key(self._request("192.0.2.4")) == "192.0.2.4"
+
+    def test_client_key_uses_the_last_forwarded_entry_from_the_trusted_proxy(self):
+        request = self._request(self.PROXY, "198.51.100.1, 203.0.113.7")
+        assert state_module.client_key(request) == "203.0.113.7"
+
+    def test_client_key_ignores_the_header_from_an_untrusted_private_peer(self):
+        # Another container, a LAN client or the Docker gateway is not the proxy
+        request = self._request("172.31.250.1", "203.0.113.7")
+        assert state_module.client_key(request) == "172.31.250.1"
+
+    def test_client_key_ignores_the_header_from_a_public_peer(self):
+        request = self._request("8.8.8.8", "203.0.113.7")
+        assert state_module.client_key(request) == "8.8.8.8"
+
+    def test_client_key_ignores_the_header_when_no_proxy_is_trusted(self, monkeypatch):
+        monkeypatch.setattr(state_module, "TRUSTED_PROXIES", ())
+        request = self._request("127.0.0.1", "203.0.113.7")
+        assert state_module.client_key(request) == "127.0.0.1"
+
+    def test_client_key_falls_back_to_the_peer_for_a_malformed_entry(self):
+        request = self._request(self.PROXY, "not-an-address")
+        assert state_module.client_key(request) == self.PROXY
+
+    def test_client_key_reads_the_last_of_several_header_lines(self):
+        # A proxy may append its own header line instead of extending the first
+        request = self._request(self.PROXY, "10.9.9.9", "203.0.113.7")
+        assert state_module.client_key(request) == "203.0.113.7"
+
+    def test_client_key_recognises_an_ipv4_mapped_trusted_proxy(self):
+        request = self._request(f"::ffff:{self.PROXY}", "203.0.113.7")
+        assert state_module.client_key(request) == "203.0.113.7"
+
+    def test_client_key_does_not_trust_an_ipv4_mapped_stranger(self):
+        request = self._request("::ffff:8.8.8.8", "203.0.113.7")
+        assert state_module.client_key(request) == "::ffff:8.8.8.8"
+
+    def test_parse_trusted_proxies_accepts_addresses_and_networks(self):
+        parsed = state_module.parse_trusted_proxies(["172.31.250.10", "10.0.0.0/8", "::1"])
+        assert [str(n) for n in parsed] == ["172.31.250.10/32", "10.0.0.0/8", "::1/128"]
+
+    def test_parse_trusted_proxies_rejects_a_bad_entry(self):
+        with pytest.raises(ValueError):
+            state_module.parse_trusted_proxies(["nginx"])
+
+
+class TestDemoInterval:
+    @pytest.mark.parametrize("interval", ["0", "-1", "0.1", "61", "nan"])
+    async def test_demo_start_rejects_an_out_of_range_interval(self, client, interval):
+        resp = await client.post(f"/api/demo/start?interval={interval}")
+        assert resp.status_code == 422
+
+    async def test_demo_start_accepts_the_default_interval(self, client, monkeypatch):
+        import autocorrector.dashboard.routes.demo as demo_module
+
+        async def _no_run(interval: float) -> None:
+            return None
+
+        monkeypatch.setattr(demo_module, "_run_demo", _no_run)
+        try:
+            resp = await client.post("/api/demo/start")
+            assert resp.status_code == 200
+            assert resp.json()["interval"] == 3.0
+        finally:
+            await client.post("/api/demo/stop")
 
 
 class TestDashboardAuth:

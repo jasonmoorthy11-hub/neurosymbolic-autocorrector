@@ -90,3 +90,16 @@ def test_dockerignore_keeps_local_builds_out_of_the_context():
     ignored = (ROOT / "dashboard" / ".dockerignore").read_text().split()
     assert "node_modules" in ignored and "dist" in ignored
     assert ".env*" in ignored  # a local VITE_* .env must not be baked into the bundle
+
+
+def test_api_trusts_exactly_the_dashboard_proxy_address():
+    # The rate limiter reads X-Forwarded-For only from this address, so it must be
+    # the nginx container's fixed address and nothing wider
+    import json
+
+    address = SERVICES["dashboard"]["networks"]["default"]["ipv4_address"]
+    assert json.loads(_env("autocorrector")["AUTOCORRECTOR_TRUSTED_PROXIES"]) == [address]
+    subnet = COMPOSE["networks"]["default"]["ipam"]["config"][0]["subnet"]
+    import ipaddress
+
+    assert ipaddress.ip_address(address) in ipaddress.ip_network(subnet)
