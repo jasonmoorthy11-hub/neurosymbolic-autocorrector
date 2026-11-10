@@ -15,15 +15,20 @@ policy store.
 
 ## Docker
 
+The compose file is a local development stack, not a production deployment: it
+uses a default Neo4j password, and every port it publishes is bound to
+`127.0.0.1`, so nothing is reachable from another machine.
+
 ```bash
 # Build and start the stack from a fresh clone; no .env needed
 docker compose up --build
 
-# Services, in start order:
+# Services, in start order (all ports on 127.0.0.1 only):
 #   neo4j:         http://localhost:7474 (browser), bolt://localhost:7687; neo4j/changeme
 #   seed:          one-shot, loads the default policies, facts and templates once
 #                  Neo4j is healthy (idempotent; re-run with `docker compose run --rm seed`)
-#   autocorrector: http://localhost:8000 (FastAPI API), starts after the seed
+#   autocorrector: http://localhost:8000 (FastAPI API), starts after the seed; runs as
+#                  an unprivileged user and keeps its audit log on the audit_data volume
 #   dashboard:     http://localhost:3000, the live-mode build behind nginx, which
 #                  proxies /api and /ws to the API container (dashboard/nginx.conf)
 
@@ -37,7 +42,7 @@ AUTOCORRECTOR_NEO4J_TEST_WIPE=1 \
 AUTOCORRECTOR_NEO4J_URI=bolt://localhost:7687 AUTOCORRECTOR_NEO4J_PASSWORD=changeme \
   python3 -m pytest tests/test_neo4j_integration.py -q
 
-docker compose down        # keeps the neo4j_data volume; add -v to drop it
+docker compose down        # keeps the neo4j_data and audit_data volumes; add -v to drop them
 ```
 
 The API's `environment` entries set the compose Neo4j credentials and take

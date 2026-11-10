@@ -59,6 +59,62 @@ jobs:
       - name: Tests
         run: npx vitest run
       - name: Build (replay mode)
-        run: npm run build
+        # A sub-path base, as on GitHub Pages (pages.yml passes the repo name)
+        run: npm run build -- --base=/x/
         env:
           VITE_REPLAY: "1"
+
+  neo4j:
+    name: Neo4j integration
+    runs-on: ubuntu-latest
+    services:
+      # Disposable: the integration tests delete every node
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/changeme
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p changeme 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 40s
+    env:
+      NEMO_GUARDRAILS_NO_USAGE_STATS: "1"
+      AUTOCORRECTOR_NEO4J_URI: bolt://localhost:7687
+      AUTOCORRECTOR_NEO4J_USER: neo4j
+      AUTOCORRECTOR_NEO4J_PASSWORD: changeme
+      AUTOCORRECTOR_NEO4J_TEST_WIPE: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev,neo4j,langgraph,guardrails]"
+      - name: Seed
+        run: python scripts/seed_neo4j.py
+      - name: Integration tests
+        # The fixture skips when it cannot connect, and 16 skips would exit 0
+        shell: bash
+        run: |
+          pytest -q -rs tests/test_neo4j_integration.py | tee integration.txt
+          grep -q "16 passed" integration.txt
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the API image
+        run: docker build --target production -t autocorrector:ci .
+      - name: The API image runs unprivileged
+        run: |
+          uid="$(docker run --rm autocorrector:ci id -u)"
+          test "$uid" = "10001"
+      - name: Build the dashboard image
+        run: docker build -t autocorrector-dashboard:ci dashboard

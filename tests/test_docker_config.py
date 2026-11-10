@@ -109,3 +109,92 @@ def test_api_trusts_exactly_the_dashboard_proxy_address():
     import ipaddress
 
     assert ipaddress.ip_address(address) in ipaddress.ip_network(subnet)
+
+
+def _production_stage() -> str:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    return dockerfile.split("FROM base AS production", 1)[1]
+
+
+def test_published_ports_are_loopback_only():
+    # A local development stack: nothing it publishes should be reachable from the LAN
+    for name, service in SERVICES.items():
+        for port in service.get("ports", []):
+            assert str(port).startswith("127.0.0.1:"), f"{name}: {port}"
+
+
+def test_neo4j_loads_no_plugins():
+    # Nothing calls APOC; a plugin is a download at every first start
+    assert "NEO4J_PLUGINS" not in _env("neo4j")
+
+
+def test_audit_log_lives_on_a_named_volume():
+    # Otherwise the audit trail is lost whenever the API container is recreated
+    api = SERVICES["autocorrector"]
+    mounts = dict(v.split(":", 1) for v in api["volumes"])
+    assert "audit_data" in COMPOSE["volumes"]
+    mount_path = mounts["audit_data"]
+    db_path = _env("autocorrector")["AUTOCORRECTOR_AUDIT_DB_PATH"]
+    assert db_path.startswith(mount_path.rstrip("/") + "/"), (db_path, mount_path)
+    # A new named volume copies the image directory's owner, so the image must
+    # create the mount point and hand it to the runtime user
+    assert re.search(rf"chown [^\n]*{re.escape(mount_path)}", _production_stage())
+
+
+def test_production_image_runs_as_non_root():
+    stage = _production_stage()
+    users = re.findall(r"^USER (\S+)$", stage, re.MULTILINE)
+    # The last USER is the one the container runs as
+    assert users and users[-1].split(":")[0] not in ("root", "0")
+    assert stage.index("USER ") < stage.index("CMD ")
+    # The baked fastText model must stay readable and its cache directory writable
+    assert re.search(r"chown [^\n]*/app/\.cache", stage)
+
+
+def test_production_image_ships_no_tests():
+    # The API and the seed service need src/ and scripts/ only
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    sources = re.findall(r"^COPY\s+(?!--from)(\S+)\s", dockerfile, re.MULTILINE)
+    assert sources and set(sources) <= {"pyproject.toml", "src/", "scripts/"}, sources
+
+
+def test_ci_runs_the_neo4j_tests_against_a_disposable_service():
+    ci = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())
+    job = ci["jobs"]["neo4j"]
+    service = job["services"]["neo4j"]
+    assert service["image"] == SERVICES["neo4j"]["image"]
+    assert service["env"]["NEO4J_AUTH"] == _env("neo4j")["NEO4J_AUTH"]
+    steps = " ".join(str(step.get("run", "")) for step in job["steps"])
+    assert "seed_neo4j.py" in steps and "tests/test_neo4j_integration.py" in steps
+    # The fixture skips when it cannot connect, and 16 skips would exit 0
+    assert 'grep -q "16 passed"' in steps
+    assert str(job["env"]["AUTOCORRECTOR_NEO4J_TEST_WIPE"]) == "1"
+
+
+def test_image_build_fails_when_the_language_model_is_missing():
+    # detect_language() swallows a failed download and answers "en", so the
+    # warm-up alone passes with an empty cache; the build must check the file
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    base_stage = dockerfile.split("FROM base AS production", 1)[0]
+    assert re.search(r"test -s \S*lid\.176\.bin", base_stage)
+    assert base_stage.index("import detect_language") < base_stage.index("test -s ")
+    # A model that is present but does not load also answers "en": the warm-up
+    # sentence is French and the build fails unless the answer is "fr"
+    assert re.search(r"sys\.exit\(lang != 'fr'\)", base_stage)
+
+
+def test_ci_builds_both_images_and_checks_the_runtime_user():
+    ci = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())
+    job = ci["jobs"]["docker"]
+    steps = " ".join(str(step.get("run", "")) for step in job["steps"])
+    assert "docker build --target production" in steps and " dashboard" in steps
+    uid = re.search(r"useradd --uid (\d+)", _production_stage()).group(1)
+    assert f'test "$uid" = "{uid}"' in steps
+    assert job["timeout-minutes"] <= 60
+
+
+def test_ci_builds_the_replay_bundle_under_a_sub_path():
+    # GitHub Pages serves the demo under /<repo>/; a root-only build would 404 there
+    ci = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())
+    replay = [s for s in ci["jobs"]["dashboard"]["steps"] if "VITE_REPLAY" in s.get("env", {})]
+    assert replay and "--base=/" in replay[0]["run"]

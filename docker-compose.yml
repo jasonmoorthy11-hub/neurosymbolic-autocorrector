@@ -5,6 +5,8 @@
 # seed; nginx serves the built dashboard and proxies /api and /ws to the API.
 # The Neo4j password is the stack's own default, not a secret. A `.env` is read
 # when present (API keys for the LLM tier) and never required.
+# A local development stack, not a production deployment: every published port
+# is bound to 127.0.0.1.
 x-neo4j-env: &neo4j-env
   AUTOCORRECTOR_NEO4J_URI: bolt://neo4j:7687
   AUTOCORRECTOR_NEO4J_USER: neo4j
@@ -17,7 +19,7 @@ services:
       target: production
     image: neurosymbolic-autocorrector:local
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - path: .env
         required: false
@@ -27,6 +29,10 @@ services:
       # The dashboard's nginx (fixed address below): the only peer whose
       # X-Forwarded-For the rate limiter believes
       AUTOCORRECTOR_TRUSTED_PROXIES: '["172.31.250.10"]'
+      # On the audit_data volume, so the audit trail outlives the container
+      AUTOCORRECTOR_AUDIT_DB_PATH: /var/lib/autocorrector/audit.db
+    volumes:
+      - audit_data:/var/lib/autocorrector
     depends_on:
       neo4j:
         condition: service_healthy
@@ -49,11 +55,10 @@ services:
   neo4j:
     image: neo4j:5-community
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     environment:
       - NEO4J_AUTH=neo4j/changeme
-      - NEO4J_PLUGINS=["apoc"]
     volumes:
       - neo4j_data:/data
     healthcheck:
@@ -70,7 +75,7 @@ services:
     build:
       context: ./dashboard
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       - autocorrector
     restart: unless-stopped
@@ -88,3 +93,4 @@ networks:
 
 volumes:
   neo4j_data:
+  audit_data:

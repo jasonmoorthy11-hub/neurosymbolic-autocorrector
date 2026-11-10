@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1350 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1359 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -108,4 +108,4 @@ All settings via env vars with `AUTOCORRECTOR_` prefix or `.env` file. Key ones:
 - Mock external services (Neo4j, Anthropic, NeMo) — tests must pass offline
 - Golden dataset in `src/autocorrector/evaluation/dataset.py`
 - Test files mirror source: `test_pipeline.py` tests `orchestrator/pipeline.py`
-- CI (`.github/workflows/ci.yml`): pytest, ruff, replay `--check` on Python 3.12 + 3.14; dashboard build/lint/vitest + replay build. Offline, no secrets.
+- CI (`.github/workflows/ci.yml`): pytest, ruff, replay `--check` on Python 3.12 + 3.14; dashboard build/lint/vitest + replay build; the Neo4j integration tests against a disposable service; a build of both Docker images. No secrets.

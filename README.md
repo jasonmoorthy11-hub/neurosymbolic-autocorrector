@@ -242,7 +242,6 @@ Known, measured, or found by the held-out run:
   still applies).
 - The confidence shown is a fixed heuristic per outcome, not a calibrated
   probability. The dashboard's ROI figures rest on stated assumptions.
-- The Docker image is not built in CI.
 - The LLM tier appears in the replay only as one recorded run of the 25 scenarios
   (Claude Haiku 5.5, the `?lane=llm` switch; every rewrite is judged in
   [docs/evaluation.md](docs/evaluation.md#one-llm-tier-recording-claude-haiku-55-2026-11-05)).
@@ -289,7 +288,9 @@ cd dashboard && npm test                                      # vitest
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the tests, lint and
 the replay drift check offline on Python 3.12 and 3.14, and lints, tests and builds
-the dashboard (the build in both live and replay modes). No secrets are used.
+the dashboard (the build in both live and replay modes). It also runs the 16 Neo4j
+integration tests against a disposable Neo4j service and builds both Docker images.
+No secrets are used.
 
 ## Project structure
 

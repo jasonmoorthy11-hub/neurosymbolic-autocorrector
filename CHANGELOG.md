@@ -35,6 +35,13 @@ Audit round: things a reader following the docs could trip over.
 - Installs are refused on Python 3.15 (a dependency does not build there yet);
   three unused `langchain-*` packages left the `[langgraph]` extra and `httpx`
   moved to `[dev]`.
+- Docker stack: published ports are bound to `127.0.0.1`; the API image runs as an
+  unprivileged user and no longer ships `tests/`; the audit log is on an
+  `audit_data` volume; the unused APOC plugin is gone. The image build now fails
+  if the language model is not baked in (a failed download used to pass silently
+  and the first request then fetched 125 MB).
+- CI runs the Neo4j integration tests against a disposable service, builds both
+  Docker images, and builds the replay bundle under a sub-path.
 - One version source, and this changelog.
 
 ## [1.4] - 2026-11-09
