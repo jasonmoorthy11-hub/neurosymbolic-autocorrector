@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-import unicodedata
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +18,17 @@ except ImportError:
 # Below this many words the detector is unreliable ("OK." -> pl at 0.99, a
 # five-character order code -> zh at 0.99), and a non-English result escalates the
 # output. Short plain-ASCII text ("OK.", "Plan B", "Merci", "Z7KQ2", "ok 2.75") is
-# treated as English unless it carries an amount: a "$", or a number standing on its
-# own next to two or more words ("Credito de 750 aplicado."). Short text with
-# accented letters ("Crédito aplicado.") is always detected.
+# treated as English unless it carries an amount: a "$" or "%", or a number standing
+# on its own next to two or more words ("Credito de 750 aplicado.", "Entrega en
+# 24h"). Short text with accented letters ("Crédito aplicado.") is always detected.
 MIN_WORDS_FOR_DETECTION = 4
 
 # Scripts written without spaces (CJK ideographs, kana, hangul): one character ~ one word.
 _UNSPACED_CHAR = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
 _LETTER = re.compile(r"[^\W\d_]")
-# A number on its own ("750", "2.75", "50%"), not a digit inside a code or username
-_STANDALONE_NUMBER = re.compile(r"(?<![\w-])\d[\d.,]*%?(?![\w-])")
+# A number on its own, with an optional range or short unit ("750", "2.75", "3-5",
+# "24h", "500EUR"), not a digit inside a code or a username ("Z7KQ2", "mlopez7")
+_STANDALONE_NUMBER = re.compile(r"(?<![\w-])\d[\d.,]*(?:-\d+)?[a-z]{0,3}(?![\w-])", re.IGNORECASE)
 # Typographic punctuation that English text carries; nothing else non-ASCII is excused
 _TYPOGRAPHIC = str.maketrans(
     {
@@ -57,17 +57,30 @@ _NON_LATIN_SCRIPT = frozenset({
 
 # Common English words that are not everyday words in Spanish, French, Portuguese,
 # German, Italian or Dutch. Typo-ridden English ("what els can i do" -> ca at 0.99)
-# still carries them. Words those languages share with English are left out ("a",
-# "no", "me", "in", "is", "we", "help", "let", "will", "has", "not", "for", "check",
-# "yes"); "sorry", "thank" and "thanks" are borrowed by several of them, which is
-# why one marker alone decides nothing.
+# still carries them. Left out: words those languages share with English ("a", "no",
+# "me", "in", "is", "we", "help", "let", "will", "has", "not", "for", "check", "yes")
+# and words they borrow ("sorry", "thank", "thanks").
 # fmt: off
 _ENGLISH_MARKERS = frozenset({
     "about", "alright", "and", "any", "anything", "are", "can", "could", "did", "does", "from",
     "get", "got", "great", "have", "here", "how", "just", "know", "may", "might", "need", "new",
-    "our", "please", "should", "sorry", "thank", "thanks", "that", "the", "their", "there",
-    "these", "they", "this", "those", "today", "what", "when", "where", "which", "who", "why",
-    "with", "would", "you", "your",
+    "our", "please", "should", "that", "the", "their", "there", "these", "they", "this",
+    "those", "today", "what", "when", "where", "which", "who", "why", "with", "would", "you",
+    "your",
+})
+# fmt: on
+
+# Function words of those six languages that are not English words. Two of them in
+# a text mean it is not English, whatever English it also carries (a product name,
+# a borrowed phrase): "Su plan The New You ya esta activo".
+# fmt: off
+_FOREIGN_FUNCTION_WORDS = frozenset({
+    "el", "los", "las", "por", "para", "su", "una", "que", "del", "esta", "ya", "hay",  # es
+    "le", "les", "des", "je", "vous", "nous", "est", "pas", "pour", "une", "et",  # fr
+    "os", "um", "uma", "voce", "nao", "com", "seu", "sua",  # pt
+    "ich", "der", "das", "und", "nicht", "ist", "ihnen", "sie", "wir", "mit", "ein", "eine",  # de
+    "il", "gli", "di", "che", "sono", "questo",  # it
+    "ik", "het", "een", "voor", "niet", "uw", "wij", "zijn", "graag",  # nl
 })
 # fmt: on
 # Plain-ASCII text is English when it has at least this many different marker words
@@ -83,16 +96,14 @@ def _word_count(text: str) -> int:
 
 
 def _plain_ascii(text: str) -> bool:
-    """True for ASCII text, allowing curly quotes, dashes, an ellipsis and a hard space.
-
-    The text is composed first (NFC), so an accent typed as a combining mark still
-    counts as an accented letter.
-    """
-    return unicodedata.normalize("NFC", text).translate(_TYPOGRAPHIC).isascii()
+    """True for ASCII text, allowing curly quotes, dashes, an ellipsis and a hard space."""
+    return text.translate(_TYPOGRAPHIC).isascii()
 
 
 def _carries_amount(text: str, words: int) -> bool:
-    return "$" in text or (words >= 2 and bool(_STANDALONE_NUMBER.search(text)))
+    if "$" in text or "%" in text:
+        return True
+    return words >= 2 and bool(_STANDALONE_NUMBER.search(text))
 
 
 def _too_short_to_detect(text: str) -> bool:
@@ -104,6 +115,8 @@ def _too_short_to_detect(text: str) -> bool:
 
 def _reads_as_english(text: str) -> bool:
     words = re.findall(r"[a-z]+", text.lower())
+    if sum(word in _FOREIGN_FUNCTION_WORDS for word in words) >= 2:
+        return False
     markers = [word for word in words if word in _ENGLISH_MARKERS]
     return (
         len(set(markers)) >= MIN_ENGLISH_MARKERS

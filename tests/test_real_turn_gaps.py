@@ -28,7 +28,7 @@ class TestLanguageOfEnglishFragments:
             "c302-77ad",
             "ok 2.75",
             "8hd2kqpz1mw",
-            "$750 + $20",
+            "20.00",  # no letters at all
         ],
     )
     def test_codes_numbers_and_usernames_are_english(self, text):
@@ -38,7 +38,6 @@ class TestLanguageOfEnglishFragments:
         "text",
         [
             # each of these is detected as German or Catalan at 0.66-0.99
-            "im sorry abot that",
             "what els can i do",
             "sorry im new here",
             "can i help wit anything els",
@@ -48,8 +47,16 @@ class TestLanguageOfEnglishFragments:
     def test_english_with_typos_is_english(self, text):
         assert detect_language(text) == "en"
 
-    def test_typos_without_two_english_marker_words_are_the_known_miss(self):
-        assert detect_language("ok im looking now") != "en"
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "ok im looking now",  # no marker word
+            "im sorry abot that",  # one: a borrowed "sorry" does not count
+            "order C3EDQM ref EVXRVC",  # a line of codes, four letter runs
+        ],
+    )
+    def test_english_the_guards_do_not_reach_is_the_known_miss(self, text):
+        assert detect_language(text) != "en"
 
     @pytest.mark.parametrize("text", ["I’m sorry…", "“OK” – done", "that’s what you need — sorry"])
     def test_typographic_punctuation_does_not_make_text_foreign(self, text):
@@ -73,6 +80,13 @@ class TestLanguageOfEnglishFragments:
             ("Rimborso di 200 euro", "it"),
             ("Posso offrirle un credito di 200 euro", "it"),
             ("Sorry, je ne peux pas", "fr"),
+            ("Thank you! Ich garantiere Ihnen die volle Erstattung, sorry", "de"),
+            ("Su plan The New You ya esta activo", "es"),
+            ("Entrega en 24h", "es"),
+            ("Llega en 3-5 dias", "es"),
+            ("Descuento 20%", "es"),
+            # two marker words, under a fifth of the words
+            ("Gracias, su pedido llega hoy, puede ver el estado en the app with su cuenta", "es"),
             ("Je peux vous offrir un remboursement complet", "fr"),
         ],
     )
@@ -90,20 +104,26 @@ class TestLanguageOfEnglishFragments:
     def test_other_non_ascii_characters_still_send_short_text_to_the_detector(self, text):
         assert detect_language(text) == "es"
 
-    @pytest.mark.parametrize("text", ["Gracias por esperar.", "Reembolso aprobado hoy"])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Gracias por esperar.",  # under four plain-ASCII words, no amount: as before v1.6
+            "Reembolso aprobado hoy",
+            "J’ai rembourse",  # new in v1.6: the curly apostrophe no longer sends it to the detector
+            "Danke – erledigt",
+        ],
+    )
     def test_short_unaccented_foreign_text_without_an_amount_is_the_known_loss(self, text):
-        # Under four plain-ASCII words and no amount: read as English, as before v1.6.
         assert detect_language(text) == "en"
 
-    def test_two_english_marker_words_make_mixed_text_english(self):
-        # The other known loss: a code-switched line with enough English in it.
-        assert detect_language("Sorry, thank you, ik help u graag") == "en"
+    def test_english_words_without_foreign_function_words_make_mixed_text_english(self):
+        # The other known loss: a foreign line carrying English words and fewer than
+        # two function words of its own.
+        assert detect_language("Garantiert: your new Erstattung today") == "en"
 
-    def test_ascii_text_is_never_a_language_of_another_script(self, monkeypatch):
-        from autocorrector.multilingual import detector
-
-        monkeypatch.setattr(detector, "_ft_detect", lambda text: [{"lang": "zh", "score": 0.99}])
-        assert detect_language("ref 7KD2P und MXR41 plus 9QWZB notiert") == "en"
+    def test_ascii_text_is_never_a_language_of_another_script(self):
+        # Three made-up codes; the detector alone answers Chinese.
+        assert detect_language("ZKQ14 B07LUAY GCQ8NKM") == "en"
         assert detect_language("我可以为您提供200美元的信用额度") == "zh"
 
 

@@ -262,11 +262,14 @@ Known, measured, or found by the held-out run:
   so "Sue will call you back" still escalates. That is deliberate: wider name
   rules missed real threats in review.
 - Language detection is an off-the-shelf model plus guards added after the real-turn
-  audit (RT-001 to RT-008). Three things are still wrong: typo-ridden English with
-  fewer than two common English words ("ok im looking now") is escalated as German;
-  a code-switched line with enough English in it ("Sorry, thank you, ik help u
-  graag") is checked as English and passes; and a foreign line of under four
-  unaccented words with no amount ("Gracias por esperar.") is checked as English.
+  audit (RT-001 to RT-008), and both directions still fail. Escalated though
+  English: typo-ridden lines with fewer than two common English words ("ok im
+  looking now") and lines of several codes ("order C3EDQM ref EVXRVC"). Checked as
+  English though foreign, so the English-only rules pass them: a line of under
+  four unaccented words with no amount ("Gracias por esperar.", and since v1.6
+  also "J’ai rembourse" with a curly apostrophe and "Rabatt 20 EUR" with one word
+  beside the number), and a foreign line that carries English words and fewer
+  than two function words of its own ("Garantiert: your new Erstattung today").
 - The intent classifier is keyword and regex matching. Since v1.2 one keyword hit
   scores at the pattern's base confidence (the score was divided by the keyword
   list's length before, so most replies read `general`), which means a noun used in
