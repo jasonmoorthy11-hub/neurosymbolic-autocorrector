@@ -1,6 +1,6 @@
 # Evaluation
 
-Three numbers, kept separate because they mean different things:
+Four numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
@@ -8,9 +8,34 @@ Three numbers, kept separate because they mean different things:
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
+| Real agent turns | ABCD v1.1 (MIT), 19,144 human-written agent turns from role-played chats for another company, three assumed customer contexts, one run | Flagged: 0.30%, 0.26% and 3.03% of turns. Flags that were right: 16/57 = 28.1% (18.1–40.8), 15/50 = 30.0% (19.1–43.8), 243/581 = 41.8% (37.9–45.9) |
+
 The in-sample score is a regression suite, not evidence of accuracy: every golden
 case was available while the rules were written. The held-out and external numbers
-are the ones to read.
+are the ones to read, and the last row is the least flattering: on wording nobody
+wrote for these rules, most flags were wrong.
+
+### Evidence ledger
+
+Every number this repository states, with what kind of evidence it is. "In-sample"
+means the cases were available while the code was written; "blind" means written
+before the code that is scored saw them and run once; "external" means data from
+someone else.
+
+| Claim | Data | Kind | n | Result (95% Wilson CI) | Command | Pipeline at |
+|---|---|---|---|---|---|---|
+| Actions correct | Golden set v3.5 | in-sample | 526 | 526/526 (99.3–100.0) | `scripts/evaluate.py` | `56a4e84` |
+| Actions correct | Held-out set | blind, one run | 60 | 53/60, 88.3% (77.8–94.2) | `scripts/evaluate.py --dataset heldout` (not re-run) | `fa71907` |
+| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,229 predicted, 4,432 gold | precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0) | `scripts/bench_pii.py` | `56a4e84`, re-run 2026-11-10 |
+| Rule changes the golden suite notices | 104 single changes to the 8 rules | in-sample, and in-sample to that list of changes | 104 | 98 (94.2%); no interval, the 104 are all of them | `scripts/mutate_policy.py` | `56a4e84` |
+| Corrected text holds together | The 230 cases of the golden set that the pipeline corrects | in-sample | 230; 183 with edits; 13 with an untouched sentence | idempotent 230/230, edit log replays 180/183, citations resolve 183/183, untouched sentences kept 13/13; counts, no interval | `scripts/evaluate.py --invariants` | `56a4e84` |
+| PII rail next to Presidio 2.2.366 (`en_core_web_lg`), the 7 types both cover | Same external set, English | external, synthetic | 1,869 gold | This rail: precision 58.7%, recall 72.9%. Presidio at score ≥ 0.5: 90.7% / 66.5%; at ≥ 0.4: 48.8% / 80.1%. Which is ahead depends on the cut-off | `scripts/bench_pii.py --detector presidio` | `56a4e84`, re-run 2026-11-10 |
+| Share of real agent turns flagged | ABCD v1.1, dev + test | external, human-written, contexts assumed | 19,144 turns per context | 57 (0.30%), 50 (0.26%), 581 (3.03%) for `missing`, `established`, `late_purchase` | `scripts/bench_real_turns.py` (registered run, not re-run) | `461d0fe` |
+| Share of those flags that were right | The flagged turns, read and labelled against a rubric written before the run | external; one adjudicator, labels re-checked once | 57, 50, 581 | 28.1% (18.1–40.8), 30.0% (19.1–43.8), 41.8% (37.9–45.9), or 35.8% in the last context if payout-method questions count as ambiguous | `tests/fixtures/abcd_flagged.json` holds ids and labels | `461d0fe` |
+
+Nothing above measures what the pipeline misses on real turns, and nothing scores
+whether a correction was the right answer for the customer. The audit numbers
+describe the pipeline before the [fixes made after it](#fixes-made-after-the-audit-2026-11-10).
 
 All pipeline runs are offline and deterministic (no API key, in-memory policy store,
 NeMo rails off), on an Apple M5 laptop, macOS 26.6.2, Python 3.14.7. The external

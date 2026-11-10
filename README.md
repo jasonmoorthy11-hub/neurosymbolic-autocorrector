@@ -17,6 +17,7 @@ non-English replies to escalation); an LLM correction tier is optional.
 - **Regression suite:** 526/526 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
 - **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
 - **External PII benchmark:** precision 63.6%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
+- **Real agent turns:** on 19,144 human-written agent turns from a public role-play dataset, the pipeline flagged about 0.3% where the refund rule cannot fire, and about 3 in 10 of those flags were right (16 of 57 and 15 of 50). Most flags on other people's wording were wrong. The [audit](docs/evaluation.md#real-agent-turns-results-one-run-2026-11-09) lists every class; four were fixed afterwards and the data was not re-scored.
 
 ![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
 
@@ -131,7 +132,7 @@ enables the LLM correction tier and translation; nothing below needs one.
 
 ## Evaluation
 
-Three numbers, kept separate because they mean different things. All are from
+Four numbers, kept separate because they mean different things. All are from
 [docs/evaluation.md](docs/evaluation.md), which has the verbatim command output.
 
 | Set | What it is | Result (95% Wilson CI) |
@@ -139,6 +140,7 @@ Three numbers, kept separate because they mean different things. All are from
 | Golden, 526 cases | Self-authored, **in-sample**: written alongside the code and used during development; 116 rows added after the held-out run | 526/526 actions correct (99.3–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
+| Real agent turns | ABCD v1.1, 19,144 human-written agent turns, three assumed customer contexts, one run before the fixes it led to | Flagged 0.30%, 0.26% and 3.03% of turns; flags that were right: 28.1% (18.1–40.8), 30.0% (19.1–43.8), 41.8% (37.9–45.9) |
 
 The in-sample score is a regression suite, not evidence of accuracy. The held-out
 set was run once; those numbers stay as first reported, and every one of its 7
@@ -150,6 +152,7 @@ meaning any non-allow action.
 ```bash
 python3 scripts/evaluate.py --dataset heldout   # already run once (results above); re-running it does not make it blind again
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
+python3 scripts/bench_real_turns.py --input turns.jsonl   # what the pipeline flags in your own JSONL of agent turns
 python3 scripts/mutate_policy.py                # mutation score of the golden set (about two minutes)
 python3 scripts/evaluate.py --invariants        # structural checks on the corrected text
 ```
