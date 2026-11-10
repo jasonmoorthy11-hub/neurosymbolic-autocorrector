@@ -117,6 +117,7 @@ changed threshold.
 |---|---|
 | 434 cases (before the PIN rows) | 43 (41.3%) |
 | 490 cases (v3.4) | 98 (94.2%) |
+| 526 cases (v3.5, after the real-turn fixes) | 98 (94.2%), the same six survivors |
 
 The 104 are every change of those five kinds, not a sample, so there is no
 interval; they also overlap (the keep-one-keyword mutant drops what the single
@@ -149,7 +150,8 @@ The six survivors, classified:
 This scores the test suite, not the pipeline: it says the golden rows now react to
 98 of these 104 single changes to the 8 rules, not that the rules are right. Run on
 2026-11-09: 77.8 s for the 490-case set (527 s for the first run, where each of the
-61 survivors ran every case). Not part of CI.
+61 survivors ran every case); on 2026-11-10: 65.6 s for the 526-case set. Not part
+of CI.
 
 ```bash
 python3 scripts/mutate_policy.py                 # all mutants
@@ -199,7 +201,7 @@ pipeline is deterministic, so no interval is given.
   fact errors, the guardrails list, the explanation, the confidence or the
   intent). The test suite compares all 526 on each run and names the cases that
   differ; CI repeats the run under two other `PYTHONHASHSEED` values. On
-  2026-11-09 the hash over all outputs was identical on Python 3.14.7 with
+  2026-11-10 the hash over all outputs was identical on Python 3.14.7 with
   guardrails-ai 0.10.2 and Python 3.12.15 with guardrails-ai 0.11.0, each under
   three hash seeds.
 
@@ -703,6 +705,41 @@ What this does and does not show:
   every refund late.
 - These numbers stay as reported. Fixes for the false-positive classes above go
   into later commits with new golden rows, and are not re-scored on this data.
+
+### Fixes made after the audit (2026-11-10)
+
+The numbers above describe the pipeline at `461d0fe`. Four of the false-positive
+classes were then fixed, each with golden rows RT-001 to RT-036 written for this
+project (no audited turn is copied into the repository):
+
+| Class | Flags in the audit | Fix | Commits |
+|---|---|---|---|
+| Language misdetection | 28 per context, all false | Short plain-ASCII text without an amount, text with no letters, and plain-ASCII text carrying English words and no foreign function words are English | `4c9feae`, `176b059` |
+| CREDIT-001 on "credit card" | 6 of 7 false | "credit" does not match in "credit card" unless a card is being credited | `f208605`, `253390c` |
+| REFUND-001 on the word | 238 of 531 false | A refusal, and in a sentence where the agent does nothing a question, a status report or a statement of policy, no longer count as granting a refund | `943cd22`, `56a4e84` |
+| PROMISE-001 and SLA-001 idioms | 3 of 5 false | Three idioms are blanked before keyword matching | `96b920f` |
+
+Not fixed, because no rule separates them: a store's street address or a company
+mailbox redacted as PII (3 flags per context, counted ambiguous), and refunds that
+depend on a stated condition (counted ambiguous).
+
+How to read this:
+
+- **The audit is not re-run, and no after-fix number is published.** The fixes
+  were written while reading the flagged turns, and during development the new
+  code was tried on them. A score on those same turns would be in-sample, the
+  kind of number this page keeps apart from evidence. ABCD is used up as a blind
+  check for these rules; a new claim about flag precision needs turns that were
+  not looked at.
+- Each fix trades one error for another, and each trade is listed under
+  [Limitations](../README.md#limitations): short unaccented foreign lines and
+  code-switched lines now pass as English; an offer phrased as a plain question
+  and a grant worded as a status report now pass the refund rule; a payment to a
+  card that no credit word names is no longer caught by accident.
+- A reviewer probed each fix with made-up replies before it was kept. The refund
+  fix first excused 57 of 104 made-up late refunds that the old rule caught; the
+  version in the repository excuses 1 of the same 104. That is a count on probes
+  written to break the fix, not a measured miss rate.
 
 ## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
 
