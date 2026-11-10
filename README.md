@@ -12,6 +12,8 @@ deterministically without a model; an LLM tier is optional.
 
 ![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
 
+![The same replay with the LLM tier switch on, one recorded run with Claude Haiku 5.5: the metrics start to fill, then the agent feed shows each rewritten reply next to the pipeline trace for that run](docs/media/replay_llm.gif)
+
 > Personal project, sole author; demoed to a prospect in Feb 2026, never in production there; later reused as a review gate in separate client work.
 
 ## What it does
