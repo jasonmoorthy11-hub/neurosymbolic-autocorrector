@@ -61,6 +61,9 @@ langgraph = [
     "langgraph>=1.0,<2",
 ]
 guardrails = [
+    # Resolves to 0.11.x on Python 3.12 and 3.13 and to 0.10.x on 3.14, because
+    # guardrails-ai 0.11.0 declares Requires-Python <3.14. CI has a job on 3.12 and
+    # one on 3.14, so both versions are tested.
     "guardrails-ai>=0.9",
 ]
 nemo = [
@@ -103,4 +106,8 @@ filterwarnings = [
     "ignore::DeprecationWarning:typer.*",
     "ignore::DeprecationWarning:slowapi.*",
     "ignore::DeprecationWarning:langsmith.*",
+    # guardrails-ai 0.10.x (what Python 3.14 resolves to) says this each time a guard
+    # is called from inside a running event loop, then validates synchronously, which
+    # is what the regex validators here need. 0.11 does not warn.
+    "ignore:Could not obtain an event loop:UserWarning:guardrails.*",
 ]

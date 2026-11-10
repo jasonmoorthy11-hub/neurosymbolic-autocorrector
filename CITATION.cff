@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+type: software
+title: "Neurosymbolic Autocorrector"
+abstract: >-
+  Policy-grounded, auditable correction of AI agent replies: each reply is routed
+  to allow, correct or escalate by deterministic rule and fact checks, and each
+  policy or fact edit cites its rule and source.
+authors:
+  - family-names: Moorthy
+    given-names: Jason
+repository-code: "https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector"
+url: "https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/"
+license: MIT
+keywords:
+  - guardrails
+  - knowledge graph
+  - policy compliance
+  - evaluation
