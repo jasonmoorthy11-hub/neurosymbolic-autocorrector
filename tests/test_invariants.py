@@ -248,11 +248,11 @@ class TestGoldenInvariants:
         return report.by_check[check].k, report.by_check[check].n
 
     def test_every_corrected_case_is_idempotent(self, report):
-        assert len(report.cases) == 215
-        assert self._kn(report, "idempotent") == (215, 215)
+        assert len(report.cases) == 217
+        assert self._kn(report, "idempotent") == (217, 217)
 
     def test_every_edit_is_cited_and_cases_without_edits_are_not_counted(self, report):
-        assert self._kn(report, "cited") == (168, 168)
+        assert self._kn(report, "cited") == (170, 170)
         pii_only = report.by_tier["pii-only"]
         assert (pii_only["cited"].n, pii_only["replays"].n, pii_only["local"].n) == (0, 0, 0)
 
@@ -260,13 +260,13 @@ class TestGoldenInvariants:
         assert self._kn(report, "local") == (13, 13)
 
     def test_edit_log_replays_except_for_three_trailing_spaces(self, report):
-        assert self._kn(report, "replays") == (165, 168)
+        assert self._kn(report, "replays") == (167, 170)
         failed = sorted(row.case_id for row in report.cases if row.replays is False)
         assert failed == ["TP-023", "TP-039", "TP-042"]
 
     def test_tiers(self, report):
         counts = {tier: checks["idempotent"].n for tier, checks in report.by_tier.items()}
-        assert counts == {"pii-only": 47, "span": 150, "template": 18}
+        assert counts == {"pii-only": 47, "span": 152, "template": 18}
 
     def test_outputs_match_the_recorded_hashes(self, report):
         """One hash per case, the same on every Python version and hash seed CI runs."""
@@ -284,12 +284,12 @@ class TestGoldenInvariants:
     def test_report_prints_counts_without_intervals(self, report):
         text = format_invariants(report, scope="self-authored, in-sample")
         assert "Scope: self-authored, in-sample" in text
-        assert "replays     165/168" in text
+        assert "replays     167/170" in text
         assert "0/0" not in text and "%" not in text
 
 
 async def test_golden_edit_batches():
-    """Published: 167 of the 168 edited cases are one batch; none has two attempts."""
+    """Published: 169 of the 170 edited cases are one batch; none has two attempts."""
     store = KnowledgeGraphStore()
     batch_counts: dict[int, list[str]] = {}
     for case in GOLDEN_DATASET.cases:
@@ -300,7 +300,7 @@ async def test_golden_edit_batches():
         )
         if result.edits:
             batch_counts.setdefault(len(edit_batches(result.edits)), []).append(case.id)
-    assert {n: len(ids) for n, ids in batch_counts.items()} == {1: 167, 2: 1}
+    assert {n: len(ids) for n, ids in batch_counts.items()} == {1: 169, 2: 1}
     assert batch_counts[2] == ["MULTI-001"]
 
 

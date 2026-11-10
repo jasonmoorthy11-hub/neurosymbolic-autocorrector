@@ -58,6 +58,10 @@ turns). The audit is not re-run; its numbers predate these fixes:
   enough English in it ("Sorry, thank you, ik help u graag") is checked as English;
   and, as before, a foreign line of under four unaccented words with no amount
   ("Gracias por esperar.") is checked as English.
+- "credit card" counted as a mention of a credit, so "The $89 renewal went through on
+  your credit card this morning" was rewritten as an over-limit credit offer for
+  a new account (CREDIT-001). The keyword "credit" no longer matches in "credit
+  card(s)"; a credit named elsewhere in the reply still does (RT-009 to RT-013).
 
 New measurements:
 
@@ -77,12 +81,12 @@ New measurements:
   language misdetections on codes and usernames. Ids and labels are in
   `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
-  (hold 271 of 490 against 56 here); arithmetic, in-sample.
+  (hold 276 of 503 against 59 here); arithmetic, in-sample.
 
-- `scripts/evaluate.py --invariants` checks the corrected text of the 215 cases
-  of the golden set that the pipeline corrects: idempotent 215/215; of the 168 with
-  recorded edits, citations resolve 168/168 and the edit log replays byte for byte
-  165/168 (three differ by a trailing space); untouched sentences kept 13/13 where
+- `scripts/evaluate.py --invariants` checks the corrected text of the 217 cases
+  of the golden set that the pipeline corrects: idempotent 217/217; of the 170 with
+  recorded edits, citations resolve 170/170 and the edit log replays byte for byte
+  167/170 (three differ by a trailing space); untouched sentences kept 13/13 where
   there is one. One hash per golden output is recorded in
   `tests/golden_outputs.json`, compared on each test run (a difference names its
   cases) and under other hash seeds in CI.

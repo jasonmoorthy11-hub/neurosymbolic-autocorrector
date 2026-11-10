@@ -23,6 +23,12 @@ _GREETING_BEFORE = re.compile(
 )
 _ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 
+# A keyword that is the first word of a compound naming something else: "credit
+# card" is a means of payment, not a credit. The keyword does not match there
+# ("$40 back to your credit card" offers no credit); "a $75 credit on your
+# credit card statement" still matches at the first "credit".
+_NOT_BEFORE = {"credit": r"\s+cards?(?!\w)"}
+
 
 def _suffixes(word: str, phrase: bool) -> list[str]:
     """Regular inflection endings for a keyword's last word.
@@ -48,7 +54,8 @@ def keyword_pattern(keyword: str) -> re.Pattern[str]:
     body = rf"{re.escape(kw)}(?:{endings})?"
     if not phrase and kw.endswith("e"):
         body += "|" + re.escape(kw[:-1]) + "ing"
-    return re.compile(rf"(?<!\w)(?:{body})(?!\w)", re.IGNORECASE)
+    not_before = f"(?!{_NOT_BEFORE[kw]})" if kw in _NOT_BEFORE else ""
+    return re.compile(rf"(?<!\w)(?:{body})(?!\w){not_before}", re.IGNORECASE)
 
 
 def _is_name(text: str, keyword: str, match: re.Match[str]) -> bool:
@@ -64,8 +71,9 @@ def mentions_keyword(text: str, keywords: list[str]) -> bool:
 
     "sue" matches "sued" and "suing" but not "suede" or "issue"; "credit"
     matches "credited" but not "creditor"; "always will" does not match
-    "always willing". Case is ignored, except that a keyword which is also a
-    given name is skipped where the text greets a person by it ("Thanks, Sue.").
+    "always willing"; "credit" does not match in "credit card". Case is ignored,
+    except that a keyword which is also a given name is skipped where the text
+    greets a person by it ("Thanks, Sue.").
     """
     for keyword in keywords:
         is_name_keyword = keyword.lower() in _NAME_KEYWORDS

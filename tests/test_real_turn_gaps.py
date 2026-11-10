@@ -7,7 +7,11 @@ flagged. The golden rows RT-001 onwards carry the end-to-end checks.
 
 import pytest
 
+from autocorrector.knowledge_graph.keywords import mentions_keyword
+from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.multilingual.detector import detect_language
+
+NEW_ACCOUNT = {"account_tenure_days": 10}
 
 
 class TestLanguageOfEnglishFragments:
@@ -101,3 +105,54 @@ class TestLanguageOfEnglishFragments:
         monkeypatch.setattr(detector, "_ft_detect", lambda text: [{"lang": "zh", "score": 0.99}])
         assert detect_language("ref 7KD2P und MXR41 plus 9QWZB notiert") == "en"
         assert detect_language("我可以为您提供200美元的信用额度") == "zh"
+
+
+class TestCreditCardIsNotACredit:
+    """ "credit card" names a means of payment; the credit keyword does not match there."""
+
+    @pytest.mark.parametrize(
+        "text",
+        ["your credit card on file", "we take all major credit cards", "Credit Card ending 4417"],
+    )
+    def test_credit_card_is_not_a_mention_of_credit(self, text):
+        assert not mentions_keyword(text, ["credit"])
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "a $75 credit on your credit card statement",
+            "I credited your card",
+            "credit cardholders get a credit",
+            "store credit",
+        ],
+    )
+    def test_a_real_credit_next_to_a_card_still_matches(self, text):
+        assert mentions_keyword(text, ["credit"])
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "The $89 renewal went through on your credit card this morning.",
+            "The annual plan is $120. Which credit card would you like to use?",
+            "I've sent $72 back to your credit card for the gloves.",
+        ],
+    )
+    async def test_an_amount_charged_to_a_credit_card_is_not_a_credit_offer(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=NEW_ACCOUNT
+        )
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "I've credited $85 to your account for the trouble.",
+            "I've added an $80 credit, and it will show on your credit card statement.",
+            "We accept all major credit cards. I can also add a $75 credit to your account.",
+        ],
+    )
+    async def test_a_credit_over_the_limit_still_fires(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=NEW_ACCOUNT
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-001"]

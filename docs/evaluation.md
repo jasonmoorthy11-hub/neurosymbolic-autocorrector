@@ -4,7 +4,7 @@ Three numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 498 cases | Self-authored, **in-sample**: written alongside the code and used during development; 88 rows (GAP-001 to GAP-024, PIN-001 to PIN-056, RT-001 to RT-008) added after the held-out run | 498/498 actions correct (99.2–100.0) |
+| Golden, 503 cases | Self-authored, **in-sample**: written alongside the code and used during development; 93 rows (GAP-001 to GAP-024, PIN-001 to PIN-056, RT-001 to RT-013) added after the held-out run | 503/503 actions correct (99.2–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -47,15 +47,15 @@ python3 scripts/evaluate.py --invariants       # structural checks on the correc
 Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
 
 ```
-  Accuracy:     100.0%  (498/498, 95% CI 99.2-100.0)
-  Precision:    100.0%  (274/274, 95% CI 98.6-100.0)
-  Recall:       100.0%  (274/274, 95% CI 98.6-100.0)
+  Accuracy:     100.0%  (503/503, 95% CI 99.2-100.0)
+  Precision:    100.0%  (276/276, 95% CI 98.6-100.0)
+  Recall:       100.0%  (276/276, 95% CI 98.6-100.0)
   F0.5:         1.000
   PII Precision: 100.0%  (60/60, 95% CI 94.0-100.0)
   PII Recall:    100.0%  (60/60, 95% CI 94.0-100.0)
-  PII flag agrees:      100.0%  (498/498, 95% CI 99.2-100.0)
-  Fact flag agrees:     100.0%  (498/498, 95% CI 99.2-100.0)
-  Expected rules found: 100.0%  (186/186, 95% CI 98.0-100.0)
+  PII flag agrees:      100.0%  (503/503, 95% CI 99.2-100.0)
+  Fact flag agrees:     100.0%  (503/503, 95% CI 99.2-100.0)
+  Expected rules found: 100.0%  (188/188, 95% CI 98.0-100.0)
 ```
 
 Latency on the golden set as it stood on 2026-11-06 (v3.3), second of two consecutive runs: p50 12.0 ms,
@@ -84,7 +84,11 @@ hand, so they are regression rows, not evidence; the audit itself is not re-run.
 RT-001 to RT-008 cover language detection: an order code, a bare number, a
 username and two typo-ridden English lines are English (three of the five were
 escalated before the fix); unaccented Spanish, a short unaccented Spanish credit
-with a "$" amount and accented Spanish still escalate.
+with a "$" amount and accented Spanish still escalate. RT-009 to RT-013 cover
+"credit card": a payment taken on a credit card, a question about which card to use and
+money sent back to a card are allowed (the first two were corrected as credit
+offers before the fix); a credit over the limit that also mentions a card
+statement, and "credited $85", are still corrected.
 
 ### Mutation score: how much of the rule set the golden suite pins down
 
@@ -143,18 +147,18 @@ python3 scripts/mutate_policy.py --rule ESC-001  # one rule
 
 ### Corrected text: structural checks
 
-`python3 scripts/evaluate.py --invariants` runs every golden case and, for the 215
+`python3 scripts/evaluate.py --invariants` runs every golden case and, for the 217
 the pipeline corrects, checks the delivered text with no model in the loop. 47 of
-the 215 are PII redaction only: the text changes but no edit is recorded, so there
-is nothing to replay or cite and only the first check counts them. The other 168
-carry edits (150 span rewrites, 18 whole-message templates).
+the 217 are PII redaction only: the text changes but no edit is recorded, so there
+is nothing to replay or cite and only the first check counts them. The other 170
+carry edits (152 span rewrites, 18 whole-message templates).
 
 | Check | What it means | Passed / counted |
 |---|---|---|
-| Idempotent | The corrected text, sent through the pipeline again with the same context, is allowed unchanged | 215/215 |
-| Edit log replays | Applying the recorded edits to the PII-redacted original gives the delivered text byte for byte | 165/168 |
+| Idempotent | The corrected text, sent through the pipeline again with the same context, is allowed unchanged | 217/217 |
+| Edit log replays | Applying the recorded edits to the PII-redacted original gives the delivered text byte for byte | 167/170 |
 | Untouched sentences kept | Every sentence that no edit overlaps is delivered byte for byte, in the same order | 13/13 |
-| Citations resolve | Every edit cites the document and section of each rule it names, or for a coverage fix the document and page of the row whose limit it wrote, as `policies/` states them | 168/168 |
+| Citations resolve | Every edit cites the document and section of each rule it names, or for a coverage fix the document and page of the row whose limit it wrote, as `policies/` states them | 170/170 |
 
 These are counts, not estimates: the cases are authored, not sampled, and the
 pipeline is deterministic, so no interval is given.
@@ -166,8 +170,8 @@ pipeline is deterministic, so no interval is given.
   only a last one: the edit never covers the separator. It is left as it is
   because one recorded replay scenario contains such an edit, and changing its
   offsets would change the recording.
-- "Untouched sentences kept" has n = 13: only 13 of the 168 edited cases have a
-  sentence that no edit overlaps. In 137 span cases every sentence was rewritten,
+- "Untouched sentences kept" has n = 13: only 13 of the 170 edited cases have a
+  sentence that no edit overlaps. In 139 span cases every sentence was rewritten,
   and the 18 templates replace the whole reply by design. Most golden corrections
   are one or two sentences long; this check is thin.
 - The edit log does not mark where one stage or attempt ends (fact fixes, then the
@@ -176,13 +180,13 @@ pipeline is deterministic, so no interval is given.
   one ended. That rule belongs to the checker, not the log, and it has a known
   gap: a second correction attempt whose first edit starts after the previous
   attempt's last edit ended is read as the same attempt, and a correct log then
-  fails to replay. The golden set does not exercise it: 167 of the 168 edited
+  fails to replay. The golden set does not exercise it: 169 of the 170 edited
   cases are a single group, MULTI-001 has two (a fact fix, then a rewrite), and
   the only replay failures are the three above.
 - Determinism: `tests/golden_outputs.json` records one SHA-256 per case over its
   action, delivered text, rule ids found in the original reply, PII types and edits (not the
   fact errors, the guardrails list, the explanation, the confidence or the
-  intent). The test suite compares all 498 on each run and names the cases that
+  intent). The test suite compares all 503 on each run and names the cases that
   differ; CI repeats the run under two other `PYTHONHASHSEED` values. On
   2026-11-09 the hash over all outputs was identical on Python 3.14.7 with
   guardrails-ai 0.10.2 and Python 3.12.15 with guardrails-ai 0.11.0, each under
@@ -202,11 +206,11 @@ check is listed under "Failures" and leaves the exit status at 0.
 
 ### What a block-only gate would do on this set (arithmetic, in-sample)
 
-Not a measurement: this is counting the golden labels. 271 of the 490 cases are
-labelled as needing action (215 correct, 56 escalate). A gate with the same
-detection that can only hold a flagged reply for a person would hold all 271
-(55.3%). This pipeline holds 56 (11.4%), sends 215 corrected (43.9%) and sends 219
-unchanged (44.7%). The shares reflect how the set was written (it is synthetic and
+Not a measurement: this is counting the golden labels. 276 of the 503 cases are
+labelled as needing action (217 correct, 59 escalate). A gate with the same
+detection that can only hold a flagged reply for a person would hold all 276
+(54.9%). This pipeline holds 59 (11.7%), sends 217 corrected (43.1%) and sends 227
+unchanged (45.1%). The shares reflect how the set was written (it is synthetic and
 deliberately dense with violations), not real traffic.
 
 ## Held-out set
