@@ -14,7 +14,7 @@ non-English replies to escalation); an LLM correction tier is optional.
 **Results at a glance** (commands and full output in [docs/evaluation.md](docs/evaluation.md)):
 
 - **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No LLM on the default path; about 12 ms per reply.
-- **Regression suite:** 490/490 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
+- **Regression suite:** 498/498 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
 - **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
 - **External PII benchmark:** precision 63.6%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
 
@@ -136,7 +136,7 @@ Three numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 490 cases | Self-authored, **in-sample**: written alongside the code and used during development; 80 rows added after the held-out run | 490/490 actions correct (99.2–100.0) |
+| Golden, 498 cases | Self-authored, **in-sample**: written alongside the code and used during development; 88 rows added after the held-out run | 498/498 actions correct (99.2–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -261,6 +261,12 @@ Known, measured, or found by the held-out run:
   ("creditworthy"), and "Sue" counts as a name only in a greeting ("Thanks, Sue."),
   so "Sue will call you back" still escalates. That is deliberate: wider name
   rules missed real threats in review.
+- Language detection is an off-the-shelf model plus guards added after the real-turn
+  audit (RT-001 to RT-008). Three things are still wrong: typo-ridden English with
+  fewer than two common English words ("ok im looking now") is escalated as German;
+  a code-switched line with enough English in it ("Sorry, thank you, ik help u
+  graag") is checked as English and passes; and a foreign line of under four
+  unaccented words with no amount ("Gracias por esperar.") is checked as English.
 - The intent classifier is keyword and regex matching. Since v1.2 one keyword hit
   scores at the pattern's base confidence (the score was divided by the keyword
   list's length before, so most replies read `general`), which means a noun used in

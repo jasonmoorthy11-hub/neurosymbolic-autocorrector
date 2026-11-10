@@ -41,6 +41,24 @@ Known weaknesses found since v1.5, each fixed here:
   104. The six left are five severity changes the suite cannot see and one
   redundant keyword (docs/evaluation.md).
 
+False-positive classes found by the real-turn audit (below), each fixed with new
+golden rows (RT-001 onwards, written for this project, not copied from the audited
+turns). The audit is not re-run; its numbers predate these fixes:
+
+- Language detection escalated order codes, bare numbers, usernames and typo-ridden
+  English as 16 different languages. Short plain-ASCII text is now English unless
+  it carries an amount (a "$", or a number standing on its own next to two or more
+  words), so a digit inside a code or username no longer sends it to the detector;
+  plain-ASCII text is never a language written in another script; and plain-ASCII
+  text with two or more different common English words that Spanish, French,
+  Portuguese, German, Italian and Dutch do not share, making up a fifth of its
+  words, is English. Curly quotes, dashes and an ellipsis no longer count as
+  foreign letters. Still wrong after this: typo-ridden English with fewer than two
+  of those words ("ok im looking now") is escalated; a code-switched line with
+  enough English in it ("Sorry, thank you, ik help u graag") is checked as English;
+  and, as before, a foreign line of under four unaccented words with no amount
+  ("Gracias por esperar.") is checked as English.
+
 New measurements:
 
 - `scripts/bench_pii.py --detector presidio` (new `[bench]` extra, not in `[all]`)

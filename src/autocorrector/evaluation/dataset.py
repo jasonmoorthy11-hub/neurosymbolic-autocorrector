@@ -69,7 +69,7 @@ class GoldenDataset(BaseModel):
 
 GOLDEN_DATASET = GoldenDataset(
     name="autocorrector-golden-v3",
-    version="3.4",
+    version="3.5",
     cases=[
         # ===== TRUE POSITIVES: Should be CORRECTED =====
         # CREDIT-001: Credits >$50 for accounts <90 days tenure
@@ -4895,6 +4895,82 @@ GOLDEN_DATASET = GoldenDataset(
             expected_action=ExpectedAction.CORRECT,
             expected_rule_ids=["DISC-001"],
             tags=["mutation_pin", "disc-001"],
+        ),
+        # ===== v3.5: rows for the false-positive classes of the real-turn audit (in-sample) =====
+        # Written with the fix in hand and in this project's own words: no audited
+        # turn is copied. Regression rows, not evidence.
+        # Language: codes, usernames and typo-ridden English are English
+        EvalCase(
+            id="RT-001",
+            category="true_negative",
+            description="An order code on its own is not another language",
+            agent_text="Z7KQ2",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-002",
+            category="true_negative",
+            description="A bare number is not another language",
+            agent_text="4821",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-003",
+            category="true_negative",
+            description="A username with a digit is not another language",
+            agent_text="this is mlopez7",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-004",
+            category="true_negative",
+            description="Unpunctuated English the detector reads as German",
+            agent_text="sorry im new here",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-005",
+            category="true_negative",
+            description="Typo-ridden English the detector reads as Catalan",
+            agent_text="what els can i do",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-006",
+            category="escalation",
+            description="Unaccented Spanish is still another language",
+            agent_text="Hola, gracias por esperar, su pedido esta en camino",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ESCALATE,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-007",
+            category="escalation",
+            description="Short unaccented Spanish with a currency amount is still detected",
+            agent_text="Credito de $750 aplicado.",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ESCALATE,
+            tags=["real_turn", "language"],
+        ),
+        EvalCase(
+            id="RT-008",
+            category="escalation",
+            description="Accented Spanish is another language",
+            agent_text="Muchas gracias por su paciencia, su pedido llegará mañana.",
+            customer_context={"account_tenure_days": 200},
+            expected_action=ExpectedAction.ESCALATE,
+            tags=["real_turn", "language"],
         ),
     ],
 )

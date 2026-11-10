@@ -4,7 +4,7 @@ Three numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 490 cases | Self-authored, **in-sample**: written alongside the code and used during development; 80 rows (GAP-001 to GAP-024, PIN-001 to PIN-056) added after the held-out run | 490/490 actions correct (99.2–100.0) |
+| Golden, 498 cases | Self-authored, **in-sample**: written alongside the code and used during development; 88 rows (GAP-001 to GAP-024, PIN-001 to PIN-056, RT-001 to RT-008) added after the held-out run | 498/498 actions correct (99.2–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -47,14 +47,14 @@ python3 scripts/evaluate.py --invariants       # structural checks on the correc
 Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
 
 ```
-  Accuracy:     100.0%  (490/490, 95% CI 99.2-100.0)
-  Precision:    100.0%  (271/271, 95% CI 98.6-100.0)
-  Recall:       100.0%  (271/271, 95% CI 98.6-100.0)
+  Accuracy:     100.0%  (498/498, 95% CI 99.2-100.0)
+  Precision:    100.0%  (274/274, 95% CI 98.6-100.0)
+  Recall:       100.0%  (274/274, 95% CI 98.6-100.0)
   F0.5:         1.000
   PII Precision: 100.0%  (60/60, 95% CI 94.0-100.0)
   PII Recall:    100.0%  (60/60, 95% CI 94.0-100.0)
-  PII flag agrees:      100.0%  (490/490, 95% CI 99.2-100.0)
-  Fact flag agrees:     100.0%  (490/490, 95% CI 99.2-100.0)
+  PII flag agrees:      100.0%  (498/498, 95% CI 99.2-100.0)
+  Fact flag agrees:     100.0%  (498/498, 95% CI 99.2-100.0)
   Expected rules found: 100.0%  (186/186, 95% CI 98.0-100.0)
 ```
 
@@ -76,6 +76,15 @@ the fix must keep ("sue us", "Sue if you want", "refundable", "by next weekend",
 "offer your account", "internal tooling", "accept the returned item"). They were
 written with the fix in hand, so like every golden row they are regression rows,
 not evidence. The same version adds PIN-001 to PIN-056 (next section).
+
+Dataset v3.5 (2026-11-10) adds rows RT-001 onwards for the false-positive classes
+the [real-turn audit](#real-agent-turns-results-one-run-2026-11-09) found. They are
+written in this project's own words (no audited turn is copied), with the fix in
+hand, so they are regression rows, not evidence; the audit itself is not re-run.
+RT-001 to RT-008 cover language detection: an order code, a bare number, a
+username and two typo-ridden English lines are English (three of the five were
+escalated before the fix); unaccented Spanish, a short unaccented Spanish credit
+with a "$" amount and accented Spanish still escalate.
 
 ### Mutation score: how much of the rule set the golden suite pins down
 
@@ -173,7 +182,7 @@ pipeline is deterministic, so no interval is given.
 - Determinism: `tests/golden_outputs.json` records one SHA-256 per case over its
   action, delivered text, rule ids found in the original reply, PII types and edits (not the
   fact errors, the guardrails list, the explanation, the confidence or the
-  intent). The test suite compares all 490 on each run and names the cases that
+  intent). The test suite compares all 498 on each run and names the cases that
   differ; CI repeats the run under two other `PYTHONHASHSEED` values. On
   2026-11-09 the hash over all outputs was identical on Python 3.14.7 with
   guardrails-ai 0.10.2 and Python 3.12.15 with guardrails-ai 0.11.0, each under
