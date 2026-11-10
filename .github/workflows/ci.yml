@@ -38,6 +38,10 @@ jobs:
         run: pytest -q --ignore=tests/test_neo4j_integration.py
       - name: Replay data is current
         run: python scripts/record_replay.py --check
+      - name: Corrected text is the same under other hash seeds
+        # The Tests step already compares the outputs with tests/golden_outputs.json
+        # on this Python version; this repeats the run with PYTHONHASHSEED=1 and 2.
+        run: python scripts/evaluate.py --invariants --seeds 2
 
   dashboard:
     name: Dashboard

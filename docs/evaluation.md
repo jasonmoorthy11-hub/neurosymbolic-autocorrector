@@ -29,7 +29,9 @@ benchmark.
 - **Secondary checks**, scored separately from the action: PII flag agreement, fact
   error flag agreement, and whether every expected rule id fired.
 
-Corrected text is not scored. Intervals are 95% Wilson score intervals
+The action score does not look at the corrected text; four structural checks do
+([Corrected text](#corrected-text-structural-checks) below). Whether a correction is
+the right policy answer is not scored anywhere. Intervals are 95% Wilson score intervals
 (`autocorrector.evaluation.scorer.wilson_interval`), which behave sensibly at 0% and
 100%, unlike the normal approximation.
 
@@ -37,6 +39,7 @@ Corrected text is not scored. Intervals are 95% Wilson score intervals
 python3 scripts/evaluate.py                    # golden (in-sample)
 python3 scripts/evaluate.py --dataset heldout  # held-out
 python3 scripts/evaluate.py --json             # machine-readable, includes intervals
+python3 scripts/evaluate.py --invariants       # structural checks on the corrected text
 ```
 
 ## Golden set (in-sample)
@@ -128,6 +131,65 @@ This scores the test suite, not the pipeline: it says the golden rows now react 
 python3 scripts/mutate_policy.py                 # all mutants
 python3 scripts/mutate_policy.py --rule ESC-001  # one rule
 ```
+
+### Corrected text: structural checks
+
+`python3 scripts/evaluate.py --invariants` runs every golden case and, for the 215
+the pipeline corrects, checks the delivered text with no model in the loop. 47 of
+the 215 are PII redaction only: the text changes but no edit is recorded, so there
+is nothing to replay or cite and only the first check counts them. The other 168
+carry edits (150 span rewrites, 18 whole-message templates).
+
+| Check | What it means | Passed / counted |
+|---|---|---|
+| Idempotent | The corrected text, sent through the pipeline again with the same context, is allowed unchanged | 215/215 |
+| Edit log replays | Applying the recorded edits to the PII-redacted original gives the delivered text byte for byte | 165/168 |
+| Untouched sentences kept | Every sentence that no edit overlaps is delivered byte for byte, in the same order | 13/13 |
+| Citations resolve | Every edit cites the document and section of each rule it names, or for a coverage fix the document and page of the row whose limit it wrote, as `policies/` states them | 168/168 |
+
+These are counts, not estimates: the cases are authored, not sampled, and the
+pipeline is deterministic, so no interval is given.
+
+- The three replay failures (TP-023, TP-039, TP-042) differ by one trailing space:
+  the span rewriter drops a second offending sentence together with the space
+  before it, and the edit records only the sentence. The words are accounted for;
+  the log is not byte-exact there. The same holds for any dropped sentence, not
+  only a last one: the edit never covers the separator. It is left as it is
+  because one recorded replay scenario contains such an edit, and changing its
+  offsets would change the recording.
+- "Untouched sentences kept" has n = 13: only 13 of the 168 edited cases have a
+  sentence that no edit overlaps. In 137 span cases every sentence was rewritten,
+  and the 18 templates replace the whole reply by design. Most golden corrections
+  are one or two sentences long; this check is thin.
+- The edit log does not mark where one stage or attempt ends (fact fixes, then the
+  policy rewrite, each with offsets into the text it received). The checker starts
+  a new group when the kind of edit changes or an edit starts before the previous
+  one ended. That rule belongs to the checker, not the log, and it has a known
+  gap: a second correction attempt whose first edit starts after the previous
+  attempt's last edit ended is read as the same attempt, and a correct log then
+  fails to replay. The golden set does not exercise it: 167 of the 168 edited
+  cases are a single group, MULTI-001 has two (a fact fix, then a rewrite), and
+  the only replay failures are the three above.
+- Determinism: `tests/golden_outputs.json` records one SHA-256 per case over its
+  action, delivered text, rule ids found in the original reply, PII types and edits (not the
+  fact errors, the guardrails list, the explanation, the confidence or the
+  intent). The test suite compares all 490 on each run and names the cases that
+  differ; CI repeats the run under two other `PYTHONHASHSEED` values. On
+  2026-11-09 the hash over all outputs was identical on Python 3.14.7 with
+  guardrails-ai 0.10.2 and Python 3.12.15 with guardrails-ai 0.11.0, each under
+  three hash seeds.
+
+These are structural checks on in-sample cases. A correction can pass all four and
+still be the wrong answer for the customer: nothing here judges whether capping a
+credit at $50 or replacing a promise with the stock sentence was the right fix.
+
+```bash
+python3 scripts/evaluate.py --invariants --seeds 3      # the table, then the same outputs under 3 hash seeds
+python3 scripts/evaluate.py --invariants --record-outputs   # after an intended change to the outputs
+```
+
+The command exits 1 only when a hash-seed run gives different outputs; a failed
+check is listed under "Failures" and leaves the exit status at 0.
 
 ## Held-out set
 

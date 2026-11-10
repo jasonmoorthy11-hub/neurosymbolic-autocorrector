@@ -8,6 +8,12 @@ Usage:
     python scripts/evaluate.py --verbose            # Show each case result
     python scripts/evaluate.py --json               # Output JSON report
     python scripts/evaluate.py --llm-judge          # Run LLM-as-judge scoring
+    python scripts/evaluate.py --invariants         # Structural checks on corrected text
+    python scripts/evaluate.py --invariants --seeds 3   # ...and the same outputs under 3 hash seeds
+    python scripts/evaluate.py --invariants --record-outputs   # rewrite tests/golden_outputs.json
+
+--invariants exits 1 only when a hash-seed run gives different outputs; a failed
+check is printed under "Failures" and does not change the exit status.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -24,10 +31,119 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 logger = logging.getLogger(__name__)
 
 
+SEED_TIMEOUT_S = 600
+GOLDEN_OUTPUTS = os.path.join(os.path.dirname(__file__), "..", "tests", "golden_outputs.json")
+
+
+def _child_argv(args: argparse.Namespace) -> list[str]:
+    """The command for one hash-seed run, built from the parsed arguments.
+
+    Never from ``sys.argv``: a ``--seeds`` that reached the child would make it
+    spawn children of its own.
+    """
+    argv = [sys.executable, __file__, "--invariants", "--json"]
+    if args.category:
+        argv += ["--category", args.category]
+    if args.case:
+        argv += ["--case", args.case]
+    return argv
+
+
+def _seed_run(seed: int, args: argparse.Namespace, digest: str) -> dict:
+    """Run the same cases in a subprocess under ``PYTHONHASHSEED=seed`` and compare digests."""
+    try:
+        child = subprocess.run(
+            _child_argv(args),
+            env={**os.environ, "PYTHONHASHSEED": str(seed)},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=SEED_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "seed": seed,
+            "outputs_sha256": None,
+            "same": False,
+            "error": f"timed out after {SEED_TIMEOUT_S} s",
+        }
+    start = child.stdout.find("{")
+    try:
+        seen = json.loads(child.stdout[start:])["outputs_sha256"] if start >= 0 else None
+    except (json.JSONDecodeError, KeyError):
+        seen = None
+    if seen is None:
+        return {
+            "seed": seed,
+            "outputs_sha256": None,
+            "same": False,
+            "error": child.stderr.strip()[-2000:] or f"no output (exit {child.returncode})",
+        }
+    return {"seed": seed, "outputs_sha256": seen, "same": seen == digest}
+
+
+def _exit_status(seed_runs: list[dict]) -> int:
+    """1 only when a hash-seed run gave different outputs or none.
+
+    A failed check is reported under "Failures" and is not fatal.
+    """
+    return int(any(not run["same"] for run in seed_runs))
+
+
+async def _run_invariants(dataset, scope: str, kg_store, args: argparse.Namespace) -> int:
+    """Print the invariant report and return the exit status (see ``_exit_status``)."""
+    from autocorrector.evaluation.invariants import format_invariants, run_invariants
+
+    report = await run_invariants(dataset.cases, kg_store)
+    seed_runs = [_seed_run(seed, args, report.digest) for seed in range(1, args.seeds + 1)]
+
+    status = _exit_status(seed_runs)
+    recorded = args.record_outputs and status == 0
+    if recorded:
+        with open(GOLDEN_OUTPUTS, "w", encoding="utf-8") as handle:
+            json.dump(report.case_hashes, handle, indent=0, sort_keys=True)
+            handle.write("\n")
+
+    if args.json:
+
+        def counts(checks: dict) -> dict:
+            return {name: {"k": p.k, "n": p.n} for name, p in checks.items()}
+
+        payload = {
+            "scope": scope,
+            "corrected": len(report.cases),
+            "total_cases": report.total_cases,
+            "by_check": counts(report.by_check),
+            "by_tier": {tier: counts(checks) for tier, checks in report.by_tier.items()},
+            "failures": [
+                {"case_id": row.case_id, "tier": row.tier, "notes": list(row.notes)}
+                for row in report.cases
+                if row.notes
+            ],
+            "outputs_sha256": report.digest,
+            "seeds": seed_runs,
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(format_invariants(report, scope=scope))
+        for run in seed_runs:
+            verdict = "same outputs" if run["same"] else f"DIFFERENT: {run['outputs_sha256']}"
+            print(f"  PYTHONHASHSEED={run['seed']}: {verdict}")
+            if run.get("error"):
+                print(f"    {run['error']}", file=sys.stderr)
+        if args.record_outputs and not recorded:
+            print("  not recorded: a hash-seed run differed", file=sys.stderr)
+        if recorded:
+            print(f"  recorded {len(report.case_hashes)} case hashes in tests/golden_outputs.json")
+    return status
+
+
 async def main() -> None:
     from autocorrector.evaluation.registry import DATASETS, select_dataset
 
-    parser = argparse.ArgumentParser(description="Evaluate autocorrector pipeline")
+    parser = argparse.ArgumentParser(
+        description="Evaluate autocorrector pipeline", allow_abbrev=False
+    )
     parser.add_argument(
         "--dataset",
         choices=sorted(DATASETS),
@@ -48,7 +164,51 @@ async def main() -> None:
         default="claude-sonnet-5-5",
         help="Model for LLM judge (default: claude-sonnet-5-5)",
     )
+    parser.add_argument(
+        "--invariants",
+        action="store_true",
+        help="Check corrected text instead of actions (golden set only): idempotence, edit "
+        "replay, locality, citations, and a hash of all outputs. A failed check is reported "
+        "but the exit status is 1 only when a --seeds run gives different outputs",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        default=0,
+        metavar="N",
+        help="With --invariants: re-run in N subprocesses with PYTHONHASHSEED=1..N and "
+        "require the same output hash (exit 1 if any differs)",
+    )
+    parser.add_argument(
+        "--record-outputs",
+        action="store_true",
+        help="With --invariants on the whole golden set: rewrite tests/golden_outputs.json "
+        "(one hash per case) after an intended change to the outputs",
+    )
     args = parser.parse_args()
+    if args.category and args.case:
+        parser.error("--category and --case select different cases: give one")
+    if args.invariants and args.llm_judge:
+        parser.error("--invariants has no model in the loop: drop --llm-judge")
+    if args.invariants and args.dataset != "golden":
+        # The pinned outputs and the published counts are the golden set's; the
+        # held-out set was run once and is never run again
+        parser.error("--invariants runs on the golden set only")
+    if (args.seeds or args.record_outputs) and not args.invariants:
+        parser.error("--seeds and --record-outputs need --invariants")
+    if args.seeds < 0:
+        parser.error("--seeds must be 0 or more")
+    if args.invariants:
+        from autocorrector.config import get_settings
+
+        settings = get_settings()
+        if settings.anthropic_api_key or settings.openai_api_key or settings.nemo_rails_enabled:
+            parser.error(
+                "--invariants checks the offline path: unset the API keys "
+                "(environment and .env) and turn NeMo rails off"
+            )
+    if args.record_outputs and (args.category or args.case):
+        parser.error("--record-outputs records the whole golden set: drop --category/--case")
 
     if args.verbose:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -88,6 +248,11 @@ async def main() -> None:
     # Set up KG store
     kg_store = KnowledgeGraphStore()
     await kg_store.connect()
+
+    if args.invariants:
+        status = await _run_invariants(dataset, scope, kg_store, args)
+        await kg_store.close()
+        sys.exit(status)
 
     print(f"\nRunning evaluation: {dataset.name} ({len(dataset.cases)} cases)")
     print(f"Dataset breakdown: {dataset.summary}")

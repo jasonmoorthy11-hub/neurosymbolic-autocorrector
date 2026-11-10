@@ -41,6 +41,16 @@ Known weaknesses found since v1.5, each fixed here:
   104. The six left are five severity changes the suite cannot see and one
   redundant keyword (docs/evaluation.md).
 
+New measurements:
+
+- `scripts/evaluate.py --invariants` checks the corrected text of the 215 cases
+  of the golden set that the pipeline corrects: idempotent 215/215; of the 168 with
+  recorded edits, citations resolve 168/168 and the edit log replays byte for byte
+  165/168 (three differ by a trailing space); untouched sentences kept 13/13 where
+  there is one. One hash per golden output is recorded in
+  `tests/golden_outputs.json`, compared on each test run (a difference names its
+  cases) and under other hash seeds in CI.
+
 ## [1.5] - 2026-11-09
 
 Audit round: things a reader following the docs could trip over.

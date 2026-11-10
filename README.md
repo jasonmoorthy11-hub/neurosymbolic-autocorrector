@@ -151,7 +151,18 @@ meaning any non-allow action.
 python3 scripts/evaluate.py --dataset heldout   # already run once (results above); re-running it does not make it blind again
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
 python3 scripts/mutate_policy.py                # mutation score of the golden set (about two minutes)
+python3 scripts/evaluate.py --invariants        # structural checks on the corrected text
 ```
+
+The corrected text itself gets four structural checks, on the 215 cases of the
+golden set that the pipeline corrects. All 215 are idempotent: checked again, the
+corrected text is allowed unchanged. Of the 168 with recorded edits (the other 47
+are PII redaction only), every one cites a section or page that exists for the rule
+or limit it names; the edit log reproduces the delivered text byte for byte in 165
+(the other three differ by a trailing space); and in the 13 that leave a sentence
+untouched, that sentence is delivered unchanged. They do not judge whether a
+correction is the right answer
+([details](docs/evaluation.md#corrected-text-structural-checks)).
 
 **Latency:** p50 12.0 ms, p95 14.2 ms per reply over the golden set as it stood on
 2026-11-06 (Apple M5, macOS 26.6.2, Python 3.14.7, in-memory store, offline; second
