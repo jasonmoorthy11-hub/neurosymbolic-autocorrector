@@ -418,3 +418,37 @@ class TestRedactionTokensRoundTrip:
         text = f"Your {token} is on file."
         assert find_pii_spans(text) == []
         assert redact_spans(text, find_pii_spans(text)) == text
+
+
+class TestEmailPatternCost:
+    """The email pattern is linear in the input (it was quadratic up to v1.5)."""
+
+    def test_long_dotted_text_is_scanned_quickly(self):
+        import time
+
+        text = "a." * 20_000  # 40k chars with no "@": every position restarted the scan
+        start = time.perf_counter()
+        assert find_pii_spans(text) == []
+        assert time.perf_counter() - start < 1.0  # about 5 ms; 3.7 s before the fix
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("Reach me at john.doe@example.com today.", "john.doe@example.com"),
+            ("Send it to a_b%c+tag-1@mail.sub-domain.co.uk.", "a_b%c+tag-1@mail.sub-domain.co.uk"),
+            ("x@y.io", "x@y.io"),
+            (f"{'a' * 64}@example.com", f"{'a' * 64}@example.com"),
+            # Longer than a valid local part: still redacted whole, never suffix-only
+            (f"{'a' * 65}@example.com", f"{'a' * 65}@example.com"),
+            (f"jane.doe+{'x' * 70}@example.com", f"jane.doe+{'x' * 70}@example.com"),
+            (f"{'ab.' * 40}c@example.com", f"{'ab.' * 40}c@example.com"),
+            (f"a@{'sub.' * 70}example.com", f"a@{'sub.' * 70}example.com"),
+            ("Write to .john@example.com.", ".john@example.com"),
+            # Non-ASCII local parts: matched from the last ASCII run, as in v1.5
+            ("josé.garcia@example.com", ".garcia@example.com"),
+            ("straße+shop@example.de", "e+shop@example.de"),
+        ],
+    )
+    def test_email_span_is_unchanged(self, text, expected):
+        spans = find_pii_spans(text)
+        assert [(t, text[s:e]) for t, s, e in spans] == [("email", expected)]

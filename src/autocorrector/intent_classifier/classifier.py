@@ -78,8 +78,10 @@ class IntentClassifier:
         pattern's base confidence: the score is not divided by the size of the
         keyword list, so one strong cue is enough (a list of seven keywords used
         to dilute a single hit to 0.13, below the ``general`` floor). Keywords
-        match at word starts only ("try" never matches "country"), as the policy
-        rules' keywords do; inflections still match ("refunds").
+        match at word starts only ("try" never matches "country"), so inflections
+        still match ("refunds"). The policy rules' own keywords are stricter
+        (whole words, ``knowledge_graph.keywords.mentions_keyword``), and every rule
+        is checked whatever intent is picked here.
         """
         keyword_hits = sum(
             1 for keyword in pattern.keywords if re.search(r"\b" + re.escape(keyword), text_lower)

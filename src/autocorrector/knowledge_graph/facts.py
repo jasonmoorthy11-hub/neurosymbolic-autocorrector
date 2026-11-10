@@ -21,7 +21,7 @@ CATEGORY_ALIASES: dict[str, list[str]] = {
     ],
     "emergency dental": ["dental emergency", "dental coverage"],
     "emergency room": ["er coverage", "emergency care", "er visit"],
-    "specialist visit copay": ["specialist copay", "specialist visit"],
+    "specialist visit copay": ["specialist copay", "specialist copayment", "specialist visit"],
 }
 
 

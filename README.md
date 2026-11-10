@@ -10,11 +10,36 @@ deterministically without a model; an LLM tier is optional.
 
 **Live demo:** [jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/) — a replay of recorded offline runs, no backend. The "LLM tier" switch ([`?lane=llm`](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/?lane=llm)) plays one recorded run with Claude Haiku 5.5 as the correction tier.
 
+**Results at a glance** (commands and full output in [docs/evaluation.md](docs/evaluation.md)):
+
+- **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No model on the default path; about 12 ms per reply.
+- **Regression suite:** 434/434 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is.
+- **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
+- **External PII benchmark:** precision 63.6%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
+
 ![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
 
 ![The same replay with the LLM tier switch on, one recorded run with Claude Haiku 5.5: the metrics start to fill, then the agent feed shows each rewritten reply next to the pipeline trace for that run](docs/media/replay_llm.gif)
 
 > Personal project, sole author; demoed to a prospect in Feb 2026, never in production there; later reused as a review gate in separate client work.
+
+**What this is not**
+
+- **Not a trained model.** Rules, regular expressions and templates decide everything on the default path; the only model is the optional LLM correction tier.
+- **Not a general PII detector.** The rail is US-format regex (numbers above; per-type results in [docs/evaluation.md](docs/evaluation.md#external-pii-benchmark)).
+- **Not a real policy domain.** The rules and plans belong to one fictional company and were written by the author, as were both test sets.
+- **Not a production deployment.** The demo, the tests and every number here run on synthetic text, not on real customer traffic.
+
+The full list of known gaps is under [Limitations](#limitations).
+
+**Five minutes, by what you care about**
+
+| If you work on | Read |
+|---|---|
+| Applied AI, agents | The [live demo](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/), then [Architecture](#architecture) and the correction tiers in [docs/architecture.md](docs/architecture.md#correction-tiers) |
+| Safety, evals | [docs/evaluation.md](docs/evaluation.md): the held-out protocol, [every miss classified](docs/evaluation.md#every-miss-classified), and [Limitations](#limitations) |
+| Product | The demo's [LLM tier lane](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/?lane=llm), then [docs/case-study.md](docs/case-study.md): 13 things that were wrong and how each was found |
+| Platform, infrastructure | [Quick start](#quick-start-offline-no-api-key), the [MCP server](#mcp-server), [docs/deployment.md](docs/deployment.md) and the [CI workflow](.github/workflows/ci.yml) |
 
 ## What it does
 
@@ -110,7 +135,7 @@ Three numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 421 cases | Self-authored, **in-sample**: written alongside the code and used during development; 11 rows added after the held-out run | 421/421 actions correct (99.1–100.0) |
+| Golden, 434 cases | Self-authored, **in-sample**: written alongside the code and used during development; 24 rows added after the held-out run | 434/434 actions correct (99.1–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -126,9 +151,9 @@ python3 scripts/evaluate.py --dataset heldout   # already run once (results abov
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
 ```
 
-**Latency:** p50 12.0 ms, p95 14.2 ms per reply over the 421 golden cases (Apple M5,
-macOS 26.6.2, Python 3.14.7, in-memory store, offline; second of two consecutive
-runs, 2026-11-06). The first case includes loading the language-detection model and
+**Latency:** p50 12.0 ms, p95 14.2 ms per reply over the golden set as it stood on
+2026-11-06 (Apple M5, macOS 26.6.2, Python 3.14.7, in-memory store, offline; second
+of two consecutive runs). The first case includes loading the language-detection model and
 falls above p95.
 
 ## How this compares
@@ -201,6 +226,12 @@ Known, measured, or found by the held-out run:
   another plan is checked against that plan instead of the customer's. The
   held-out numbers above are from the first run and stay as reported; a new
   accuracy claim needs a new blind set.
+- Fixed after v1.5, with golden rows GAP-012 to GAP-024: a keyword matched any word
+  that started with it, so "Thanks, Sue." and "suede boots" were escalated as legal
+  threats. Keywords now match the whole word or phrase and its regular inflections.
+  What remains: a derived form that is not listed as a keyword does not match
+  ("creditworthy"), and "Sue" counts as a name only next to a greeting, a comma or
+  a verb such as "will", so "I spoke to Sue" still escalates.
 - The intent classifier is keyword and regex matching. Since v1.2 one keyword hit
   scores at the pattern's base confidence (the score was divided by the keyword
   list's length before, so most replies read `general`), which means a noun used in

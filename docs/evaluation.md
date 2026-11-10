@@ -4,7 +4,7 @@ Three numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 421 cases | Self-authored, **in-sample**: written alongside the code and used during development; 11 rows (GAP-001 to GAP-011) added after the held-out run | 421/421 actions correct (99.1–100.0) |
+| Golden, 434 cases | Self-authored, **in-sample**: written alongside the code and used during development; 24 rows (GAP-001 to GAP-024) added after the held-out run | 434/434 actions correct (99.1–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -44,18 +44,18 @@ python3 scripts/evaluate.py --json             # machine-readable, includes inte
 Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
 
 ```
-  Accuracy:     100.0%  (421/421, 95% CI 99.1-100.0)
-  Precision:    100.0%  (210/210, 95% CI 98.2-100.0)
-  Recall:       100.0%  (210/210, 95% CI 98.2-100.0)
+  Accuracy:     100.0%  (434/434, 95% CI 99.1-100.0)
+  Precision:    100.0%  (217/217, 95% CI 98.3-100.0)
+  Recall:       100.0%  (217/217, 95% CI 98.3-100.0)
   F0.5:         1.000
   PII Precision: 100.0%  (60/60, 95% CI 94.0-100.0)
   PII Recall:    100.0%  (60/60, 95% CI 94.0-100.0)
-  PII flag agrees:      100.0%  (421/421, 95% CI 99.1-100.0)
-  Fact flag agrees:     100.0%  (421/421, 95% CI 99.1-100.0)
-  Expected rules found: 100.0%  (125/125, 95% CI 97.0-100.0)
+  PII flag agrees:      100.0%  (434/434, 95% CI 99.1-100.0)
+  Fact flag agrees:     100.0%  (434/434, 95% CI 99.1-100.0)
+  Expected rules found: 100.0%  (132/132, 95% CI 97.2-100.0)
 ```
 
-Latency on the golden set, second of two consecutive runs on 2026-11-06: p50 12.0 ms,
+Latency on the golden set as it stood on 2026-11-06 (v3.3), second of two consecutive runs: p50 12.0 ms,
 p95 14.2 ms, p99 17.0 ms per reply (the first run: 11.8 / 14.2 / 18.9). The first case
 loads the language-detection model and is the slowest.
 
@@ -63,6 +63,16 @@ Dataset v3.3 (2026-11-04) adds GAP-001 to GAP-011, new wording for the behaviour
 the held-out run exposed (rules gated on the classified intent, "regulator", a date
 of birth a few words after its cue, another plan's limit in a comparison, a credit
 named after a coverage category). The held-out cases were not copied or edited.
+
+Dataset v3.4 (2026-11-09) adds GAP-012 to GAP-024 for a defect found after v1.5: a
+rule keyword matched any word that started with it, and a keyword that is also a
+name ("Thanks, Sue." and "suede boots" were escalated as legal threats; "creditor",
+"always willing", "you'll nevertheless" and "between you and Medicare" triggered
+other rules). Six of the 13 rows fail on the v1.5 rules (428/434); seven pin forms
+the fix must keep ("sue us", "Sue if you want", "refundable", "by next weekend",
+"offer your account", "internal tooling", "accept the returned item"). They were
+written with the fix in hand, so like every golden row they are regression rows,
+not evidence.
 
 ## Held-out set
 
@@ -209,6 +219,12 @@ Rows where spans differ from the validator's redaction: 0
 | drivers_license | 27.7% (18/65) | 12.9% (18/140) |
 | address | 72.2% (589/816) | 13.7% (591/4303) |
 | phone | 21.7% (443/2040) | 46.9% (444/946) |
+
+Re-run on 2026-11-09 (v1.6 code): the English output is identical. Over all
+languages the typed counts are 2728/4923 and 2738/7997 (still 55.4% / 34.2%), with
+two rows changed: date_of_birth is 90/90 and 90/250 since the v1.1 pattern change,
+and email is 1361/1362 and 1368/1422 since the v1.6 pattern change (one French
+address with an accented local part is now redacted in part, in two places).
 
 ### Reading these numbers
 

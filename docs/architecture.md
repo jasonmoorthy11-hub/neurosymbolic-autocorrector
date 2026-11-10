@@ -38,7 +38,9 @@ helpers in `templates.py`. Without Neo4j, which is the default, both are in memo
   ESC-001 (`escalation_request`), REFUND-001 and REFUND-002 (`refund_processing`),
   and the universal PROMISE-001, SLA-001, DISC-001. Every rule is checked on every
   reply by its own triggers; the classified intent only puts its domain's rules
-  first. Keywords match at a word start ("sue" does not match "issue"). Each rule
+  first. A keyword matches the whole word or phrase and its regular inflections
+  ("sue" matches "sued", not "issue" or "suede"; a capitalised "Sue" is skipped only
+  where the wording shows a person, as in "Thanks, Sue."). Each rule
   carries a severity, keywords, conditions on the customer context (for example
   account tenure) and its source document and section. A missing context field
   counts as 0.
@@ -184,7 +186,7 @@ The React app in `dashboard/` builds in one of two modes (`VITE_REPLAY`):
 
 ## Evaluation
 
-`evaluation/`: `dataset.py` (421 golden cases, in-sample), `heldout.py` (60 blind
+`evaluation/`: `dataset.py` (434 golden cases, in-sample), `heldout.py` (60 blind
 cases, run once), `scorer.py` (action accuracy, precision/recall, F0.5, secondary
 checks, 95% Wilson intervals, latency percentiles), `runner.py`, `registry.py`
 (`--dataset golden|heldout`), `llm_judge.py` (optional, needs a key).

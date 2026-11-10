@@ -18,6 +18,7 @@ import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterable, Mapping, Sequence
 
+from autocorrector.knowledge_graph.keywords import keyword_pattern
 from autocorrector.models import FactCheckResult
 
 AMOUNT_PATTERN = re.compile(r"\$(\d+(?:,\d{3})*(?:\.\d{2})?)")
@@ -100,7 +101,7 @@ def assign_amounts(
     """Map each category to the ``$`` amount matches it claims, in text order.
 
     ``categories`` maps a category name to the phrases that mention it
-    (matched case-insensitively from a word start). Each amount is claimed by
+    (matched as whole words, see ``keywords.keyword_pattern``). Each amount is claimed by
     at most one category: the nearest mention in its clause, preferring a gap
     without a connector word, then one without a comma, then the shorter gap,
     then a mention before the amount. Amounts typed as other money are skipped
@@ -112,10 +113,7 @@ def assign_amounts(
     can win, and connector checks use precomputed positions.
     """
     lower = text.lower()
-    patterns = {
-        cat: [re.compile(r"\b" + re.escape(v.lower())) for v in variants]
-        for cat, variants in categories.items()
-    }
+    patterns = {cat: [keyword_pattern(v) for v in variants] for cat, variants in categories.items()}
     gaps = _GapIndex(text)
     claims: dict[str, list[re.Match[str]]] = {cat: [] for cat in categories}
     previous_category: str | None = None
@@ -194,6 +192,7 @@ def nearest_plan(
     best: tuple[tuple, str] | None = None
     for key, variants in plans.items():
         for variant in variants:
+            # Plan names match from a word start ("premium" also finds "premiums")
             pattern = re.compile(r"\b" + re.escape(variant.lower()))
             for m in pattern.finditer(lower, s_start, s_end):
                 if m.start() < amount.end() and m.end() > amount.start():

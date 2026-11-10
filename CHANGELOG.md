@@ -5,6 +5,37 @@ under a release is that tag's own message.
 The version number lives in `src/autocorrector/__init__.py` (`__version__`), which
 the package metadata, the dashboard API and `/health` read.
 
+## [Unreleased]
+
+Known weaknesses found since v1.5, each fixed here:
+
+- A rule keyword matched any word that started with it, and a keyword that is also a
+  name: "Thanks, Sue. Your order shipped this morning." and "Those suede boots are
+  back in stock." were escalated as legal threats (ESC-001); "creditor", "always
+  willing", "you'll nevertheless" and "between you and Medicare" triggered other
+  rules. Keywords now match the word or phrase itself plus regular inflections.
+  "Sue" is read as a name only where the wording shows a person (a greeting, a
+  comma, "Sue will…") and no object follows it; otherwise it still escalates, so
+  "I spoke to Sue" is still held. Wordings the prefix match used to catch are now keywords of their own
+  ("refundable", "by next weekend", "offer your", "internal tooling", "internal
+  processing", "accept/process the returned"); other derived forms no longer
+  match. `scripts/audit_keywords.py` lists what each keyword matches in a
+  dictionary. v1.5 gets 428 of the 434 cases in golden set v3.4 right; the 13 new
+  rows (GAP-012 to GAP-024) are in-sample regression rows. Coverage categories
+  in fact checks are matched the same way ("specialist copayment" is now an
+  alias so it is still checked). A seeded Neo4j
+  database needs `scripts/seed_neo4j.py` run again to get the new keywords.
+- The email pattern was quadratic on long text with dots or dashes and no "@": a
+  40,000-character reply took about 3.7 s in the PII rail, now about 5 ms. A
+  slowdown, not a hang. A redacted address now includes punctuation attached to
+  its front (".john@example.com"). On the external PII benchmark the English
+  output is identical; over all languages one French address is now redacted in
+  part instead of missed (two more predictions, one of them correct), which leaves
+  every headline percentage as it was.
+- `docs/case-study.md` quoted the golden set as 410/410 without saying that was the
+  set at the time of the held-out run; a test now checks the places that state the
+  current golden-set size against the dataset.
+
 ## [1.5] - 2026-11-09
 
 Audit round: things a reader following the docs could trip over.

@@ -147,7 +147,8 @@ confirm a test fails. The numbers come from [evaluation.md](evaluation.md).
 
 - **What happened:** 60 cases were written from the policy text without running the
   pipeline, committed and pushed (`fa71907`), then run once: 53/60 = 88.3% (95% CI
-  77.8–94.2), against 410/410 on the in-sample golden set.
+  77.8–94.2), against 410 of 410 on the in-sample golden set as it stood at that
+  run (rows added since then are listed in [evaluation.md](evaluation.md)).
 - **What it found:** 5 bugs, 1 ambiguous case and 1 deliberate fail-closed
   limitation. Four of the misses involve domain gating: credit, refund and
   escalation rules are checked only for the classified intent, and a diluted keyword

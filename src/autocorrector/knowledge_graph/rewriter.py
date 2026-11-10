@@ -23,6 +23,7 @@ from autocorrector.knowledge_graph.claims import (
     fact_replacements,
     sentence_spans,
 )
+from autocorrector.knowledge_graph.keywords import mentions_keyword
 from autocorrector.models import CorrectionEdit, FactCheckResult
 
 CREDIT_RULE_ID = "CREDIT-001"
@@ -174,9 +175,7 @@ def _plan(
         return _plan_credit(rule, violation, text, spans, keywords, coverage)
 
     targets = [
-        i
-        for i, (start, end) in enumerate(spans)
-        if any(kw in text[start:end].lower() for kw in keywords)
+        i for i, (start, end) in enumerate(spans) if mentions_keyword(text[start:end], keywords)
     ]
     if not targets:
         return None

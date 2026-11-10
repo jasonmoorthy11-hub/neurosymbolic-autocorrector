@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from autocorrector.knowledge_graph.claims import AMOUNT_PATTERN, assign_amounts, sentence_spans
+from autocorrector.knowledge_graph.keywords import mentions_keyword
 from autocorrector.models import PolicyViolation, Severity
 
 # Claim-assignment key for a rule's own keywords (never a coverage category name)
@@ -80,11 +81,6 @@ WORD_AMOUNTS = {
 }
 
 
-def mentions_keyword(text_lower: str, keywords: list[str]) -> bool:
-    """True when a keyword occurs at a word start ("sue" never matches "issue")."""
-    return any(re.search(r"\b" + re.escape(kw.lower()), text_lower) for kw in keywords)
-
-
 def offer_amounts(
     text: str,
     keywords: list[str],
@@ -113,7 +109,7 @@ def offer_amounts(
     statement_sentences = [
         (start, end)
         for start, end in sentence_spans(text)
-        if not mentions_keyword(lower[start:end], keywords)
+        if not mentions_keyword(text[start:end], keywords)
         and not TRANSFER_VERB.search(text, start, end)
     ]
 
@@ -165,7 +161,7 @@ def violations_for(
 
     for rule in rules:
         # Step 1: Check keyword triggers
-        if not mentions_keyword(text_lower, rule.get("keywords", [])):
+        if not mentions_keyword(text, rule.get("keywords", [])):
             continue
 
         # Step 1b: Skip credit and refund rules if non-offer context detected

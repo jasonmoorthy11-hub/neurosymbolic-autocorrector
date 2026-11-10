@@ -168,7 +168,11 @@ _PII_PATTERNS = {
         "[CARD REDACTED]",
     ),
     "email": (
-        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+        # The lookbehind starts a match only at the start of a run of local-part
+        # characters. With a bare \b, a long dotted run with no "@" was rescanned
+        # from every word start inside it (quadratic). A local part with non-ASCII
+        # letters is still matched only from its last ASCII run ("josé.garcia@...").
+        r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
         "[EMAIL REDACTED]",
     ),
     "date_of_birth": (
