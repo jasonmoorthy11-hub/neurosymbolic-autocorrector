@@ -14,14 +14,13 @@ Known weaknesses found since v1.5, each fixed here:
   back in stock." were escalated as legal threats (ESC-001); "creditor", "always
   willing", "you'll nevertheless" and "between you and Medicare" triggered other
   rules. Keywords now match the word or phrase itself plus regular inflections.
-  "Sue" is read as a name only where the wording shows a person (a greeting, a
-  comma, "Sue will…") and no object follows it; otherwise it still escalates, so
-  "I spoke to Sue" is still held. Wordings the prefix match used to catch are now keywords of their own
+  "Sue" is read as a name only in a greeting ("Thanks, Sue.", "Hi Sue, …");
+  anywhere else it still escalates, so "Sue will call you back" is still held. Wordings the prefix match used to catch are now keywords of their own
   ("refundable", "by next weekend", "offer your", "internal tooling", "internal
   processing", "accept/process the returned"); other derived forms no longer
   match. `scripts/audit_keywords.py` lists what each keyword matches in a
-  dictionary. v1.5 gets 428 of the 434 cases in golden set v3.4 right; the 13 new
-  rows (GAP-012 to GAP-024) are in-sample regression rows. Coverage categories
+  dictionary. v1.5 gets 428 of the first 434 cases in golden set v3.4 right; the 13
+  new rows (GAP-012 to GAP-024) are in-sample regression rows. Coverage categories
   in fact checks are matched the same way ("specialist copayment" is now an
   alias so it is still checked). A seeded Neo4j
   database needs `scripts/seed_neo4j.py` run again to get the new keywords.
@@ -35,6 +34,12 @@ Known weaknesses found since v1.5, each fixed here:
 - `docs/case-study.md` quoted the golden set as 410/410 without saying that was the
   set at the time of the held-out run; a test now checks the places that state the
   current golden-set size against the dataset.
+- The golden suite noticed only 43 of 104 single changes to the rules: most rows
+  stack several keywords of a rule, and no row sat next to the 30-day refund
+  boundary. `scripts/mutate_policy.py` measures this; 56 rows (PIN-001 to PIN-056),
+  one per keyword and boundary, written against the survivors, bring it to 98 of
+  104. The six left are five severity changes the suite cannot see and one
+  redundant keyword (docs/evaluation.md).
 
 ## [1.5] - 2026-11-09
 

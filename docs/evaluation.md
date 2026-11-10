@@ -4,7 +4,7 @@ Three numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 434 cases | Self-authored, **in-sample**: written alongside the code and used during development; 24 rows (GAP-001 to GAP-024) added after the held-out run | 434/434 actions correct (99.1–100.0) |
+| Golden, 490 cases | Self-authored, **in-sample**: written alongside the code and used during development; 80 rows (GAP-001 to GAP-024, PIN-001 to PIN-056) added after the held-out run | 490/490 actions correct (99.2–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -44,15 +44,15 @@ python3 scripts/evaluate.py --json             # machine-readable, includes inte
 Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
 
 ```
-  Accuracy:     100.0%  (434/434, 95% CI 99.1-100.0)
-  Precision:    100.0%  (217/217, 95% CI 98.3-100.0)
-  Recall:       100.0%  (217/217, 95% CI 98.3-100.0)
+  Accuracy:     100.0%  (490/490, 95% CI 99.2-100.0)
+  Precision:    100.0%  (271/271, 95% CI 98.6-100.0)
+  Recall:       100.0%  (271/271, 95% CI 98.6-100.0)
   F0.5:         1.000
   PII Precision: 100.0%  (60/60, 95% CI 94.0-100.0)
   PII Recall:    100.0%  (60/60, 95% CI 94.0-100.0)
-  PII flag agrees:      100.0%  (434/434, 95% CI 99.1-100.0)
-  Fact flag agrees:     100.0%  (434/434, 95% CI 99.1-100.0)
-  Expected rules found: 100.0%  (132/132, 95% CI 97.2-100.0)
+  PII flag agrees:      100.0%  (490/490, 95% CI 99.2-100.0)
+  Fact flag agrees:     100.0%  (490/490, 95% CI 99.2-100.0)
+  Expected rules found: 100.0%  (186/186, 95% CI 98.0-100.0)
 ```
 
 Latency on the golden set as it stood on 2026-11-06 (v3.3), second of two consecutive runs: p50 12.0 ms,
@@ -72,7 +72,62 @@ other rules). Six of the 13 rows fail on the v1.5 rules (428/434); seven pin for
 the fix must keep ("sue us", "Sue if you want", "refundable", "by next weekend",
 "offer your account", "internal tooling", "accept the returned item"). They were
 written with the fix in hand, so like every golden row they are regression rows,
-not evidence.
+not evidence. The same version adds PIN-001 to PIN-056 (next section).
+
+### Mutation score: how much of the rule set the golden suite pins down
+
+100% on a suite says little if the suite would also pass with a rule broken.
+`scripts/mutate_policy.py` checks that: it makes one small change to the default
+rules at a time (an amount threshold moved by 1 or 10, a condition value moved by
+1, one keyword dropped, all keywords but the first dropped, a severity lowered one
+step), runs the golden cases against the changed rules, and counts the mutant as
+killed if any case loses its expected action or one of its expected rule ids. That
+is all it compares: the corrected text, the edits and the citations are not
+scored, and the fixed rewrite wording ("$50", "30-day window") does not follow a
+changed threshold.
+
+| Golden set | Mutants killed, of 104 generated |
+|---|---|
+| 434 cases (before the PIN rows) | 43 (41.3%) |
+| 490 cases (v3.4) | 98 (94.2%) |
+
+The 104 are every change of those five kinds, not a sample, so there is no
+interval; they also overlap (the keep-one-keyword mutant drops what the single
+drops do).
+
+The first run is the finding: 61 of 104 single changes to the rules went unnoticed.
+54 of them were dropped keywords, five were lowered severities. Most older rows stack several keywords of a rule
+in one reply ("I promise you'll never be charged that fee again. It's permanently
+removed."), so removing any one of them changed nothing. Two were the refund
+window moved to 29 or 31 days: no row sat next to the 30-day boundary. The 56 PIN
+rows each carry exactly one keyword of their rule, or sit on one side of that
+boundary (29, 30 and 31 days). They were written from the rule definitions, against
+the list of survivors, and all 56 passed on their first run, so they found no new
+pipeline bug; they make the suite notice changes it used to miss. The second
+number is therefore in-sample to this list of mutants: it shows the gap was
+closed, not how the suite would do against other kinds of change.
+
+The six survivors, classified:
+
+- Five lower a non-critical severity (CREDIT-001, REFUND-001, PROMISE-001 and
+  SLA-001 high to medium, DISC-001 medium to low). Only `critical` changes routing
+  (it escalates); the other levels all lead to a correction, and golden rows do not
+  state an expected severity. These are real changes that the golden suite cannot
+  see: the severity is shown in the dashboard, stored in the audit row (where a
+  query can filter on it) and orders the whole-message templates. A unit test
+  (`tests/test_ingestion.py`) does tie each rule's severity to its policy document.
+- One is equivalent: dropping PROMISE-001's "waive permanently" changes nothing,
+  because the keyword "permanently" already matches every such reply.
+
+This scores the test suite, not the pipeline: it says the golden rows now react to
+98 of these 104 single changes to the 8 rules, not that the rules are right. Run on
+2026-11-09: 77.8 s for the 490-case set (527 s for the first run, where each of the
+61 survivors ran every case). Not part of CI.
+
+```bash
+python3 scripts/mutate_policy.py                 # all mutants
+python3 scripts/mutate_policy.py --rule ESC-001  # one rule
+```
 
 ## Held-out set
 

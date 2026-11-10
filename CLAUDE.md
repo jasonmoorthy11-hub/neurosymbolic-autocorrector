@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1456 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1471 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -17,7 +17,7 @@ python3 -m pytest -k "test_name" -v                          # single test
 # Demo (15 scenarios: 10 step-by-step + 5 full pipeline)
 python3 scripts/demo.py
 
-# Evaluation (434-case golden dataset v3.4, in-sample)
+# Evaluation (490-case golden dataset v3.4, in-sample)
 python3 scripts/evaluate.py
 python3 scripts/evaluate.py --llm-judge              # with LLM quality scoring
 python3 scripts/evaluate.py --category true_positive  # filter by category
@@ -25,6 +25,8 @@ python3 scripts/evaluate.py --category true_positive  # filter by category
 # run is published in docs/evaluation.md; fixes go into new golden rows.
 #   python3 scripts/evaluate.py --dataset heldout
 python3 scripts/bench_pii.py                          # external PII span benchmark (downloads once into .cache/)
+python3 scripts/mutate_policy.py                      # mutation score of the golden set (~2 min, not in CI)
+python3 scripts/audit_keywords.py --check             # dictionary words a rule keyword matches by accident
 
 # Replay data for the backend-free dashboard (refuses with an API key set or NeMo on)
 python3 scripts/record_replay.py           # writes dashboard/public/replay/replay.json

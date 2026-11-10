@@ -6,14 +6,15 @@
 Policy-grounded, auditable correction of AI agent replies: each reply is routed to
 allow, correct or escalate, and on the default offline path policy and fact fixes
 are recorded as edits that cite their rule and source. The whole path runs
-deterministically without a model; an LLM tier is optional.
+deterministically without an LLM (a small language-identification model sends
+non-English replies to escalation); an LLM correction tier is optional.
 
 **Live demo:** [jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/) — a replay of recorded offline runs, no backend. The "LLM tier" switch ([`?lane=llm`](https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/?lane=llm)) plays one recorded run with Claude Haiku 5.5 as the correction tier.
 
 **Results at a glance** (commands and full output in [docs/evaluation.md](docs/evaluation.md)):
 
-- **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No model on the default path; about 12 ms per reply.
-- **Regression suite:** 434/434 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is.
+- **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No LLM on the default path; about 12 ms per reply.
+- **Regression suite:** 490/490 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
 - **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
 - **External PII benchmark:** precision 63.6%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
 
@@ -25,7 +26,7 @@ deterministically without a model; an LLM tier is optional.
 
 **What this is not**
 
-- **Not a trained model.** Rules, regular expressions and templates decide everything on the default path; the only model is the optional LLM correction tier.
+- **Not a trained model.** Rules, regular expressions and templates make the policy, fact and PII decisions. The one trained component on the default path is an off-the-shelf language identifier (non-English replies escalate); an LLM is used only by the optional correction tier and translation.
 - **Not a general PII detector.** The rail is US-format regex (numbers above; per-type results in [docs/evaluation.md](docs/evaluation.md#external-pii-benchmark)).
 - **Not a real policy domain.** The rules and plans belong to one fictional company and were written by the author, as were both test sets.
 - **Not a production deployment.** The demo, the tests and every number here run on synthetic text, not on real customer traffic.
@@ -135,7 +136,7 @@ Three numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 434 cases | Self-authored, **in-sample**: written alongside the code and used during development; 24 rows added after the held-out run | 434/434 actions correct (99.1–100.0) |
+| Golden, 490 cases | Self-authored, **in-sample**: written alongside the code and used during development; 80 rows added after the held-out run | 490/490 actions correct (99.2–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -149,6 +150,7 @@ meaning any non-allow action.
 ```bash
 python3 scripts/evaluate.py --dataset heldout   # already run once (results above); re-running it does not make it blind again
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
+python3 scripts/mutate_policy.py                # mutation score of the golden set (about two minutes)
 ```
 
 **Latency:** p50 12.0 ms, p95 14.2 ms per reply over the golden set as it stood on
@@ -230,8 +232,9 @@ Known, measured, or found by the held-out run:
   that started with it, so "Thanks, Sue." and "suede boots" were escalated as legal
   threats. Keywords now match the whole word or phrase and its regular inflections.
   What remains: a derived form that is not listed as a keyword does not match
-  ("creditworthy"), and "Sue" counts as a name only next to a greeting, a comma or
-  a verb such as "will", so "I spoke to Sue" still escalates.
+  ("creditworthy"), and "Sue" counts as a name only in a greeting ("Thanks, Sue."),
+  so "Sue will call you back" still escalates. That is deliberate: wider name
+  rules missed real threats in review.
 - The intent classifier is keyword and regex matching. Since v1.2 one keyword hit
   scores at the pattern's base confidence (the score was divided by the keyword
   list's length before, so most replies read `general`), which means a noun used in

@@ -10,25 +10,18 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-# Keywords that are also given names. Written "Sue" the word is read as the verb
-# unless the wording around it shows a person (see ``_is_name``): when in doubt the
-# rule fires, because a missed legal threat costs more than a held reply.
+# Keywords that are also given names. Written "Sue", the word is a name only in a
+# direct address: a greeting right before it and punctuation (or the end) right
+# after it ("Thanks, Sue.", "Hi Sue, ..."). Everything else is read as the verb,
+# so "Sue will call you back" still fires: a held reply costs less than a missed
+# legal threat, and no wider rule survived review without missing real threats.
 _NAME_KEYWORDS = frozenset({"sue"})
-# An object right after it makes it the verb, whatever comes before ("Thanks. Sue us then.")
-_VERB_OBJECT = re.compile(r"\s+(?:us|me|you|them|him|her|it)\b", re.IGNORECASE)
-# A greeting, a title or a verb that takes a person, directly before the name and in
-# the same sentence ("Thanks, Sue.", "Ms. Sue", "I asked Sue")
-_NAME_BEFORE = re.compile(
-    r"\b(?:(?:hi|hello|hey|dear|thanks|thank you|sorry|regards|ok|okay|sure|welcome|miss|with"
-    r"|ask|asked|give|gave|tell|told|from|for|by|i'm|i am|this is|name is),?|(?:ms|mrs)\.?)\s+$",
+_GREETING_BEFORE = re.compile(
+    r"(?<!\w)(?:hi|hello|hey|dear|thanks|thank you|regards"
+    r"|good (?:morning|afternoon|evening)|ms\.?|mrs\.?|miss),?\s+$",
     re.IGNORECASE,
 )
-# A comma that does not continue the threat ("Sue, your order shipped", not "Sue, if
-# you must"), or a verb the person is the subject of, directly after
-_NAME_AFTER = re.compile(
-    r",(?!\s*(?:if|then|and|but)\b)|\s+(?:will|can|was|from|here|speaking)\b",
-    re.IGNORECASE,
-)
+_ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 
 
 def _suffixes(word: str, phrase: bool) -> list[str]:
@@ -59,16 +52,11 @@ def keyword_pattern(keyword: str) -> re.Pattern[str]:
 
 
 def _is_name(text: str, keyword: str, match: re.Match[str]) -> bool:
-    """True when a name keyword is written as a name and the wording shows a person."""
-    name = keyword.capitalize()
-    if match.group() == name + "'s":
-        return True  # "Sue's replacement"
-    if match.group() != name:
-        return False  # "sue", "SUE", "Sued" and "Suing" are the verb
-    if _VERB_OBJECT.match(text, match.end()):
-        return False
-    before = text[max(0, match.start() - 16) : match.start()]
-    return bool(_NAME_AFTER.match(text, match.end()) or _NAME_BEFORE.search(before))
+    """True when a name keyword is written as a name inside a direct address."""
+    if match.group() != keyword.capitalize():
+        return False  # "sue", "SUE", "Sued", "Suing" and "Sue's" are never skipped
+    before = text[max(0, match.start() - 24) : match.start()]
+    return bool(_GREETING_BEFORE.search(before) and _ADDRESS_ENDS.match(text, match.end()))
 
 
 def mentions_keyword(text: str, keywords: list[str]) -> bool:
@@ -77,8 +65,7 @@ def mentions_keyword(text: str, keywords: list[str]) -> bool:
     "sue" matches "sued" and "suing" but not "suede" or "issue"; "credit"
     matches "credited" but not "creditor"; "always will" does not match
     "always willing". Case is ignored, except that a keyword which is also a
-    given name is skipped where the text addresses or names a person
-    ("Thanks, Sue.", "Sue will call you back").
+    given name is skipped where the text greets a person by it ("Thanks, Sue.").
     """
     for keyword in keywords:
         is_name_keyword = keyword.lower() in _NAME_KEYWORDS
