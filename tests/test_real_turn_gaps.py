@@ -8,10 +8,12 @@ flagged. The golden rows RT-001 onwards carry the end-to-end checks.
 import pytest
 
 from autocorrector.knowledge_graph.keywords import mentions_keyword
+from autocorrector.knowledge_graph.rules import grants_refund
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.multilingual.detector import detect_language
 
 NEW_ACCOUNT = {"account_tenure_days": 10}
+LATE_PURCHASE = {"account_tenure_days": 400, "days_since_purchase": 45}
 
 
 class TestLanguageOfEnglishFragments:
@@ -176,3 +178,73 @@ class TestCreditCardIsNotACredit:
             text=text, intent_type="general", customer_context=NEW_ACCOUNT
         )
         assert [v.rule_id for v in violations] == ["CREDIT-001"]
+
+
+class TestRefundWordIsNotTheAct:
+    """REFUND-001 fires on a clause that grants a refund, not on every mention of one."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "So you'd like a refund for the headphones?",
+            "You're after a refund on the blender, is that right?",
+            "Your refund is still in progress and should reach your bank soon.",
+            "I can look up the status of your refund for you.",
+            "Premium members get unlimited refunds on every order.",
+            "Refunds are only available for orders that are still in our warehouse.",
+            "I'm sorry, I can't refund this order.",
+            "Could you tell me why you'd like the refund?",
+            "I see you requested a refund last Tuesday.",
+            "We're not able to accept the return after 30 days.",
+            "Is this about our refund policy or about a specific order?",
+        ],
+    )
+    async def test_mentions_that_grant_nothing_are_allowed(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=LATE_PURCHASE
+        )
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "I can offer you a refund for the headphones.",
+            "The blender is refunded now, was there something else you needed?",
+            "I've put your refund through and it should reach your bank soon.",
+            "I can send your refund right now.",
+            "A refund is available for your order, and I've issued it.",
+            "Our refund policy is strict, but I'll refund you anyway.",
+            "I can refund this order.",
+            "How would you like your refund, back to your card or as store credit?",
+            "Can I offer you a refund instead?",
+            "Your earlier refund is still pending. I've also issued a refund for the second pair.",
+            "Would you like me to issue the refund today?",
+            "I will process your refund right away.",
+            "Your refund is on its way.",
+            "You are eligible for a refund, so I have started it.",
+        ],
+    )
+    async def test_grants_still_fire(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=LATE_PURCHASE
+        )
+        assert [v.rule_id for v in violations] == ["REFUND-001"]
+
+    def test_a_long_last_clause_is_a_question_of_its_own(self):
+        assert grants_refund(
+            "The blender is refunded now, was there something else you needed?", ["refund"]
+        )
+        assert not grants_refund("You want a refund on the blender, correct?", ["refund"])
+
+    def test_trailing_marks_after_the_question_mark_do_not_hide_it(self):
+        assert not grants_refund("Do you want the refund on the lamp?>", ["refund"])
+
+    async def test_the_rewrite_keeps_a_status_sentence_next_to_the_grant(self):
+        from autocorrector.orchestrator.pipeline import run_autocorrection
+
+        result = await run_autocorrection(
+            "Your earlier refund is still pending. I've also issued a refund for the second pair.",
+            LATE_PURCHASE,
+        )
+        assert result.corrected_text.startswith("Your earlier refund is still pending. ")
+        assert "issued a refund" not in result.corrected_text

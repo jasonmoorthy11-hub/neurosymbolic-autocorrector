@@ -24,6 +24,7 @@ from autocorrector.knowledge_graph.claims import (
     sentence_spans,
 )
 from autocorrector.knowledge_graph.keywords import mentions_keyword
+from autocorrector.knowledge_graph.rules import REFUND_RULE_ID, grants_refund
 from autocorrector.models import CorrectionEdit, FactCheckResult
 
 CREDIT_RULE_ID = "CREDIT-001"
@@ -177,6 +178,10 @@ def _plan(
     targets = [
         i for i, (start, end) in enumerate(spans) if mentions_keyword(text[start:end], keywords)
     ]
+    if rule_id == REFUND_RULE_ID:
+        # Rewrite the sentences that grant the refund; a status report or a question
+        # next to them stays ("Your earlier refund is still pending.")
+        targets = [i for i in targets if grants_refund(text[slice(*spans[i])], keywords)]
     if not targets:
         return None
     if rule_id in SENTENCE_REPLACEMENTS:

@@ -14,7 +14,7 @@ non-English replies to escalation); an LLM correction tier is optional.
 **Results at a glance** (commands and full output in [docs/evaluation.md](docs/evaluation.md)):
 
 - **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No LLM on the default path; about 12 ms per reply.
-- **Regression suite:** 503/503 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
+- **Regression suite:** 520/520 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
 - **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
 - **External PII benchmark:** precision 63.6%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
 
@@ -136,7 +136,7 @@ Three numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 503 cases | Self-authored, **in-sample**: written alongside the code and used during development; 93 rows added after the held-out run | 503/503 actions correct (99.2–100.0) |
+| Golden, 520 cases | Self-authored, **in-sample**: written alongside the code and used during development; 110 rows added after the held-out run | 520/520 actions correct (99.2–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 
@@ -154,12 +154,12 @@ python3 scripts/mutate_policy.py                # mutation score of the golden s
 python3 scripts/evaluate.py --invariants        # structural checks on the corrected text
 ```
 
-The corrected text itself gets four structural checks, on the 217 cases of the
-golden set that the pipeline corrects. All 217 are idempotent: checked again, the
-corrected text is allowed unchanged. Of the 170 with recorded edits (the other 47
+The corrected text itself gets four structural checks, on the 227 cases of the
+golden set that the pipeline corrects. All 227 are idempotent: checked again, the
+corrected text is allowed unchanged. Of the 180 with recorded edits (the other 47
 are PII redaction only), every one cites a section or page that exists for the rule
-or limit it names; the edit log reproduces the delivered text byte for byte in 167
-(the other three differ by a trailing space); and in the 13 that leave a sentence
+or limit it names; the edit log reproduces the delivered text byte for byte in 177
+(the other three differ by a trailing space); and in the 14 that leave a sentence
 untouched, that sentence is delivered unchanged. They do not judge whether a
 correction is the right answer
 ([details](docs/evaluation.md#corrected-text-structural-checks)).
@@ -270,6 +270,12 @@ Known, measured, or found by the held-out run:
   also "J’ai rembourse" with a curly apostrophe and "Rabatt 20 EUR" with one word
   beside the number), and a foreign line that carries English words and fewer
   than two function words of its own ("Garantiert: your new Erstattung today").
+- The refund-window rule (REFUND-001) reads a clause, not intent. Since v1.6 a
+  question to the customer, a status report, a statement of policy and a refusal
+  no longer trigger it, which also lets through an offer phrased as a plain
+  question ("Would you like a refund?") and a grant worded as a status ("Your
+  refund is complete"). Anything else that names a refund still triggers it,
+  including refunds that depend on a condition the reply states.
 - The intent classifier is keyword and regex matching. Since v1.2 one keyword hit
   scores at the pattern's base confidence (the score was divided by the keyword
   list's length before, so most replies read `general`), which means a noun used in

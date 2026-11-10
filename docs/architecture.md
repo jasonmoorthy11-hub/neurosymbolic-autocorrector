@@ -186,7 +186,7 @@ The React app in `dashboard/` builds in one of two modes (`VITE_REPLAY`):
 
 ## Evaluation
 
-`evaluation/`: `dataset.py` (503 golden cases, in-sample), `heldout.py` (60 blind
+`evaluation/`: `dataset.py` (520 golden cases, in-sample), `heldout.py` (60 blind
 cases, run once), `scorer.py` (action accuracy, precision/recall, F0.5, secondary
 checks, 95% Wilson intervals, latency percentiles), `runner.py`, `registry.py`
 (`--dataset golden|heldout`), `llm_judge.py` (optional, needs a key).

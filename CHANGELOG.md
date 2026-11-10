@@ -71,6 +71,18 @@ turns). The audit is not re-run; its numbers predate these fixes:
   your credit card this morning" was rewritten as an over-limit credit offer for
   a new account (CREDIT-001). The keyword "credit" no longer matches in "credit
   card(s)"; a credit named elsewhere in the reply still does (RT-009 to RT-013).
+- REFUND-001 fired on the word "refund", not on granting one: 45 days after
+  purchase, "So you'd like a refund for the headphones?", "Your refund is still in
+  progress", "Premium members get unlimited refunds" and "I'm sorry, I can't refund
+  this order" were all rewritten. The rule now needs a clause that mentions a
+  refund keyword and is not a question put to the customer, a report on a refund
+  already under way, a statement of policy or a refusal. A question that takes
+  the refund as settled or offers it ("How would you like your refund, to your
+  card or as store credit?", "Can I offer you a refund instead?") still fires, and
+  the span rewrite leaves a status sentence next to a grant in place (RT-014 to
+  RT-030). What this gives up: an offer phrased as a plain question ("Would you
+  like a refund?") is now allowed, and so is a grant worded as a status ("Your
+  refund is complete") from the agent who has just made it.
 
 New measurements:
 
@@ -90,12 +102,12 @@ New measurements:
   language misdetections on codes and usernames. Ids and labels are in
   `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
-  (hold 276 of 503 against 59 here); arithmetic, in-sample.
+  (hold 286 of 520 against 59 here); arithmetic, in-sample.
 
-- `scripts/evaluate.py --invariants` checks the corrected text of the 217 cases
-  of the golden set that the pipeline corrects: idempotent 217/217; of the 170 with
-  recorded edits, citations resolve 170/170 and the edit log replays byte for byte
-  167/170 (three differ by a trailing space); untouched sentences kept 13/13 where
+- `scripts/evaluate.py --invariants` checks the corrected text of the 227 cases
+  of the golden set that the pipeline corrects: idempotent 227/227; of the 180 with
+  recorded edits, citations resolve 180/180 and the edit log replays byte for byte
+  177/180 (three differ by a trailing space); untouched sentences kept 14/14 where
   there is one. One hash per golden output is recorded in
   `tests/golden_outputs.json`, compared on each test run (a difference names its
   cases) and under other hash seeds in CI.

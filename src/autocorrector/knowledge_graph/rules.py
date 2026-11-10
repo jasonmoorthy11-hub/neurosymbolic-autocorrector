@@ -46,6 +46,40 @@ NON_OFFER_PATTERNS = [
     r"(?:not|isn'?t|no longer)\s+(?:possible|eligible)",
 ]
 
+# The refund-window rule is about granting a refund, not about the word. A clause
+# that mentions a refund keyword does not grant one when it is a question put to
+# the customer, a report on a refund already under way, a statement of policy or a
+# refusal. The real-turn audit found 238 of 531 REFUND-001 flags were of these kinds.
+REFUND_RULE_ID = "REFUND-001"
+REFUND_NON_GRANT_PATTERNS = [
+    # status of a refund that already exists
+    r"\brefund(?:\s+status)?\s+(?:is|was|has\s+been)\s+(?:still\s+|currently\s+|now\s+|already\s+)*"
+    r"(?:in\s+progress|in\s+process|being\s+processed|processing|pending|complete|completed"
+    r"|not\s+started|not\s+yet\s+started)\b",
+    r"\b(?:status\s+of|waiting\s+(?:for|on)|you\s+initiated|you\s+requested|requesting)\s+"
+    r"(?:your|the|that|this|a|an)\s+(?:\w+\s+)?refund\b",
+    r"\brefund\s+(?:status|policy|window|request)\b",
+    # policy and membership statements
+    r"\bunlimited\s+refunds\b",
+    r"\brefunds\s+(?:are|can\s+be|will\s+be)\s+(?:only\s+|just\s+|always\s+)*(?:available|issued)\b",
+    # refusals the message-level patterns above do not name
+    r"\b(?:cannot|can\s?not|can'?t|won'?t|unable\s+to|not\s+(?:be\s+)?able\s+to)\s+"
+    r"(?:\w+\s+){0,2}?(?:refund|process|accept)\b",
+]
+# A question that takes the refund as settled, or offers one, still grants it:
+# "How would you like your refund, to your card or as store credit?"
+REFUND_QUESTION_GRANTS = re.compile(
+    r"\bhow\s+(?:would|do|did)\s+(?:you\s+)?(?:like|want|prefer)\b"
+    r"|\b(?:can|could|may|shall|should)\s+(?:i|we)\s+(?:offer|issue|process|give|send|refund)\b"
+    r"|\bwould\s+you\s+(?:like\s+(?:me|us)\s+to\s+(?:offer|issue|process|give|send|refund)|accept)\b"
+    r"|\b(?:gift\s+card|paper\s+check|store\s+credit|refund\s+method|which\s+card)\b",
+    re.IGNORECASE,
+)
+_CLAUSE = re.compile(r"[^,;.!?\n]+[,;.!?]*")
+# "..., correct?" turns the whole sentence into a question; a longer last clause
+# ("..., is there anything else I can help with?") is a question of its own
+_TAG_QUESTION_WORDS = 3
+
 # Patterns indicating hedged/non-guarantee timeline references (skip SLA-001)
 NON_GUARANTEE_PATTERNS = [
     r"\bshould\b",
@@ -134,6 +168,33 @@ def offer_amounts(
     return [m.group(1) for m in AMOUNT_PATTERN.finditer(text) if m.span() not in verified]
 
 
+def grants_refund(text: str, keywords: list[str]) -> bool:
+    """True when some clause of ``text`` mentions a refund keyword and grants the refund.
+
+    A clause does not grant one when it is a question to the customer (unless the
+    question takes the refund as settled or offers it), or matches one of
+    ``REFUND_NON_GRANT_PATTERNS``. Fails closed: any other mention grants.
+    """
+    for start, end in sentence_spans(text):
+        sentence = text[start:end].rstrip(" \t>*\"')")
+        clauses = [m.group() for m in _CLAUSE.finditer(sentence)]
+        if not clauses:
+            continue
+        asks = sentence.endswith("?")
+        tag = asks and len(clauses) > 1 and len(clauses[-1].split()) <= _TAG_QUESTION_WORDS
+        for index, clause in enumerate(clauses):
+            if not mentions_keyword(clause, keywords):
+                continue
+            lower = clause.lower()
+            question = asks and (tag or index == len(clauses) - 1)
+            if question and not REFUND_QUESTION_GRANTS.search(lower):
+                continue
+            if any(re.search(pat, lower) for pat in REFUND_NON_GRANT_PATTERNS):
+                continue
+            return True
+    return False
+
+
 def violations_for(
     rules: list[dict[str, Any]],
     text: str,
@@ -166,6 +227,12 @@ def violations_for(
 
         # Step 1b: Skip credit and refund rules if non-offer context detected
         if is_non_offer and rule.get("rule_id", "").startswith(("CREDIT", "REFUND")):
+            continue
+
+        # Step 1b': the refund-window rule needs a clause that grants the refund
+        if rule.get("rule_id") == REFUND_RULE_ID and not grants_refund(
+            text, rule.get("keywords", [])
+        ):
             continue
 
         # Step 1c: Skip SLA rules if hedged/non-guarantee language detected
