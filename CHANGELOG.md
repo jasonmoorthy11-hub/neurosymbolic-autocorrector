@@ -5,7 +5,7 @@ under a release is that tag's own message.
 The version number lives in `src/autocorrector/__init__.py` (`__version__`), which
 the package metadata, the dashboard API and `/health` read.
 
-## [Unreleased]
+## [1.5] - 2026-11-09
 
 Audit round: things a reader following the docs could trip over.
 
