@@ -255,8 +255,8 @@ class TestAuditScript:
 
     def test_matches_separates_collisions_from_lookalikes(self):
         audit = self._load()
-        assert audit.matches("credit", ["credit-card", "credited", "creditor"]) == (
-            ["credit-card"],
+        assert audit.matches("credit", ["credit-union", "credit-card", "credited", "creditor"]) == (
+            ["credit-union"],
             ["credited"],
         )
         assert audit.matches("us", ["used", "usher"]) == ([], ["used"])

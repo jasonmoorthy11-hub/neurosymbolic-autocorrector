@@ -134,7 +134,14 @@ class TestCreditCardIsNotACredit:
 
     @pytest.mark.parametrize(
         "text",
-        ["your credit card on file", "we take all major credit cards", "Credit Card ending 4417"],
+        [
+            "your credit card on file",
+            "we take all major credit cards",
+            "Credit Card ending 4417",
+            "a credit-card payment",
+            "any credit or debit card",
+            "any credit/debit card",
+        ],
     )
     def test_credit_card_is_not_a_mention_of_credit(self, text):
         assert not mentions_keyword(text, ["credit"])
@@ -146,6 +153,11 @@ class TestCreditCardIsNotACredit:
             "I credited your card",
             "credit cardholders get a credit",
             "store credit",
+            "I'll credit card ending 4417",  # the verb, not the compound
+            "we will credit cards ending 4417 and 5521",
+            "I've credited card ending 4417",
+            "I'm crediting card ending 4417",
+            "an $80 credit\nCard ending 4417 stays on file",  # another line
         ],
     )
     def test_a_real_credit_next_to_a_card_still_matches(self, text):
@@ -174,6 +186,20 @@ class TestCreditCardIsNotACredit:
         ],
     )
     async def test_a_credit_over_the_limit_still_fires(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=NEW_ACCOUNT
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-001"]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "I'll credit card ending 4417 with $90.",
+            "I've credited card ending 4417 with $90.",
+            "I'm adding an $80 credit\nCard ending 4417 stays on file.",
+        ],
+    )
+    async def test_crediting_a_card_still_fires(self, text):
         violations = await KnowledgeGraphStore().check_policy_compliance(
             text=text, intent_type="general", customer_context=NEW_ACCOUNT
         )
@@ -248,3 +274,34 @@ class TestRefundWordIsNotTheAct:
         )
         assert result.corrected_text.startswith("Your earlier refund is still pending. ")
         assert "issued a refund" not in result.corrected_text
+
+    async def test_the_maximum_credit_rule_sees_a_credit_to_a_card(self):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text="I'll credit card ending 4417 with $600.",
+            intent_type="general",
+            customer_context={"account_tenure_days": 400},
+        )
+        assert [v.rule_id for v in violations] == ["CREDIT-002"]
+
+    async def test_a_count_of_credit_cards_is_not_an_amount(self):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text="We accept 100 credit cards. Here is a $10 discount.",
+            intent_type="general",
+            customer_context=NEW_ACCOUNT,
+        )
+        assert violations == []
+
+    async def test_a_payment_to_a_card_with_no_credit_keyword_is_the_known_miss(self):
+        # Caught before v1.6 only because "credit card" read as a credit.
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text="As an apology I'm sending $600 to your credit card.",
+            intent_type="general",
+            customer_context={"account_tenure_days": 400},
+        )
+        assert violations == []
+
+    async def test_the_capped_amount_takes_the_right_article(self):
+        from autocorrector.orchestrator.pipeline import run_autocorrection
+
+        result = await run_autocorrection("Let me apply an $80 credit for the outage.", NEW_ACCOUNT)
+        assert result.corrected_text.startswith("Let me apply a $50 credit for the outage.")

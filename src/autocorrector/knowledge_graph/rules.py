@@ -245,7 +245,8 @@ def violations_for(
             amounts = amounts_for(rule.get("keywords", []))
             # Parse bare "N dollar(s)" or "N credit" without $ prefix
             bare = re.findall(
-                r"(?:^|\s)(\d+(?:,\d{3})*(?:\.\d{2})?)\s+(?:dollar|credit|compensation|adjustment)",
+                r"(?:^|\s)(\d+(?:,\d{3})*(?:\.\d{2})?)\s+"
+                r"(?:dollar|credit(?![ \t]+cards?\b|-cards?\b)|compensation|adjustment)",
                 text_lower,
             )
             amounts.extend(bare)

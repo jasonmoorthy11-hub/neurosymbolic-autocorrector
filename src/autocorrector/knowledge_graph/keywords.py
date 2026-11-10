@@ -24,10 +24,17 @@ _GREETING_BEFORE = re.compile(
 _ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 
 # A keyword that is the first word of a compound naming something else: "credit
-# card" is a means of payment, not a credit. The keyword does not match there
-# ("$40 back to your credit card" offers no credit); "a $75 credit on your
-# credit card statement" still matches at the first "credit".
-_NOT_BEFORE = {"credit": r"\s+cards?(?!\w)"}
+# card" is a means of payment, not a credit. The bare keyword does not match there
+# ("$40 back to your credit card" offers no credit), nor in "credit-card" or "credit
+# or debit card", and only on the same line. Its inflections always match
+# ("credited card ending 4417"), and so does the verb ("I'll credit card ending
+# 4417 with $90", "to credit cards ending ..."). "a $75 credit on your credit card
+# statement" still matches at the first "credit".
+_NOT_BEFORE = {
+    "credit": r"(?:/debit|[ \t\u00a0]+or[ \t\u00a0]+debit)?(?:[ \t\u00a0]+|-)cards?(?!\w)"
+}
+# Words that make the keyword a verb where it stands before such a compound
+_VERB_CUES = ("to", "'ll", "\u2019ll", "will", "can", "could", "would", "I", "we")
 
 
 def _suffixes(word: str, phrase: bool) -> list[str]:
@@ -54,8 +61,11 @@ def keyword_pattern(keyword: str) -> re.Pattern[str]:
     body = rf"{re.escape(kw)}(?:{endings})?"
     if not phrase and kw.endswith("e"):
         body += "|" + re.escape(kw[:-1]) + "ing"
-    not_before = f"(?!{_NOT_BEFORE[kw]})" if kw in _NOT_BEFORE else ""
-    return re.compile(rf"(?<!\w)(?:{body})(?!\w){not_before}", re.IGNORECASE)
+    if kw in _NOT_BEFORE:
+        as_verb = "|".join(rf"(?<={re.escape(cue)} {re.escape(kw)})" for cue in _VERB_CUES)
+        bare = rf"{re.escape(kw)}(?:(?!{_NOT_BEFORE[kw]})|{as_verb})"
+        body = body.replace(re.escape(kw), bare, 1)
+    return re.compile(rf"(?<!\w)(?:{body})(?!\w)", re.IGNORECASE)
 
 
 def _is_name(text: str, keyword: str, match: re.Match[str]) -> bool:

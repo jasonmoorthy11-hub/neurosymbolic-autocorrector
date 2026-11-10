@@ -270,6 +270,10 @@ Known, measured, or found by the held-out run:
   also "J’ai rembourse" with a curly apostrophe and "Rabatt 20 EUR" with one word
   beside the number), and a foreign line that carries English words and fewer
   than two function words of its own ("Garantiert: your new Erstattung today").
+- The credit rules need a credit word ("credit", "compensation", "discount", ...).
+  A payment that is not called one ("As an apology I'm sending $600 to your
+  credit card") is not seen; before v1.6 it was caught by accident, because
+  "credit card" read as a credit.
 - The refund-window rule (REFUND-001) reads a clause, not intent. Since v1.6 a
   question to the customer, a status report, a statement of policy and a refusal
   no longer trigger it, which also lets through an offer phrased as a plain

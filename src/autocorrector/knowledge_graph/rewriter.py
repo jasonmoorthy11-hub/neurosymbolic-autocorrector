@@ -14,6 +14,7 @@ replacement (see ``_compose``) so no fix undoes another.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -28,6 +29,8 @@ from autocorrector.knowledge_graph.rules import REFUND_RULE_ID, grants_refund
 from autocorrector.models import CorrectionEdit, FactCheckResult
 
 CREDIT_RULE_ID = "CREDIT-001"
+# "an $80 credit" capped at $50 reads "a $50 credit"
+_ARTICLE_AN = re.compile(r"\b(an) $", re.IGNORECASE)
 CREDIT_FOLLOW_UP = " If you need more than that, I can ask a supervisor to review it."
 
 # Replacement for the first offending sentence; later offending sentences are dropped.
@@ -224,7 +227,8 @@ def _plan_credit(
             continue
         content = text[start:end].rstrip()
         (m,) = in_sentence
-        capped = content[: m.start() - start] + cap + content[m.end() - start :]
+        before = _ARTICLE_AN.sub(lambda a: a.group(1)[0] + " ", content[: m.start() - start])
+        capped = before + cap + content[m.end() - start :]
         if not capped.endswith((".", "!", "?")):
             capped += "."
         plan[index] = _Fix(violation, capped + CREDIT_FOLLOW_UP, standalone)

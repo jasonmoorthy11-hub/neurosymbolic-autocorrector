@@ -70,7 +70,13 @@ turns). The audit is not re-run; its numbers predate these fixes:
 - "credit card" counted as a mention of a credit, so "The $89 renewal went through on
   your credit card this morning" was rewritten as an over-limit credit offer for
   a new account (CREDIT-001). The keyword "credit" no longer matches in "credit
-  card(s)"; a credit named elsewhere in the reply still does (RT-009 to RT-013).
+  card(s)", "credit-card" or "credit or debit card"; a credit named elsewhere in
+  the reply still does, and so does crediting a card ("I'll credit card ending
+  4417 with $90") (RT-009 to RT-013). What this gives up: "As an apology I'm
+  sending $600 to your credit card" used to escalate only because of that
+  misreading and is now allowed; no keyword names a payment that is not called a
+  credit. A capped credit now reads "a $50 credit" where the reply said "an $80
+  credit" (it kept "an").
 - REFUND-001 fired on the word "refund", not on granting one: 45 days after
   purchase, "So you'd like a refund for the headphones?", "Your refund is still in
   progress", "Premium members get unlimited refunds" and "I'm sorry, I can't refund

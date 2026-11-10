@@ -86,7 +86,7 @@ username and two typo-ridden English lines are English (three of the five were
 escalated before the fix); unaccented Spanish, a short unaccented Spanish credit
 with a "$" amount and accented Spanish still escalate. RT-009 to RT-013 cover
 "credit card": a payment taken on a credit card, a question about which card to use and
-money sent back to a card are allowed (the first two were corrected as credit
+money sent back to a card are allowed (all three were corrected as credit
 offers before the fix); a credit over the limit that also mentions a card
 statement, and "credited $85", are still corrected. RT-014 to RT-030 cover the
 refund-window rule, all 45 days after purchase: a question about what the customer
