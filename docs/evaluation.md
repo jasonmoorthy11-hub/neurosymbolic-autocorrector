@@ -546,6 +546,140 @@ python3 scripts/bench_real_turns.py --input turns.jsonl   # any JSONL of your ow
 python3 scripts/bench_real_turns.py --flagged .private/abcd_flagged.jsonl
 ```
 
+## Real agent turns: results (one run, 2026-11-09)
+
+The protocol above was committed in `461d0fe`; the run was made at that commit.
+Output of `python3 scripts/bench_real_turns.py --flagged …` (excerpt, verbatim):
+
+```
+# Real-turn audit: ABCD v1.1 @ 6b8700c, dev + test, agent turns
+commit 461d0feee84534ad7761d3781172709d9f950fa8
+autocorrector 1.6.0.dev0, Python 3.14.7, fast-langdetect 1.1.0, max_correction_attempts 3, supported_languages ['en', 'es', 'fr', 'pt', 'de', 'it', 'nl', 'ar', 'zh', 'ja', 'ko', 'ru']
+Agent turns: 19144 (13752 distinct texts)
+
+## Context: missing
+  flagged turns   0.30% (57/19144, 95% CI 0.23%-0.39%)
+  distinct texts  0.41% (57/13752, 95% CI 0.32%-0.54%)
+
+## Context: established
+  flagged turns   0.26% (50/19144, 95% CI 0.20%-0.34%)
+  distinct texts  0.36% (50/13752, 95% CI 0.28%-0.48%)
+
+## Context: late_purchase
+  flagged turns   3.03% (581/19144, 95% CI 2.80%-3.29%)
+  distinct texts  4.20% (578/13752, 95% CI 3.88%-4.55%)
+
+flagged sha256: 07e3218efbc152f7615b3f0d7025bb91a773469e17e9a239226d27f86f5be0e2
+```
+
+The preflight passed, no run raised, and validation never failed. All 688 flagged
+(turn, context) records were labelled under the rubric. The 531 REFUND-001 flags
+(528 distinct texts) were first sorted by a set of patterns and then read; reading
+changed 110 of the 528 provisional labels. An independent second pass over the
+other reasons and a random 80 of the refund texts then moved the labels of 12 more
+texts, all of them away from "true"; the tables below are after that pass.
+
+| Context | Flagged | True | False | Ambiguous | Flag precision (95% Wilson CI) | Over distinct texts |
+|---|---|---|---|---|---|---|
+| `missing` | 57 | 16 | 37 | 4 | 16/57 = 28.1% (18.1–40.8) | 16/57 = 28.1% (18.1–40.8) |
+| `established` | 50 | 15 | 31 | 4 | 15/50 = 30.0% (19.1–43.8) | 15/50 = 30.0% (19.1–43.8) |
+| `late_purchase` | 581 | 243 | 269 | 69 | 243/581 = 41.8% (37.9–45.9) | 242/578 = 41.9% (37.9–45.9) |
+
+**Most flags on this data are wrong.** In the two contexts where the refund rule
+cannot fire, the pipeline flags about 3 turns in 1,000, and about 3 in 10 of those
+flags are right.
+
+By reason, as flags: true / false / ambiguous. The language row adds up 16
+detected languages, the same 28 turns in every context (fr, eo, de and es 3 each;
+ca, pt, tr and zh 2 each; sr, be, nds, fi, nl, fa, it and hy 1 each):
+
+| Reason | `missing` | `established` | `late_purchase` |
+|---|---|---|---|
+| REFUND-001 | – | – | 531: 228 / 238 / 65 |
+| REFUND-001 + SLA-001 | – | – | 1: 1 / 0 / 0 |
+| language (any) | 28: 0 / 28 / 0 | 28: 0 / 28 / 0 | 28: 0 / 28 / 0 |
+| pii:address | 7: 5 / 0 / 2 | 7: 5 / 0 / 2 | 7: 5 / 0 / 2 |
+| CREDIT-001 | 7: 1 / 6 / 0 | – | – |
+| pii:email | 5: 4 / 0 / 1 | 5: 4 / 0 / 1 | 5: 4 / 0 / 1 |
+| SLA-001 | 3: 2 / 1 / 0 | 3: 2 / 1 / 0 | 2: 1 / 1 / 0 |
+| pii:phone | 3: 3 / 0 / 0 | 3: 3 / 0 / 0 | 3: 3 / 0 / 0 |
+| PROMISE-001 | 2: 0 / 2 / 0 | 2: 0 / 2 / 0 | 2: 0 / 2 / 0 |
+| REFUND-002 | 1: 0 / 0 / 1 | 1: 0 / 0 / 1 | 1: 0 / 0 / 1 |
+| DISC-001 | 1: 1 / 0 / 0 | 1: 1 / 0 / 0 | 1: 1 / 0 / 0 |
+
+What the false flags are:
+
+- **Language misdetection: 28 turns, every one of them false.** Half of all flags
+  outside `late_purchase`. They are order and account codes, usernames, a number
+  on its own, and short English lines, some with typos, read as 16 different languages
+  (Esperanto, Catalan, Turkish, Chinese, …) and escalated. No flagged turn was
+  really in another language.
+- **REFUND-001: 238 of 531 false.** The rule fires on the word, not the act:
+  questions about what the customer wants ("So you would like to initiate a
+  refund?"), the status of a refund already under way ("Your refund is in
+  progress"), descriptions of membership perks ("Gold members get unlimited
+  refunds"), statements of policy, and some refusals. Another 65 are ambiguous:
+  refunds that depend on a later event (the item coming back), and "How would you
+  like to process your return?", where a return is accepted but no refund is
+  named.
+- **CREDIT-001: 6 of 7 false.** "Credit" in "credit card" next to an amount ("a
+  refund in the amount of $… on your credit card") is read as a credit offer.
+- **PROMISE-001: 2 of 2 false** ("They don't last forever", "you'll never miss an
+  annual sale again"). **SLA-001: 1 of 3 false** ("I will definitely be able to
+  remove the fee").
+- **PII: 12 of 15 true, 3 ambiguous, none false.** The three ambiguous ones are two
+  store addresses and a company support mailbox: the right form, but not personal
+  data.
+
+Examples, chosen by the rule in the protocol (for each label, the first flagged
+turn by id of its three most frequent reasons); PII-like values are masked here:
+
+| Label | Reason | Turn | Quote |
+|---|---|---|---|
+| true | REFUND-001 | dev-365-33 | "…then we can go ahead and get the item refunded." |
+| true | pii:address | dev-129-20 | "The address is [street address]." |
+| true | pii:email | dev-4260-13 | "A reset has been sent to the email address I have on file [email]" |
+| false | REFUND-001 | dev-229-18 | "refunds*" |
+| false | language | dev-554-16 | an 11-character code, detected as Esperanto |
+| false | PROMISE-001 | dev-8618-3 | "Let's check on that. They don't last forever." |
+| false | CREDIT-001 | dev-6798-16 | "…I've authorized a charge of $99 to your credit card on file." |
+| ambiguous | REFUND-001 | dev-853-18 | "If that is satisfactory we can add the item to the refund" |
+| ambiguous | pii:address | dev-1243-14 | "…the nearest store to your location is on [street address]…" |
+| ambiguous | pii:email | dev-226-22 | "…if you email [a company support mailbox] they will be able to assist you further." |
+
+Two choices in that table were not in the protocol: the 16 language reasons are
+ranked as one, and PROMISE-001 and CREDIT-001 tie for third among the false
+flags (6 each), so both are shown.
+
+How the rubric was applied to REFUND-001, decided while labelling and so not
+pre-registered: **true** when the agent says a refund was, is being or will be
+issued, offers one, or asks how the customer wants to receive it; **false** for
+the status of an earlier refund, a question about what the customer wants, a
+description of perks or policy, a refusal, or a request for details with no
+commitment; **ambiguous** for a refund that depends on a later event, for a
+policy or an option stated without a commitment, and for a return with no refund
+named. These lines move the `late_purchase` number. The largest single choice: 35
+of the 243 true flags are only a question about the payout method ("How would you
+like your refund?"), counted true because the refund is taken as agreed. Counted
+as ambiguous instead, `late_purchase` precision is 208/581 = 35.8% (32.0–39.8).
+The same reading makes the REFUND-002 flag (an exception offered "if you still
+have your receipt") ambiguous. The ids and labels are in
+`tests/fixtures/abcd_flagged.json` (688 rows, no turn text) for anyone who would
+draw the lines differently.
+
+What this does and does not show:
+
+- It measures flags on turns nobody wrote to test these rules, and the answer is
+  that keyword rules and a language detector tuned on this project's own cases
+  over-fire on other people's wording. The golden and held-out scores above did
+  not show this.
+- All limits from the protocol hold: nothing here measures what the pipeline
+  misses; one adjudicator; role-played chats for a different company; contexts
+  assumed; `late_purchase` true flags exist only because that context makes
+  every refund late.
+- These numbers stay as reported. Fixes for the false-positive classes above go
+  into later commits with new golden rows, and are not re-scored on this data.
+
 ## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
 
 The replay demo's second lane (`?lane=llm`, `dashboard/public/replay/replay_llm.json`)

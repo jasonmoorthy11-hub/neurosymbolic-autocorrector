@@ -52,6 +52,12 @@ New measurements:
 - `scripts/bench_real_turns.py` runs the pipeline over human-written agent turns
   (ABCD v1.1, MIT, downloaded at runtime) or any JSONL of turns. The audit's
   protocol and rubric are in docs/evaluation.md, committed before the first run.
+  Result of the one run (19,144 turns, three assumed customer contexts): about
+  0.3% of turns flagged where the refund rule cannot fire, and 16 of 57 (28.1%)
+  and 15 of 50 (30.0%) of those flags are right; 243 of 581 (41.8%) where every
+  refund is late by assumption. Half the flags outside that context are
+  language misdetections on codes and usernames. Ids and labels are in
+  `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
   (hold 271 of 490 against 56 here); arithmetic, in-sample.
 
