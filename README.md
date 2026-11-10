@@ -159,7 +159,7 @@ golden set that the pipeline corrects. All 230 are idempotent: checked again, th
 corrected text is allowed unchanged. Of the 183 with recorded edits (the other 47
 are PII redaction only), every one cites a section or page that exists for the rule
 or limit it names; the edit log reproduces the delivered text byte for byte in 180
-(the other three differ by a trailing space); and in the 14 that leave a sentence
+(the other three differ by a trailing space); and in the 13 that leave a sentence
 untouched, that sentence is delivered unchanged. They do not judge whether a
 correction is the right answer
 ([details](docs/evaluation.md#corrected-text-structural-checks)).
@@ -274,12 +274,14 @@ Known, measured, or found by the held-out run:
   A payment that is not called one ("As an apology I'm sending $600 to your
   credit card") is not seen; before v1.6 it was caught by accident, because
   "credit card" read as a credit.
-- The refund-window rule (REFUND-001) reads a clause, not intent. Since v1.6 a
-  question to the customer, a status report, a statement of policy and a refusal
-  no longer trigger it, which also lets through an offer phrased as a plain
-  question ("Would you like a refund?") and a grant worded as a status ("Your
-  refund is complete"). Anything else that names a refund still triggers it,
-  including refunds that depend on a condition the reply states.
+- The refund-window rule (REFUND-001) reads wording, not intent. Since v1.6 a
+  refusal, and in a sentence where the agent does nothing a question to the
+  customer, a status report or a statement of policy, no longer trigger it. That
+  also lets through an offer phrased as a plain question ("Would you like your
+  money back?") and a grant worded as a status with no agent in it ("Your refund
+  has been completed and you'll see it in 3 days"). The carve-outs are a fixed
+  list of wordings; a status or policy sentence phrased another way is still
+  rewritten.
 - PROMISE-001 and SLA-001 are keyword rules with three idioms carved out ("don't
   last forever", "you'll never miss a ...", "will definitely be able to"). Any
   other figure of speech with "forever", "lifetime" or "never again" is still

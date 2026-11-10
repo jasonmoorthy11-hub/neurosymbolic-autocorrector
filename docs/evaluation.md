@@ -95,7 +95,7 @@ already under way, an offer to look up its status, two statements of policy and 
 refusal are allowed (all seven were corrected before the fix); next to each sits a
 reply that grants the refund and is still corrected, plus a payout question that
 takes the refund as settled, an offer phrased as a question, and a status report
-followed by a grant (the rewrite now keeps the status sentence). RT-031 to RT-036
+followed by a grant. RT-031 to RT-036
 cover three idioms that contain a keyword of PROMISE-001 or SLA-001 ("don't last
 forever", "you'll never miss a ...", "will definitely be able to"): each is
 allowed, next to a reply where the same keyword is a commitment and is still
@@ -168,7 +168,7 @@ carry edits (165 span rewrites, 18 whole-message templates).
 |---|---|---|
 | Idempotent | The corrected text, sent through the pipeline again with the same context, is allowed unchanged | 230/230 |
 | Edit log replays | Applying the recorded edits to the PII-redacted original gives the delivered text byte for byte | 180/183 |
-| Untouched sentences kept | Every sentence that no edit overlaps is delivered byte for byte, in the same order | 14/14 |
+| Untouched sentences kept | Every sentence that no edit overlaps is delivered byte for byte, in the same order | 13/13 |
 | Citations resolve | Every edit cites the document and section of each rule it names, or for a coverage fix the document and page of the row whose limit it wrote, as `policies/` states them | 183/183 |
 
 These are counts, not estimates: the cases are authored, not sampled, and the
@@ -181,8 +181,8 @@ pipeline is deterministic, so no interval is given.
   only a last one: the edit never covers the separator. It is left as it is
   because one recorded replay scenario contains such an edit, and changing its
   offsets would change the recording.
-- "Untouched sentences kept" has n = 14: only 14 of the 183 edited cases have a
-  sentence that no edit overlaps. In 151 span cases every sentence was rewritten,
+- "Untouched sentences kept" has n = 13: only 13 of the 183 edited cases have a
+  sentence that no edit overlaps. In 152 span cases every sentence was rewritten,
   and the 18 templates replace the whole reply by design. Most golden corrections
   are one or two sentences long; this check is thin.
 - The edit log does not mark where one stage or attempt ends (fact fixes, then the

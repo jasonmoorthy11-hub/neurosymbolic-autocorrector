@@ -78,17 +78,18 @@ turns). The audit is not re-run; its numbers predate these fixes:
   credit. A capped credit now reads "a $50 credit" where the reply said "an $80
   credit" (it kept "an").
 - REFUND-001 fired on the word "refund", not on granting one: 45 days after
-  purchase, "So you'd like a refund for the headphones?", "Your refund is still in
-  progress", "Premium members get unlimited refunds" and "I'm sorry, I can't refund
-  this order" were all rewritten. The rule now needs a clause that mentions a
-  refund keyword and is not a question put to the customer, a report on a refund
-  already under way, a statement of policy or a refusal. A question that takes
-  the refund as settled or offers it ("How would you like your refund, to your
-  card or as store credit?", "Can I offer you a refund instead?") still fires, and
-  the span rewrite leaves a status sentence next to a grant in place (RT-014 to
-  RT-030). What this gives up: an offer phrased as a plain question ("Would you
-  like a refund?") is now allowed, and so is a grant worded as a status ("Your
-  refund is complete") from the agent who has just made it.
+  purchase, "So you'd like a refund for the headphones?", "That refund is still
+  pending", "Premium members get unlimited refunds" and "I'm sorry, I can't refund
+  this order" were all rewritten. A part of a sentence that refuses no longer
+  counts. Any other mention still fires unless the agent does nothing in that
+  sentence (no "I'll refund", "I've approved", "today", "now") and the clause is a
+  question put to the customer, a report on a refund already under way or a
+  statement of policy. A question that takes the refund as settled or proposes it
+  ("How would you like your refund, to your card or as store credit?", "How about
+  a full refund?") still fires (RT-014 to RT-030). What this gives up: an offer
+  phrased as a plain question ("Would you like your money back?") is now allowed,
+  and so is a grant worded as a status with no agent and no "now" in it ("Your
+  refund has been completed and you'll see it in 3 days").
 - PROMISE-001 and SLA-001 fired on three idioms: "Promo codes don't last forever",
   "you'll never miss a clearance event" and "I will definitely be able to ..." (no
   timeline). Those wordings are blanked before the rule's keywords are matched;
@@ -120,7 +121,7 @@ New measurements:
 - `scripts/evaluate.py --invariants` checks the corrected text of the 230 cases
   of the golden set that the pipeline corrects: idempotent 230/230; of the 183 with
   recorded edits, citations resolve 183/183 and the edit log replays byte for byte
-  180/183 (three differ by a trailing space); untouched sentences kept 14/14 where
+  180/183 (three differ by a trailing space); untouched sentences kept 13/13 where
   there is one. One hash per golden output is recorded in
   `tests/golden_outputs.json`, compared on each test run (a difference names its
   cases) and under other hash seeds in CI.

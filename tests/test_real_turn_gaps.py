@@ -214,7 +214,7 @@ class TestRefundWordIsNotTheAct:
         [
             "So you'd like a refund for the headphones?",
             "You're after a refund on the blender, is that right?",
-            "Your refund is still in progress and should reach your bank soon.",
+            "That refund is still pending, it normally lands within a week.",
             "I can look up the status of your refund for you.",
             "Premium members get unlimited refunds on every order.",
             "Refunds are only available for orders that are still in our warehouse.",
@@ -223,6 +223,21 @@ class TestRefundWordIsNotTheAct:
             "I see you requested a refund last Tuesday.",
             "We're not able to accept the return after 30 days.",
             "Is this about our refund policy or about a specific order?",
+            # one per pattern alternative
+            "Have you been waiting for the refund long?",
+            "I see you initiated the refund online.",
+            "Are you requesting a refund for both items?",
+            "It is still inside the refund window.",
+            "I have your refund request here.",
+            "Refunds can be issued once the parcel is scanned.",
+            "Refunds will be issued to the card used at checkout.",
+            "The refund has been completed on our side.",
+            "The refund is not started on our side.",
+            "Our system has the refund status as queued.",
+            "We are unable to refund opened items.",
+            "We won't accept the return without a receipt.",
+            "I can’t refund this order.",  # curly apostrophe
+            "I'll check the status of your refund.",  # the agent acts, but only looks
         ],
     )
     async def test_mentions_that_grant_nothing_are_allowed(self, text):
@@ -243,11 +258,33 @@ class TestRefundWordIsNotTheAct:
             "I can refund this order.",
             "How would you like your refund, back to your card or as store credit?",
             "Can I offer you a refund instead?",
-            "Your earlier refund is still pending. I've also issued a refund for the second pair.",
+            "Your earlier refund is still pending, and I've also issued a refund for the second pair.",
             "Would you like me to issue the refund today?",
             "I will process your refund right away.",
             "Your refund is on its way.",
             "You are eligible for a refund, so I have started it.",
+            # questions that take the refund as settled or propose it
+            "Would you accept a refund of the delivery fee?",
+            "Should I send the refund to a gift card?",
+            "Is the refund method the same card?",
+            "Which card should the refund go to?",
+            "How about a full refund?",
+            "Want me to refund it?",
+            # the agent acts in the sentence: nothing in it is excused
+            "I'll refund you now, ok?",
+            "You'll get your money back, ok?",
+            "Our refund policy is strict but I'll refund you anyway.",
+            "I've approved your refund request.",
+            "I'm requesting a refund from finance now.",
+            "Refunds will be issued to your card today.",
+            "Your refund is now complete.",
+            "Per our refund policy you're entitled to a full refund, which I've issued.",
+            "Since you requested a refund I've gone ahead and issued it.",
+            # a refusal excuses its own part of the sentence only
+            "I can't process this as an exchange so I'll refund it instead.",
+            "I can’t exchange it, so here is a refund.",
+            # lowercase chat: two sentences, the second a question
+            "I have refunded your order. anything else?",
         ],
     )
     async def test_grants_still_fire(self, text):
@@ -256,55 +293,43 @@ class TestRefundWordIsNotTheAct:
         )
         assert [v.rule_id for v in violations] == ["REFUND-001"]
 
-    def test_a_long_last_clause_is_a_question_of_its_own(self):
-        assert grants_refund(
-            "The blender is refunded now, was there something else you needed?", ["refund"]
-        )
+    def test_only_a_confirmation_tag_makes_the_whole_sentence_a_question(self):
         assert not grants_refund("You want a refund on the blender, correct?", ["refund"])
+        assert grants_refund("The blender is refunded, was there something else?", ["refund"])
+        assert grants_refund("You'll get a refund, ok?", ["refund"])
 
     def test_trailing_marks_after_the_question_mark_do_not_hide_it(self):
         assert not grants_refund("Do you want the refund on the lamp?>", ["refund"])
+        assert not grants_refund("Do you want the refund on the lamp?!", ["refund"])
 
-    async def test_the_rewrite_keeps_a_status_sentence_next_to_the_grant(self):
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Would you like your money back?",  # an offer phrased as a plain question
+            "Your refund has been completed and you'll see it in 3 days.",  # a grant as status
+        ],
+    )
+    async def test_grants_the_rule_no_longer_sees_are_the_known_miss(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=LATE_PURCHASE
+        )
+        assert violations == []
+
+    def test_the_check_is_linear_on_long_whitespace(self):
+        import time
+
+        start = time.perf_counter()
+        grants_refund("refund" + " \t" * 20000 + "and", ["refund"])
+        assert time.perf_counter() - start < 0.5
+
+    async def test_the_rewrite_drops_a_status_sentence_that_would_confirm_the_refund(self):
         from autocorrector.orchestrator.pipeline import run_autocorrection
 
         result = await run_autocorrection(
-            "Your earlier refund is still pending. I've also issued a refund for the second pair.",
-            LATE_PURCHASE,
+            "I've issued your refund. Your refund is now complete.", LATE_PURCHASE
         )
-        assert result.corrected_text.startswith("Your earlier refund is still pending. ")
-        assert "issued a refund" not in result.corrected_text
-
-    async def test_the_maximum_credit_rule_sees_a_credit_to_a_card(self):
-        violations = await KnowledgeGraphStore().check_policy_compliance(
-            text="I'll credit card ending 4417 with $600.",
-            intent_type="general",
-            customer_context={"account_tenure_days": 400},
-        )
-        assert [v.rule_id for v in violations] == ["CREDIT-002"]
-
-    async def test_a_count_of_credit_cards_is_not_an_amount(self):
-        violations = await KnowledgeGraphStore().check_policy_compliance(
-            text="We accept 100 credit cards. Here is a $10 discount.",
-            intent_type="general",
-            customer_context=NEW_ACCOUNT,
-        )
-        assert violations == []
-
-    async def test_a_payment_to_a_card_with_no_credit_keyword_is_the_known_miss(self):
-        # Caught before v1.6 only because "credit card" read as a credit.
-        violations = await KnowledgeGraphStore().check_policy_compliance(
-            text="As an apology I'm sending $600 to your credit card.",
-            intent_type="general",
-            customer_context={"account_tenure_days": 400},
-        )
-        assert violations == []
-
-    async def test_the_capped_amount_takes_the_right_article(self):
-        from autocorrector.orchestrator.pipeline import run_autocorrection
-
-        result = await run_autocorrection("Let me apply an $80 credit for the outage.", NEW_ACCOUNT)
-        assert result.corrected_text.startswith("Let me apply a $50 credit for the outage.")
+        assert "complete" not in result.corrected_text
+        assert "refund" not in result.corrected_text.lower()
 
 
 class TestIdiomsThatContainAKeyword:

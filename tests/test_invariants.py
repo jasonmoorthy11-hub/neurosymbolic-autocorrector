@@ -257,7 +257,7 @@ class TestGoldenInvariants:
         assert (pii_only["cited"].n, pii_only["replays"].n, pii_only["local"].n) == (0, 0, 0)
 
     def test_untouched_sentences_are_delivered_unchanged(self, report):
-        assert self._kn(report, "local") == (14, 14)
+        assert self._kn(report, "local") == (13, 13)
 
     def test_edit_log_replays_except_for_three_trailing_spaces(self, report):
         assert self._kn(report, "replays") == (180, 183)
