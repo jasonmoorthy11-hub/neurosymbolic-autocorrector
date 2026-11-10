@@ -7,7 +7,6 @@ Four numbers, kept separate because they mean different things:
 | Golden, 526 cases | Self-authored, **in-sample**: written alongside the code and used during development; 116 rows (GAP-001 to GAP-024, PIN-001 to PIN-056, RT-001 to RT-036) added after the held-out run | 526/526 actions correct (99.3–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
 | External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
-
 | Real agent turns | ABCD v1.1 (MIT), 19,144 human-written agent turns from role-played chats for another company, three assumed customer contexts, one run | Flagged: 0.30%, 0.26% and 3.03% of turns. Flags that were right: 16/57 = 28.1% (18.1–40.8), 15/50 = 30.0% (19.1–43.8), 243/581 = 41.8% (37.9–45.9) |
 
 The in-sample score is a regression suite, not evidence of accuracy: every golden
@@ -17,19 +16,20 @@ wrote for these rules, most flags were wrong.
 
 ### Evidence ledger
 
-Every number this repository states, with what kind of evidence it is. "In-sample"
+The headline numbers, with what kind of evidence each one is (latency, the
+per-type tables and the one LLM-tier recording are further down this page). "In-sample"
 means the cases were available while the code was written; "blind" means written
 before the code that is scored saw them and run once; "external" means data from
 someone else.
 
 | Claim | Data | Kind | n | Result (95% Wilson CI) | Command | Pipeline at |
 |---|---|---|---|---|---|---|
-| Actions correct | Golden set v3.5 | in-sample | 526 | 526/526 (99.3–100.0) | `scripts/evaluate.py` | `56a4e84` |
+| Actions correct | Golden set v3.5 | in-sample | 526 | 526/526 (99.3–100.0) | `scripts/evaluate.py` | v1.6 tree, run 2026-11-10 |
 | Actions correct | Held-out set | blind, one run | 60 | 53/60, 88.3% (77.8–94.2) | `scripts/evaluate.py --dataset heldout` (not re-run) | `fa71907` |
-| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,229 predicted, 4,432 gold | precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0) | `scripts/bench_pii.py` | `56a4e84`, re-run 2026-11-10 |
-| Rule changes the golden suite notices | 104 single changes to the 8 rules | in-sample, and in-sample to that list of changes | 104 | 98 (94.2%); no interval, the 104 are all of them | `scripts/mutate_policy.py` | `56a4e84` |
-| Corrected text holds together | The 230 cases of the golden set that the pipeline corrects | in-sample | 230; 183 with edits; 13 with an untouched sentence | idempotent 230/230, edit log replays 180/183, citations resolve 183/183, untouched sentences kept 13/13; counts, no interval | `scripts/evaluate.py --invariants` | `56a4e84` |
-| PII rail next to Presidio 2.2.366 (`en_core_web_lg`), the 7 types both cover | Same external set, English | external, synthetic | 1,869 gold | This rail: precision 58.7%, recall 72.9%. Presidio at score ≥ 0.5: 90.7% / 66.5%; at ≥ 0.4: 48.8% / 80.1%. Which is ahead depends on the cut-off | `scripts/bench_pii.py --detector presidio` | `56a4e84`, re-run 2026-11-10 |
+| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,229 predicted, 4,432 gold | precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0) | `scripts/bench_pii.py` | v1.6 tree, run 2026-11-10 |
+| Rule changes the golden suite notices | 104 single changes to the 8 rules | in-sample, and in-sample to that list of changes | 104 | 98 (94.2%); no interval, the 104 are all of them | `scripts/mutate_policy.py` | v1.6 tree, run 2026-11-10 |
+| Corrected text holds together | The 230 cases of the golden set that the pipeline corrects | in-sample | 230; 183 with edits; 13 with an untouched sentence | idempotent 230/230, edit log replays 180/183, citations resolve 183/183, untouched sentences kept 13/13; counts, no interval | `scripts/evaluate.py --invariants` | v1.6 tree, run 2026-11-10 |
+| PII rail next to Presidio 2.2.366 (`en_core_web_lg`), the 7 types both cover | Same external set, English | external, synthetic | 1,869 gold | This rail: precision 58.7%, recall 72.9%. Presidio at score ≥ 0.5: 90.7% / 66.5%; at ≥ 0.4: 48.8% / 80.1%. Which is ahead depends on the cut-off | `scripts/bench_pii.py --detector presidio` | v1.6 tree, run 2026-11-10 |
 | Share of real agent turns flagged | ABCD v1.1, dev + test | external, human-written, contexts assumed | 19,144 turns per context | 57 (0.30%), 50 (0.26%), 581 (3.03%) for `missing`, `established`, `late_purchase` | `scripts/bench_real_turns.py` (registered run, not re-run) | `461d0fe` |
 | Share of those flags that were right | The flagged turns, read and labelled against a rubric written before the run | external; one adjudicator, labels re-checked once | 57, 50, 581 | 28.1% (18.1–40.8), 30.0% (19.1–43.8), 41.8% (37.9–45.9), or 35.8% in the last context if payout-method questions count as ambiguous | `tests/fixtures/abcd_flagged.json` holds ids and labels | `461d0fe` |
 
@@ -397,7 +397,10 @@ Rows where spans differ from the validator's redaction: 0
 | address | 72.2% (589/816) | 13.7% (591/4303) |
 | phone | 21.7% (443/2040) | 46.9% (444/946) |
 
-Re-run on 2026-11-09 (v1.6 code): the English output is identical. Over all
+Re-run on 2026-11-09 and 2026-11-10 (v1.6 code): the English precision and recall
+lines are identical; 58 predictions are excluded instead of 56 (83 instead of 81
+over all languages), because two more predictions now overlap only an out-of-scope
+"date" label. Over all
 languages the typed counts are 2728/4923 and 2738/7997 (still 55.4% / 34.2%), with
 two rows changed: date_of_birth is 90/90 and 90/250 since the v1.1 pattern change,
 and email is 1361/1362 and 1368/1422 since the v1.6 pattern change (one French
@@ -739,9 +742,9 @@ project (no audited turn is copied into the repository):
 
 | Class | Flags in the audit | Fix | Commits |
 |---|---|---|---|
-| Language misdetection | 28 per context, all false | Short plain-ASCII text without an amount, text with no letters, and plain-ASCII text carrying English words and no foreign function words are English | `4c9feae`, `176b059` |
+| Language misdetection | 28 per context, all false | Short plain-ASCII text without an amount, text with no letters, and plain-ASCII text carrying two or more common English words and fewer than two function words of Spanish, French, Portuguese, German, Italian or Dutch are English | `4c9feae`, `176b059` |
 | CREDIT-001 on "credit card" | 6 of 7 false | "credit" does not match in "credit card" unless a card is being credited | `f208605`, `253390c` |
-| REFUND-001 on the word | 238 of 531 false | A refusal, and in a sentence where the agent does nothing a question, a status report or a statement of policy, no longer count as granting a refund | `943cd22`, `56a4e84` |
+| REFUND-001 on the word | 238 of 531 false | In a reply where the agent does nothing, a refusal, a question, a status report or a statement of policy no longer count as granting a refund | `943cd22`, `56a4e84`, and the tightening after the whole-branch review |
 | PROMISE-001 and SLA-001 idioms | 3 of 5 false | Three idioms are blanked before keyword matching | `96b920f` |
 
 Not fixed, because no rule separates them: a store's street address or a company
@@ -756,15 +759,19 @@ How to read this:
   kind of number this page keeps apart from evidence. ABCD is used up as a blind
   check for these rules; a new claim about flag precision needs turns that were
   not looked at.
-- Each fix trades one error for another, and each trade is listed under
-  [Limitations](../README.md#limitations): short unaccented foreign lines and
+- Each fix trades one error for another. The trades found so far are listed under
+  [Limitations](../README.md#limitations), and probing has kept finding more: short unaccented foreign lines and
   code-switched lines now pass as English; an offer phrased as a plain question
   and a grant worded as a status report now pass the refund rule; a payment to a
   card that no credit word names is no longer caught by accident.
-- A reviewer probed each fix with made-up replies before it was kept. The refund
-  fix first excused 57 of 104 made-up late refunds that the old rule caught; the
-  version in the repository excuses 1 of the same 104. That is a count on probes
-  written to break the fix, not a measured miss rate.
+- A reviewer probed each fix with made-up replies before it was kept. For the
+  refund fix those were 104 replies that grant a late refund, written to break
+  it (`tests/fixtures/refund_grant_probes.json`): the old rule flagged all 104,
+  the first version of the fix 47, the version in the repository 103, and a
+  test pins that. A second reviewer then wrote more probes and found further
+  misses, which led to the rule that a reply in which the agent does anything
+  excuses nothing. It is a count on probes written against one version of the
+  fix, not a measured miss rate.
 
 ## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
 

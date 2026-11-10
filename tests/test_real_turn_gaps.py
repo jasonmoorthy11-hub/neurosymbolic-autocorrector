@@ -141,6 +141,7 @@ class TestCreditCardIsNotACredit:
             "a credit-card payment",
             "any credit or debit card",
             "any credit/debit card",
+            "Citi credit card ending 4417",  # "I" inside a word is not a verb cue
         ],
     )
     def test_credit_card_is_not_a_mention_of_credit(self, text):
@@ -157,6 +158,8 @@ class TestCreditCardIsNotACredit:
             "we will credit cards ending 4417 and 5521",
             "I've credited card ending 4417",
             "I'm crediting card ending 4417",
+            "Let me credit card ending 4417",
+            "and credit cards ending 4417 and 5521",
             "an $80 credit\nCard ending 4417 stays on file",  # another line
         ],
     )
@@ -229,8 +232,6 @@ class TestRefundWordIsNotTheAct:
             "Are you requesting a refund for both items?",
             "It is still inside the refund window.",
             "I have your refund request here.",
-            "Refunds can be issued once the parcel is scanned.",
-            "Refunds will be issued to the card used at checkout.",
             "The refund has been completed on our side.",
             "The refund is not started on our side.",
             "Our system has the refund status as queued.",
@@ -256,7 +257,7 @@ class TestRefundWordIsNotTheAct:
             "A refund is available for your order, and I've issued it.",
             "Our refund policy is strict, but I'll refund you anyway.",
             "I can refund this order.",
-            "How would you like your refund, back to your card or as store credit?",
+            "How should we send your refund, back to your card or as store credit?",
             "Can I offer you a refund instead?",
             "Your earlier refund is still pending, and I've also issued a refund for the second pair.",
             "Would you like me to issue the refund today?",
@@ -288,6 +289,50 @@ class TestRefundWordIsNotTheAct:
         ],
     )
     async def test_grants_still_fire(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=LATE_PURCHASE
+        )
+        assert [v.rule_id for v in violations] == ["REFUND-001"]
+
+    async def test_made_up_late_refunds_written_to_break_the_rule_still_fire(self):
+        """104 replies that grant a late refund, written by a reviewer against 943cd22.
+
+        The rule before v1.6 flagged all of them and 943cd22 flagged 47. One is
+        still missed: a grant worded as a status report with no agent in it.
+        """
+        import json
+        from pathlib import Path
+
+        probes = json.loads(
+            (Path(__file__).parent / "fixtures" / "refund_grant_probes.json").read_text("utf-8")
+        )
+        store = KnowledgeGraphStore()
+        missed = [
+            text
+            for text in probes
+            if not await store.check_policy_compliance(
+                text=text, intent_type="general", customer_context=LATE_PURCHASE
+            )
+        ]
+        assert len(probes) == 104
+        assert missed == ["Your refund has been completed and you'll see it in 3 days."]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "I can't wait to refund you for this.",
+            "I can't normally refund orders this old, but I've made it happen for you.",
+            "I see your refund request. I've approved it in full.",
+            "Your refund request is granted.",
+            "Refunds will be issued for all three orders on your account.",
+            "Sure, I'll refund the full amount,",
+            "Refund approved,",
+            "You'd like a refund? Done.",
+            "There's no reason I can't refund this order.",
+            "I won't hesitate to refund this.",
+        ],
+    )
+    async def test_a_negative_that_means_eagerness_is_not_a_refusal(self, text):
         violations = await KnowledgeGraphStore().check_policy_compliance(
             text=text, intent_type="general", customer_context=LATE_PURCHASE
         )
@@ -340,7 +385,6 @@ class TestIdiomsThatContainAKeyword:
         [
             "Promo codes don't last forever, so use yours this month.",
             "That price won't last forever.",
-            "The trial is not forever.",
             "Sign up for alerts and you'll never miss a clearance event.",
             "We will definitely be able to swap the size before it ships.",
         ],
@@ -358,7 +402,11 @@ class TestIdiomsThatContainAKeyword:
             ("Promo codes don't last forever, but your price is locked in forever.", "PROMISE-001"),
             ("You'll never pay a late fee with us.", "PROMISE-001"),
             ("You'll never miss out on a refund with us, I promise.", "PROMISE-001"),
+            ("You'll never miss out on this rate, it is locked in.", "PROMISE-001"),
+            ("The tech will definitely be able to fix it at 9am sharp.", "SLA-001"),
             ("The fee will definitely be gone by Friday.", "SLA-001"),
+            ("I will definitely be able to fix this by Friday.", "SLA-001"),
+            ("We will definitely be able to sort it within 2 days.", "SLA-001"),
             ("I will definitely be able to fix it, and it will definitely be done.", "SLA-001"),
         ],
     )

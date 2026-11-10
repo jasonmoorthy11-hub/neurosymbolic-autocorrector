@@ -77,7 +77,7 @@ _ENGLISH_MARKERS = frozenset({
 _FOREIGN_FUNCTION_WORDS = frozenset({
     "el", "los", "las", "por", "para", "su", "una", "que", "del", "esta", "ya", "hay",  # es
     "le", "les", "des", "je", "vous", "nous", "est", "pas", "pour", "une", "et",  # fr
-    "os", "um", "uma", "voce", "nao", "com", "seu", "sua",  # pt
+    "os", "uma", "voce", "nao", "seu", "sua",  # pt
     "ich", "der", "das", "und", "nicht", "ist", "ihnen", "sie", "wir", "mit", "ein", "eine",  # de
     "il", "gli", "di", "che", "sono", "questo",  # it
     "ik", "het", "een", "voor", "niet", "uw", "wij", "zijn", "graag",  # nl
@@ -115,7 +115,7 @@ def _too_short_to_detect(text: str) -> bool:
 
 def _reads_as_english(text: str) -> bool:
     words = re.findall(r"[a-z]+", text.lower())
-    if sum(word in _FOREIGN_FUNCTION_WORDS for word in words) >= 2:
+    if len(_FOREIGN_FUNCTION_WORDS.intersection(words)) >= 2:
         return False
     markers = [word for word in words if word in _ENGLISH_MARKERS]
     return (

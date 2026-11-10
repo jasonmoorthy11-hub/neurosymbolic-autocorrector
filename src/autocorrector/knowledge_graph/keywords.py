@@ -30,11 +30,32 @@ _ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 # ("credited card ending 4417"), and so does the verb ("I'll credit card ending
 # 4417 with $90", "to credit cards ending ..."). "a $75 credit on your credit card
 # statement" still matches at the first "credit".
-_NOT_BEFORE = {
+NOT_BEFORE = {
     "credit": r"(?:/debit|[ \t\u00a0]+or[ \t\u00a0]+debit)?(?:[ \t\u00a0]+|-)cards?(?!\w)"
 }
 # Words that make the keyword a verb where it stands before such a compound
-_VERB_CUES = ("to", "'ll", "\u2019ll", "will", "can", "could", "would", "I", "we")
+_VERB_CUES = (
+    "to",
+    "'ll",
+    "\u2019ll",
+    "will",
+    "can",
+    "could",
+    "would",
+    "should",
+    "must",
+    "did",
+    "I",
+    "we",
+    "and",
+    "me",
+    "just",
+    "let's",
+    "please",
+    "then",
+    "also",
+    "now",
+)
 
 
 def _suffixes(word: str, phrase: bool) -> list[str]:
@@ -52,6 +73,12 @@ def _suffixes(word: str, phrase: bool) -> list[str]:
     return ["'s", *plural, *past, "ing"]
 
 
+def _after_cue(cue: str, kw: str) -> str:
+    """Lookbehind for ``kw`` right after a whole-word verb cue ("I", not "Citi")."""
+    boundary = "" if cue[0] in "'\u2019" else r"(?<!\w)"
+    return rf"(?<={boundary}{re.escape(cue)} {re.escape(kw)})"
+
+
 @lru_cache(maxsize=4096)
 def keyword_pattern(keyword: str) -> re.Pattern[str]:
     """The compiled matcher for one rule keyword (see :func:`mentions_keyword`)."""
@@ -61,9 +88,9 @@ def keyword_pattern(keyword: str) -> re.Pattern[str]:
     body = rf"{re.escape(kw)}(?:{endings})?"
     if not phrase and kw.endswith("e"):
         body += "|" + re.escape(kw[:-1]) + "ing"
-    if kw in _NOT_BEFORE:
-        as_verb = "|".join(rf"(?<={re.escape(cue)} {re.escape(kw)})" for cue in _VERB_CUES)
-        bare = rf"{re.escape(kw)}(?:(?!{_NOT_BEFORE[kw]})|{as_verb})"
+    if kw in NOT_BEFORE:
+        as_verb = "|".join(_after_cue(cue, kw) for cue in _VERB_CUES)
+        bare = rf"{re.escape(kw)}(?:(?!{NOT_BEFORE[kw]})|{as_verb})"
         body = body.replace(re.escape(kw), bare, 1)
     return re.compile(rf"(?<!\w)(?:{body})(?!\w)", re.IGNORECASE)
 

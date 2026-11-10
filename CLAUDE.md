@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1734 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1749 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -31,7 +31,7 @@ python3 scripts/bench_real_turns.py --input turns.jsonl   # flag report for any 
 # Real-turn audit on ABCD: a registered run, published in docs/evaluation.md. Do not
 # re-run it to tune; fixes go into new golden rows.
 #   python3 scripts/bench_real_turns.py --flagged .private/abcd_flagged.jsonl
-python3 scripts/mutate_policy.py                      # mutation score of the golden set (~2 min, not in CI)
+python3 scripts/mutate_policy.py                      # mutation score of the golden set (about 70 s, not in CI)
 python3 scripts/audit_keywords.py --check             # dictionary words a rule keyword matches by accident
 
 # Replay data for the backend-free dashboard (refuses with an API key set or NeMo on)

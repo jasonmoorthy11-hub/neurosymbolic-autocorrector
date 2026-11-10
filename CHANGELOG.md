@@ -57,7 +57,7 @@ turns). The audit is not re-run; its numbers predate these fixes:
   dashes and an ellipsis no longer count as foreign letters. What this costs and
   what it leaves:
   - New loss: a foreign line of under four unaccented words with a number but
-    one word ("Rabatt 20 EUR"), or with a curly apostrophe or dash ("J’ai
+    one word ("Rabatt 20"), or with a curly apostrophe or dash ("J’ai
     rembourse", "Danke – erledigt"), used to reach the detector and is now
     checked as English, like any short unaccented line ("Gracias por esperar.")
     before it.
@@ -72,7 +72,7 @@ turns). The audit is not re-run; its numbers predate these fixes:
   a new account (CREDIT-001). The keyword "credit" no longer matches in "credit
   card(s)", "credit-card" or "credit or debit card"; a credit named elsewhere in
   the reply still does, and so does crediting a card ("I'll credit card ending
-  4417 with $90") (RT-009 to RT-013). What this gives up: "As an apology I'm
+  4417 with $90", "Let me credit card ending ...") (RT-009 to RT-013). What this gives up: "As an apology I'm
   sending $600 to your credit card" used to escalate only because of that
   misreading and is now allowed; no keyword names a payment that is not called a
   credit. A capped credit now reads "a $50 credit" where the reply said "an $80
@@ -80,19 +80,19 @@ turns). The audit is not re-run; its numbers predate these fixes:
 - REFUND-001 fired on the word "refund", not on granting one: 45 days after
   purchase, "So you'd like a refund for the headphones?", "That refund is still
   pending", "Premium members get unlimited refunds" and "I'm sorry, I can't refund
-  this order" were all rewritten. A part of a sentence that refuses no longer
-  counts. Any other mention still fires unless the agent does nothing in that
-  sentence (no "I'll refund", "I've approved", "today", "now") and the clause is a
-  question put to the customer, a report on a refund already under way or a
-  statement of policy. A question that takes the refund as settled or proposes it
-  ("How would you like your refund, to your card or as store credit?", "How about
-  a full refund?") still fires (RT-014 to RT-030). What this gives up: an offer
-  phrased as a plain question ("Would you like your money back?") is now allowed,
-  and so is a grant worded as a status with no agent and no "now" in it ("Your
-  refund has been completed and you'll see it in 3 days").
+  this order" were all rewritten. A mention is now excused when the agent does
+  nothing anywhere in the reply (no "I'll", "I've", "approved", "today", "now" ...)
+  and the mention sits in a refusal, a question put to the customer, a report on
+  a refund already under way or a statement of policy. Everything else fires,
+  including a question that takes the refund as settled or proposes it ("How
+  should we send your refund, to your card or as store credit?", "How about a full
+  refund?") (RT-014 to RT-030). What this gives up: an offer phrased as a plain
+  question ("Would you like your money back?") is now allowed, and so is a grant
+  worded as a status with no agent and no "now" in it ("Your refund has been
+  completed and you'll see it in 3 days").
 - PROMISE-001 and SLA-001 fired on three idioms: "Promo codes don't last forever",
-  "you'll never miss a clearance event" and "I will definitely be able to ..." (no
-  timeline). Those wordings are blanked before the rule's keywords are matched;
+  "you'll never miss a clearance event" and "I will definitely be able to ..."
+  where the sentence names no time ("... by Friday" and "... at 9am" still fire). Those wordings are blanked before the rule's keywords are matched;
   the same keyword elsewhere in the reply still fires (RT-031 to RT-036). Only
   these three are covered: "This will definitely be sorted" with no date still
   counts as a timeline guarantee, and any other idiom with "forever", "never

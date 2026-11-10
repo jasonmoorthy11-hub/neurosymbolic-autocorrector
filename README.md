@@ -153,7 +153,7 @@ meaning any non-allow action.
 python3 scripts/evaluate.py --dataset heldout   # already run once (results above); re-running it does not make it blind again
 python3 scripts/bench_pii.py                    # downloads the benchmark once into .cache/
 python3 scripts/bench_real_turns.py --input turns.jsonl   # what the pipeline flags in your own JSONL of agent turns
-python3 scripts/mutate_policy.py                # mutation score of the golden set (about two minutes)
+python3 scripts/mutate_policy.py                # mutation score of the golden set (about 70 s)
 python3 scripts/evaluate.py --invariants        # structural checks on the corrected text
 ```
 
@@ -270,21 +270,26 @@ Known, measured, or found by the held-out run:
   looking now") and lines of several codes ("order C3EDQM ref EVXRVC"). Checked as
   English though foreign, so the English-only rules pass them: a line of under
   four unaccented words with no amount ("Gracias por esperar.", and since v1.6
-  also "J’ai rembourse" with a curly apostrophe and "Rabatt 20 EUR" with one word
-  beside the number), and a foreign line that carries English words and fewer
-  than two function words of its own ("Garantiert: your new Erstattung today").
+  also "J’ai rembourse" with a curly apostrophe and "Rabatt 20" with one word
+  beside the number), and a line that carries two or more English marker words
+  and fewer than two function words of Spanish, French, Portuguese, German,
+  Italian or Dutch ("Garantiert: your new Erstattung today"). Function words of
+  other languages are not known at all, so an unaccented Indonesian or Tagalog
+  line with two English words in it passes as English.
 - The credit rules need a credit word ("credit", "compensation", "discount", ...).
   A payment that is not called one ("As an apology I'm sending $600 to your
   credit card") is not seen; before v1.6 it was caught by accident, because
   "credit card" read as a credit.
 - The refund-window rule (REFUND-001) reads wording, not intent. Since v1.6 a
-  refusal, and in a sentence where the agent does nothing a question to the
-  customer, a status report or a statement of policy, no longer trigger it. That
-  also lets through an offer phrased as a plain question ("Would you like your
-  money back?") and a grant worded as a status with no agent in it ("Your refund
-  has been completed and you'll see it in 3 days"). The carve-outs are a fixed
-  list of wordings; a status or policy sentence phrased another way is still
-  rewritten.
+  reply in which the agent does nothing (no "I'll", "I've", "approved", "today",
+  "now" ...) is excused where it refuses, asks the customer a question, reports
+  on a refund already under way or states policy. That also lets through an offer
+  phrased as a plain question ("Would you like your money back?") and a grant
+  worded as a status with no agent in it ("Your refund has been completed and
+  you'll see it in 3 days"). The excuses are a fixed list of wordings, so a status
+  or policy sentence phrased another way is still rewritten, and so is any such
+  sentence in a reply where the agent does something else ("That refund is still
+  pending, I'll email you when it lands").
 - PROMISE-001 and SLA-001 are keyword rules with three idioms carved out ("don't
   last forever", "you'll never miss a ...", "will definitely be able to"). Any
   other figure of speech with "forever", "lifetime" or "never again" is still
