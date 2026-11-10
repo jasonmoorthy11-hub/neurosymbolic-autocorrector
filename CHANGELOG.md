@@ -89,6 +89,13 @@ turns). The audit is not re-run; its numbers predate these fixes:
   RT-030). What this gives up: an offer phrased as a plain question ("Would you
   like a refund?") is now allowed, and so is a grant worded as a status ("Your
   refund is complete") from the agent who has just made it.
+- PROMISE-001 and SLA-001 fired on three idioms: "Promo codes don't last forever",
+  "you'll never miss a clearance event" and "I will definitely be able to ..." (no
+  timeline). Those wordings are blanked before the rule's keywords are matched;
+  the same keyword elsewhere in the reply still fires (RT-031 to RT-036). Only
+  these three are covered: "This will definitely be sorted" with no date still
+  counts as a timeline guarantee, and any other idiom with "forever", "never
+  again" or "lifetime" still counts as a commitment.
 
 New measurements:
 
@@ -108,12 +115,12 @@ New measurements:
   language misdetections on codes and usernames. Ids and labels are in
   `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
-  (hold 286 of 520 against 59 here); arithmetic, in-sample.
+  (hold 289 of 526 against 59 here); arithmetic, in-sample.
 
-- `scripts/evaluate.py --invariants` checks the corrected text of the 227 cases
-  of the golden set that the pipeline corrects: idempotent 227/227; of the 180 with
-  recorded edits, citations resolve 180/180 and the edit log replays byte for byte
-  177/180 (three differ by a trailing space); untouched sentences kept 14/14 where
+- `scripts/evaluate.py --invariants` checks the corrected text of the 230 cases
+  of the golden set that the pipeline corrects: idempotent 230/230; of the 183 with
+  recorded edits, citations resolve 183/183 and the edit log replays byte for byte
+  180/183 (three differ by a trailing space); untouched sentences kept 14/14 where
   there is one. One hash per golden output is recorded in
   `tests/golden_outputs.json`, compared on each test run (a difference names its
   cases) and under other hash seeds in CI.

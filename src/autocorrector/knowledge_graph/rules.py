@@ -80,6 +80,20 @@ _CLAUSE = re.compile(r"[^,;.!?\n]+[,;.!?]*")
 # ("..., is there anything else I can help with?") is a question of its own
 _TAG_QUESTION_WORDS = 3
 
+# Wordings that contain a rule keyword without being what the rule is about: a
+# thing that does not last forever, a sale the customer will not miss, being able
+# to do something (no timeline). They are blanked before that rule's keywords are
+# matched; the same keyword anywhere else in the reply still fires.
+RULE_IDIOMS = {
+    "PROMISE-001": re.compile(
+        r"\b(?:do|does|did|will|wo|ca|can)n?['\u2019]?t\s+last\s+forever\b"
+        r"|\bnot\s+(?:last\s+)?forever\b"
+        r"|\byou['\u2019]ll\s+never\s+miss\s+(?:a|an|another|any|out)\b",
+        re.IGNORECASE,
+    ),
+    "SLA-001": re.compile(r"\bwill\s+definitely\s+be\s+able\s+to\b", re.IGNORECASE),
+}
+
 # Patterns indicating hedged/non-guarantee timeline references (skip SLA-001)
 NON_GUARANTEE_PATTERNS = [
     r"\bshould\b",
@@ -168,6 +182,14 @@ def offer_amounts(
     return [m.group(1) for m in AMOUNT_PATTERN.finditer(text) if m.span() not in verified]
 
 
+def without_idioms(rule_id: str, text: str) -> str:
+    """``text`` with the rule's idioms (``RULE_IDIOMS``) blanked, offsets unchanged."""
+    idioms = RULE_IDIOMS.get(rule_id)
+    if idioms is None:
+        return text
+    return idioms.sub(lambda m: " " * len(m.group()), text)
+
+
 def grants_refund(text: str, keywords: list[str]) -> bool:
     """True when some clause of ``text`` mentions a refund keyword and grants the refund.
 
@@ -222,7 +244,9 @@ def violations_for(
 
     for rule in rules:
         # Step 1: Check keyword triggers
-        if not mentions_keyword(text, rule.get("keywords", [])):
+        if not mentions_keyword(
+            without_idioms(rule.get("rule_id", ""), text), rule.get("keywords", [])
+        ):
             continue
 
         # Step 1b: Skip credit and refund rules if non-offer context detected

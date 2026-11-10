@@ -305,3 +305,50 @@ class TestRefundWordIsNotTheAct:
 
         result = await run_autocorrection("Let me apply an $80 credit for the outage.", NEW_ACCOUNT)
         assert result.corrected_text.startswith("Let me apply a $50 credit for the outage.")
+
+
+class TestIdiomsThatContainAKeyword:
+    """A keyword inside an idiom is not what PROMISE-001 or SLA-001 is about."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Promo codes don't last forever, so use yours this month.",
+            "That price won't last forever.",
+            "The trial is not forever.",
+            "Sign up for alerts and you'll never miss a clearance event.",
+            "We will definitely be able to swap the size before it ships.",
+        ],
+    )
+    async def test_idioms_are_allowed(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context={"account_tenure_days": 400}
+        )
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        ("text", "rule_id"),
+        [
+            ("This discount is yours forever.", "PROMISE-001"),
+            ("Promo codes don't last forever, but your price is locked in forever.", "PROMISE-001"),
+            ("You'll never pay a late fee with us.", "PROMISE-001"),
+            ("You'll never miss out on a refund with us, I promise.", "PROMISE-001"),
+            ("The fee will definitely be gone by Friday.", "SLA-001"),
+            ("I will definitely be able to fix it, and it will definitely be done.", "SLA-001"),
+        ],
+    )
+    async def test_the_keyword_outside_the_idiom_still_fires(self, text, rule_id):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context={"account_tenure_days": 400}
+        )
+        assert [v.rule_id for v in violations] == [rule_id]
+
+    async def test_the_rewrite_keeps_an_idiom_sentence(self):
+        from autocorrector.orchestrator.pipeline import run_autocorrection
+
+        result = await run_autocorrection(
+            "Promo codes don't last forever. Your price, though, is locked in forever.",
+            {"account_tenure_days": 400},
+        )
+        assert result.corrected_text.startswith("Promo codes don't last forever. ")
+        assert "locked in" not in result.corrected_text
