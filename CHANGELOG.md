@@ -49,6 +49,9 @@ New measurements:
   at score ≥ 0.5, and 48.8% and 80.1% at ≥ 0.4, against this project's 58.7% and
   72.9%. Report only: Presidio
   is not a dependency. The README's comparison is now a table, dated 2026-11-09.
+- `scripts/bench_real_turns.py` runs the pipeline over human-written agent turns
+  (ABCD v1.1, MIT, downloaded at runtime) or any JSONL of turns. The audit's
+  protocol and rubric are in docs/evaluation.md, committed before the first run.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
   (hold 271 of 490 against 56 here); arithmetic, in-sample.
 

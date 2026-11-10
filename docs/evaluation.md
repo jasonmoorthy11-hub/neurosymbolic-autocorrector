@@ -454,6 +454,98 @@ pip install -e ".[bench]" && python -m spacy download en_core_web_lg
 python3 scripts/bench_pii.py --detector presidio
 ```
 
+## Real agent turns: protocol, written before the first run
+
+Everything above is synthetic text, most of it written by this project's author.
+This audit runs the pipeline on agent turns written by other people and asks one
+question: when it flags a turn, is the flag right? This section was committed
+before the script was run on the data and before any flagged turn was read; the
+results go in a later commit, below it.
+
+- **Data.** [ABCD v1.1](https://github.com/asappresearch/abcd) (Chen et al., 2021),
+  MIT licence, pinned to commit `6b8700c` and to the archive's SHA-256
+  (`2bdf53ac…de15`). Downloaded at runtime into `.cache/abcd/` (gitignored); never
+  committed. ABCD is 10,042 role-played customer-service chats for a fictional
+  online retailer: written by people, **not production traffic**, and written
+  under that retailer's policies, **not this project's**. Nobody in it was trying
+  to break the 8 rules here.
+- **Unit.** Every agent turn of the dev and test splits: 19,144 turns (9,600 +
+  9,544), counted from the archive without reading them. The train split is not
+  used.
+- **Contexts.** Each turn is run three times, because the rules depend on the
+  customer. ABCD carries no such fields, so all three are assumptions:
+  - `missing`: no customer context (the pipeline then assumes a new account and a
+    purchase today);
+  - `established`: `account_tenure_days: 365`, `days_since_purchase: 10`;
+  - `late_purchase`: `account_tenure_days: 365`, `days_since_purchase: 45`, the
+    only one of the three in which the 30-day refund rule can fire.
+- **Flag.** A (turn, context) is flagged when the pipeline's action is not
+  `allow`: a correction, a PII redaction or an escalation. A run that raises an
+  error is also flagged. Offline path only; the script refuses to run with an API
+  key or NeMo rails configured.
+- **Rubric.** Every flagged (turn, context) gets one label. Identical text under
+  the same context and reason gets the same label. A flag can have several causes
+  (two rules, or a rule and a PII type); it is **true** only if every one of them
+  holds.
+  - A **rule** holds when, read literally, the turn does what the rule's
+    description forbids in the stated context. For ESC-001, whose description
+    forbids nothing ("legal threats or regulatory concerns require immediate
+    supervisor review"), it holds when the turn is about a legal threat or a
+    regulatory matter.
+  - A **PII type** holds only when every redacted span of that type has the
+    type's form and is used as that kind of data. ABCD is role-play, so the values
+    are invented; an invented phone number given as a phone number counts, a
+    ten-digit order id redacted as a phone number does not.
+  - A **language** escalation holds when the turn really is in the detected
+    language. An English turn detected as another language is false whatever
+    else fired.
+  - A flag from a failed validation or a run that raised is false, and so is a
+    flag with no recorded cause (reason `other`).
+  - **false**: any cause fails: the trigger is used in another sense, the span is
+    not PII of that type, the language was misdetected.
+  - **ambiguous**: reasonable readers could disagree about a cause.
+- **Numbers to be reported**, per context: the flag rate (flagged / 19,144) and
+  the flag precision (true / all flagged, with ambiguous counted as not true),
+  each with a 95% Wilson interval, over turns and again over distinct texts;
+  counts by reason; all three label counts, in total and for each reason, so
+  that one frequent reason cannot hide behind the overall figure. Also the script's output digest, the
+  commit the run was made at, and quoted examples: for each label, the first
+  flagged turns in turn-id order of its three most frequent reasons, not chosen
+  by hand.
+- **Limits, known in advance.**
+  - False positives only. Unflagged turns are not inspected, so recall on this
+    data is unknown and nothing here says what the pipeline misses.
+  - A "true" flag means the rule fired as written. Under the fictional retailer's
+    own policies the turn may have been perfectly fine.
+  - The contexts are assumptions, and two of them create violations by
+    construction: `late_purchase` makes every refund offer one, and `missing`
+    (a new account) makes every credit over $50 one. "True" flags of those kinds
+    say the rule read the turn correctly, not that such customers are typical.
+  - No context names an insurance plan, so the coverage fact check never runs
+    here; this audit says nothing about it.
+  - One adjudicator, AI-assisted, no second rater. The flagged turn ids and labels
+    are published in `tests/fixtures/abcd_flagged.json` so anyone can re-judge
+    them; turn text is not republished beyond the short quotes.
+  - The turns are not independent (many per conversation, many repeated
+    phrases), so the intervals are narrower than the evidence warrants.
+- **Preflight.** Before the archive is read the script runs four made-up turns
+  (a Spanish sentence, an SSN, a refund offer, a plain sentence) and stops unless
+  each is flagged exactly as expected, so a detector that failed to load cannot
+  silently pass every turn. An aborted preflight is not the run.
+- **One run.** The script is run once on this data with the pipeline as committed
+  here, and the numbers from that run stay as first reported. A re-run is allowed
+  only for a defect in the script: it crashes, mislabels a turn id, or records
+  something other than what the pipeline returned. Such a fix and the re-run are
+  disclosed with both digests. Pipeline false positives the audit reveals are
+  fixed afterwards with new golden rows.
+
+```bash
+python3 scripts/bench_real_turns.py --input turns.jsonl   # any JSONL of your own turns
+# The registered ABCD run (dev + test, three contexts). The output file holds ABCD
+# text: write it somewhere git ignores.
+python3 scripts/bench_real_turns.py --flagged .private/abcd_flagged.jsonl
+```
+
 ## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
 
 The replay demo's second lane (`?lane=llm`, `dashboard/public/replay/replay_llm.json`)
