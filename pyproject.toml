@@ -70,6 +70,12 @@ nemo = [
     "nemoguardrails>=0.20",
     "langchain-openai>=0.3",  # configs/nemo/config.yml uses `engine: openai`
 ]
+# Only for `scripts/bench_pii.py --detector presidio` (a report-only comparison;
+# nothing in the package imports it). Also needs the spaCy model:
+#   python -m spacy download en_core_web_lg
+bench = [
+    "presidio-analyzer>=2.2,<3",
+]
 all = [
     "neurosymbolic-autocorrector[neo4j,langgraph,guardrails]",
 ]

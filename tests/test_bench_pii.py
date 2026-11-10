@@ -261,3 +261,99 @@ def test_bench_cache_is_anchored_at_repo_root():
     assert (
         Path(__file__).resolve().parent.parent / ".cache/gretel_pii/test.jsonl" == bench_pii.CACHE
     )
+
+
+# --- Presidio comparison (report only; Presidio itself is never imported here) ---
+
+
+def test_bench_custom_detector_replaces_the_regex_rail():
+    row = _row(SSN_TEXT, [("ssn", 10, 23)])
+    missed = bench_pii.score_rows([row], detector=lambda text: [])
+    assert (missed.typed.gold_found, missed.typed.gold_missed) == (0, 1)
+    assert missed.mirror_mismatches == 0
+    found = bench_pii.score_rows([row], detector=lambda text: [("ssn", 12, 20)])
+    assert (found.typed.pred_tp, found.typed.gold_found) == (1, 1)
+
+
+def test_bench_presidio_entities_map_to_our_types():
+    assert set(bench_pii.PRESIDIO_ENTITIES.values()) <= set(PII_TYPES)
+    # No Presidio recognizer is specific to these two, and the report says so
+    assert {"date_of_birth", "address"}.isdisjoint(bench_pii.PRESIDIO_ENTITIES.values())
+
+
+def test_bench_shared_types_follow_the_entities_presidio_ran():
+    every = bench_pii.shared_types(bench_pii.PRESIDIO_ENTITIES)
+    assert "routing_number" in every and every == sorted(every)
+    # Two entities, one type; an entity Presidio did not run drops its type
+    ran = [e for e in bench_pii.PRESIDIO_ENTITIES if e != "ABA_ROUTING_NUMBER"]
+    assert bench_pii.shared_types(ran) == [t for t in every if t != "routing_number"]
+    assert bench_pii.shared_types(["US_BANK_NUMBER", "IBAN_CODE"]) == ["bank_account"]
+
+
+def test_bench_shared_types_line_sums_only_the_given_types(capsys):
+    rows = [
+        _row(SSN_TEXT, [("ssn", 12, 23)]),
+        _row("Mail a@b.co now.", [("email", 5, 11)]),
+    ]
+    tally = bench_pii.score_rows(rows, detector=lambda text: [("ssn", 12, 23)])
+    bench_pii._print_shared_types("x", tally, ["ssn"])
+    assert "(1/1," in capsys.readouterr().out.split("recall")[1]
+    bench_pii._print_shared_types("x", tally, ["ssn", "email"])
+    assert "(1/2," in capsys.readouterr().out.split("recall")[1]
+
+
+def test_bench_presidio_comparison_report(monkeypatch, tmp_path, capsys):
+    """--detector presidio end to end, with Presidio's results supplied."""
+    phone_text = "Call 555-765-4321 today."
+    rows = [
+        _row(SSN_TEXT, [("ssn", 12, 23)]),
+        _row(phone_text, [("phone_number", 5, 17)]),
+        _row("Hola 555-765-4321.", [("phone_number", 5, 17)], language="Spanish"),
+    ]
+    cache = tmp_path / "test.jsonl"
+    cache.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    seen = {}
+
+    def fake_results(texts, model):
+        seen["texts"], seen["model"] = list(texts), model
+        results = {SSN_TEXT: [("ssn", 12, 23, 0.85)], phone_text: [("phone", 5, 17, 0.4)]}
+        return results, [e for e in bench_pii.PRESIDIO_ENTITIES if e != "ABA_ROUTING_NUMBER"]
+
+    monkeypatch.setattr(bench_pii, "presidio_results", fake_results)
+    assert bench_pii.main(["--detector", "presidio", "--cache", str(cache)]) == 0
+    out = capsys.readouterr().out
+    assert seen == {"texts": [SSN_TEXT, phone_text], "model": bench_pii.PRESIDIO_SPACY_MODEL}
+    assert "8 entities mapped to 7 of our 10 types" in out
+    assert "not loaded by the default registry: ABA_ROUTING_NUMBER" in out
+    shared = out.split("types both cover")[1]
+    assert "routing_number" not in shared.splitlines()[0]
+    by_threshold = {
+        line.split(":")[0].strip(): line for line in shared.splitlines() if "Presidio" in line
+    }
+    # The phone result scores 0.4: kept at 0 and 0.4, dropped at 0.5 and 0.85
+    assert "recall 100.0% (2/2," in by_threshold["Presidio at score >= 0.0"]
+    assert "recall 100.0% (2/2," in by_threshold["Presidio at score >= 0.4"]
+    assert "recall 50.0% (1/2," in by_threshold["Presidio at score >= 0.5"]
+    assert "recall 50.0% (1/2," in by_threshold["Presidio at score >= 0.85"]
+    assert "Per type, English, Presidio at score >= 0.4" in out
+
+
+def test_bench_presidio_missing_dependency_says_how_to_install(monkeypatch):
+    monkeypatch.setitem(sys.modules, "presidio_analyzer", None)
+    with pytest.raises(SystemExit) as excinfo:
+        bench_pii.presidio_results(["text"])
+    assert '".[bench]"' in str(excinfo.value)
+
+
+def test_bench_presidio_is_not_a_package_dependency():
+    import tomllib
+
+    project = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())[
+        "project"
+    ]
+    assert not any("presidio" in dep for dep in project["dependencies"])
+    extras = project["optional-dependencies"]
+    assert [name for name, deps in extras.items() if any("presidio" in d for d in deps)] == [
+        "bench"
+    ]
+    assert "bench" not in " ".join(extras["all"])

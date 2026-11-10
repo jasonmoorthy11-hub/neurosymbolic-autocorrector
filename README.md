@@ -171,14 +171,29 @@ falls above p95.
 
 ## How this compares
 
-Rewriting instead of blocking is not new: Guardrails AI validators can fix output on
-failure, NeMo Guardrails output rails can edit as well as block, and Presidio
-replaces or masks PII. Classifiers such as Llama Guard only label. What this project
-adds is the bookkeeping around the rewrite: on the default path each policy or fact
-edit is tied to a rule and its source, routing between allow, correct and escalate
-is explicit, and the
-default path is deterministic and runs without a model, so the same input always
-gives the same audited output.
+Rewriting instead of blocking is not new. What this project adds is the bookkeeping
+around the rewrite: on the default path each policy or fact edit is tied to a rule
+and its source, routing between allow, correct and escalate is explicit, and the
+same input always gives the same audited output.
+
+| | On a violation | Edits cite a source | Needs a model |
+|---|---|---|---|
+| This project (default path) | Rewrites the offending sentences, or escalates | Yes: rule id, document, section or page | No LLM: rules, regexes and a small language-identification model |
+| [Presidio](https://github.com/data-privacy-stack/presidio/tree/main/docs) | Replaces, redacts, masks, hashes or encrypts PII | For PII: each result can report the recognizer, pattern and context words behind it | A spaCy NLP model plus patterns |
+| [Guardrails AI](https://github.com/guardrails-ai/guardrails/blob/main/docs/how_to_guides/use_on_fail_actions.ipynb) | Per validator: raise, log and continue, fix (where the validator supplies a fix), re-ask the LLM, or a custom handler, among others | Not described in the linked guide | Depends on the validator; re-ask needs an LLM |
+| [NeMo Guardrails](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) | Output rails filter, edit or block | Not described in the linked page | Rails can use an LLM, a safety model, a third-party API, custom Python actions or Colang flows |
+| [Llama Guard 3](https://huggingface.co/meta-llama/Llama-Guard-3-8B) | Labels a prompt or response safe or unsafe, with the categories violated | n/a | It is an LLM |
+
+Each cell for another tool restates the documentation linked in its row (for
+Presidio, the anonymizer and analyzer pages), read on 2026-11-09; these projects
+change quickly. One thing was measured: Presidio with its default recognizers on
+the English rows of the external PII benchmark, over the 7 PII types both cover.
+The answer depends on where Presidio's score is cut. At ≥ 0.5 it is far more
+precise than this project's regex rail (90.7% against 58.7%) with lower recall
+(66.5% against 72.9%); at ≥ 0.4 it has higher recall (80.1%) and lower precision
+(48.8%). It has no recognizer for street addresses or dates of birth
+([details](docs/evaluation.md#compared-with-presidio-english-2026-11-09)).
+Presidio is not a dependency.
 
 ## Replay demo (no backend)
 

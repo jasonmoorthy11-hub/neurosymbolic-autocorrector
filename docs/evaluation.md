@@ -191,6 +191,15 @@ python3 scripts/evaluate.py --invariants --record-outputs   # after an intended 
 The command exits 1 only when a hash-seed run gives different outputs; a failed
 check is listed under "Failures" and leaves the exit status at 0.
 
+### What a block-only gate would do on this set (arithmetic, in-sample)
+
+Not a measurement: this is counting the golden labels. 271 of the 490 cases are
+labelled as needing action (215 correct, 56 escalate). A gate with the same
+detection that can only hold a flagged reply for a person would hold all 271
+(55.3%). This pipeline holds 56 (11.4%), sends 215 corrected (43.9%) and sends 219
+unchanged (44.7%). The shares reflect how the set was written (it is synthetic and
+deliberately dense with violations), not real traffic.
+
 ## Held-out set
 
 ### Protocol
@@ -362,6 +371,88 @@ address with an accented local part is now redacted in part, in two places).
   template text such as `[Shipper's Email Address]`, which no detector should flag.
 - This is a synthetic, document-style benchmark, not agent chat. It measures the PII
   rail in isolation, not the correction pipeline.
+
+### Compared with Presidio (English, 2026-11-09)
+
+[Presidio](https://github.com/data-privacy-stack/presidio) (the open-source PII
+detector that started at Microsoft) run on the same 2,957 English rows under the
+same scorer. Report only: Presidio is **not** a dependency of this project, and
+nothing in the package imports it.
+
+- Versions: presidio-analyzer 2.2.366, spaCy 3.8.18 with `en_core_web_lg` 3.8.0
+  (Presidio's default model), Python 3.12.15. Default recognizers, English, no
+  custom recognizers or context words. With `en_core_web_sm` every count below is
+  the same.
+- Entity mapping: `US_SSN` → ssn, `CREDIT_CARD` → credit_card, `EMAIL_ADDRESS` →
+  email, `PHONE_NUMBER` → phone, `US_PASSPORT` → passport, `US_BANK_NUMBER` and
+  `IBAN_CODE` → bank_account, `US_DRIVER_LICENSE` → drivers_license. Presidio has no
+  recognizer specific to a date of birth or a street address (`DATE_TIME` and
+  `LOCATION` are any date and any place, so they are not mapped), and its
+  routing-number recognizer is disabled by default. That leaves 7 of our 10 types
+  that both tools cover.
+- Presidio gives each result a score from 0 to 1 and by default keeps all of them.
+  The result depends heavily on where the score is cut, so four cut-offs are
+  shown. 0.5 and 0.85 were chosen before the first run; 0.4 was added after a
+  review of the first table: no passport result on these rows scores 0.5 or more
+  and most phone results score below it, so a cut at 0.5 removes them. None
+  was tuned on this data, and none is "the" Presidio number.
+
+| Detector, English, typed | Precision | Recall |
+|---|---|---|
+| This project's regex rail | 63.6% (2055/3229) | 46.5% (2062/4432) |
+| Presidio, score ≥ 0 (its default) | 12.8% (1518/11885) | 34.4% (1526/4432) |
+| Presidio, score ≥ 0.4 | 48.8% (1490/3053) | 33.8% (1498/4432) |
+| Presidio, score ≥ 0.5 | 90.7% (1236/1362) | 28.0% (1243/4432) |
+| Presidio, score ≥ 0.85 | 98.8% (969/981) | 22.0% (976/4432) |
+| **Only the 7 types both cover** | | |
+| This project's regex rail | 58.7% (1357/2313) | 72.9% (1362/1869) |
+| Presidio, score ≥ 0 (its default) | 12.8% (1518/11885) | 81.6% (1526/1869) |
+| Presidio, score ≥ 0.4 | 48.8% (1490/3053) | 80.1% (1498/1869) |
+| Presidio, score ≥ 0.5 | 90.7% (1236/1362) | 66.5% (1243/1869) |
+| Presidio, score ≥ 0.85 | 98.8% (969/981) | 52.2% (976/1869) |
+
+At score ≥ 0 Presidio keeps every weak pattern match, hence its 11,885
+predictions.
+
+| Type, English, typed | This project: precision | recall | Presidio ≥ 0.4: precision | recall | Presidio ≥ 0.5: precision | recall |
+|---|---|---|---|---|---|---|
+| ssn | 93.0% (66/71) | 86.8% (66/76) | 94.2% (49/52) | 64.5% (49/76) | 98.0% (49/50) | 64.5% (49/76) |
+| credit_card | 33.6% (38/113) | 50.0% (38/76) | 73.7% (28/38) | 36.8% (28/76) | 73.7% (28/38) | 36.8% (28/76) |
+| email | 100.0% (816/816) | 97.4% (820/842) | 100.0% (809/809) | 96.6% (813/842) | 100.0% (809/809) | 96.6% (813/842) |
+| date_of_birth | 100.0% (84/84) | 58.7% (84/143) | no recognizer | 0/143 | no recognizer | 0/143 |
+| passport | 52.9% (36/68) | 46.8% (36/77) | 45.8% (60/131) | 79.2% (61/77) | no result this high | 0/77 |
+| bank_account | 0.0% (0/83) | 0.0% (0/194) | 19.3% (92/476) | 49.0% (95/194) | 98.9% (92/93) | 49.0% (95/194) |
+| routing_number | 84.8% (39/46) | 43.3% (39/90) | disabled by default | 0/90 | disabled by default | 0/90 |
+| drivers_license | 31.5% (17/54) | 23.6% (17/72) | 27.1% (46/170) | 63.9% (46/72) | 70.5% (31/44) | 43.1% (31/72) |
+| address | 73.2% (575/786) | 24.8% (577/2330) | no recognizer | 0/2330 | no recognizer | 0/2330 |
+| phone | 34.7% (384/1108) | 72.4% (385/532) | 29.5% (406/1377) | 76.3% (406/532) | 69.2% (227/328) | 42.7% (227/532) |
+
+How to read it:
+
+- Presidio's overall recall is low here mostly because of what it does not cover:
+  addresses are 2,330 of the 4,432 English gold spans, and it has no street-address
+  recognizer. That is a fact about this benchmark's label mix, not a defect.
+- On the 7 shared types the verdict depends on the cut-off. At ≥ 0.5 Presidio is
+  far more precise than this project (90.7% against 58.7%) with lower recall (66.5%
+  against 72.9%). At ≥ 0.4 it has the higher recall (80.1% against 72.9%) with
+  lower precision (48.8% against 58.7%).
+- What holds at both 0.4 and 0.5: Presidio finds bank accounts and this project
+  finds none; Presidio finds more driver's licences; this project finds more SSNs
+  (86.8% against 64.5%) and more credit cards (50.0% against 36.8%), the cards
+  with many false matches; email is about level.
+- Passports and phone numbers flip with the cut-off: Presidio's recall is higher at
+  ≥ 0.4 (79.2% and 76.3%) and lower at ≥ 0.5 (none and 42.7%).
+- The two are complementary. A deployment that needs PII detection beyond a demo
+  should use Presidio or a comparable detector, tuned for its data; the regex rail
+  here is the dependency-free default of a project whose subject is policy
+  correction.
+- Same caveats as above: synthetic documents, lenient overlap scoring, gaps in the
+  gold labels. Presidio took 53 s for the 2,962 English rows on this laptop.
+
+```bash
+pip install -e ".[bench]" && python -m spacy download en_core_web_lg
+python3 scripts/bench_pii.py --detector presidio
+```
 
 ## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
 

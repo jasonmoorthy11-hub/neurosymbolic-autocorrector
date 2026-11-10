@@ -43,6 +43,15 @@ Known weaknesses found since v1.5, each fixed here:
 
 New measurements:
 
+- `scripts/bench_pii.py --detector presidio` (new `[bench]` extra, not in `[all]`)
+  scores Presidio on the English rows of the external PII benchmark under the same
+  scorer. On the 7 types both cover, Presidio has precision 90.7% and recall 66.5%
+  at score ≥ 0.5, and 48.8% and 80.1% at ≥ 0.4, against this project's 58.7% and
+  72.9%. Report only: Presidio
+  is not a dependency. The README's comparison is now a table, dated 2026-11-09.
+- docs/evaluation.md states what a block-only gate would do on the golden labels
+  (hold 271 of 490 against 56 here); arithmetic, in-sample.
+
 - `scripts/evaluate.py --invariants` checks the corrected text of the 215 cases
   of the golden set that the pipeline corrects: idempotent 215/215; of the 168 with
   recorded edits, citations resolve 168/168 and the edit log replays byte for byte

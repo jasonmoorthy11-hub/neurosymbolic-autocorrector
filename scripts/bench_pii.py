@@ -20,8 +20,11 @@ every row is re-checked against PIIDetectionValidator and mismatches are counted
     - 95% Wilson intervals on every proportion.
 
 Usage:
-    python3 scripts/bench_pii.py            # English subset + all languages
-    python3 scripts/bench_pii.py --refresh  # re-download the cache
+    python3 scripts/bench_pii.py                      # English subset + all languages
+    python3 scripts/bench_pii.py --refresh            # re-download the cache
+    python3 scripts/bench_pii.py --detector presidio  # English rows: this detector next to
+                                                      # Presidio (needs the [bench] extra and
+                                                      # spaCy's en_core_web_lg)
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -69,7 +72,33 @@ LABEL_MAP = {
     "street_address": "address",
 }
 
+# Presidio entity -> our PII type. Presidio has no recognizer specific to a date of
+# birth or a street address (DATE_TIME and LOCATION are any date and any place), so
+# those two types have no Presidio prediction here. An entity that the installed
+# Presidio's default registry does not load (ABA_ROUTING_NUMBER ships disabled in
+# 2.2.366) is reported and its type left out of the shared-types comparison.
+PRESIDIO_ENTITIES = {
+    "US_SSN": "ssn",
+    "CREDIT_CARD": "credit_card",
+    "EMAIL_ADDRESS": "email",
+    "PHONE_NUMBER": "phone",
+    "US_PASSPORT": "passport",
+    "US_BANK_NUMBER": "bank_account",
+    "IBAN_CODE": "bank_account",
+    "ABA_ROUTING_NUMBER": "routing_number",
+    "US_DRIVER_LICENSE": "drivers_license",
+}
+# Presidio scores each result 0-1 and by default keeps all of them (threshold 0).
+# 0.5 and 0.85 were picked before the first run as round reference points. 0.4 was
+# added after a review of the first table: no US_PASSPORT result on these rows
+# reaches 0.5 and most phone results score below it. None is tuned.
+PRESIDIO_THRESHOLDS = (0.0, 0.4, 0.5, 0.85)
+PER_TYPE_THRESHOLDS = (0.4, 0.5)
+# Presidio's own default model (conf/default.yaml); lemmas feed its context boost
+PRESIDIO_SPACY_MODEL = "en_core_web_lg"
+
 Span = tuple[str, int, int]
+Detector = Callable[[str], list[Span]]
 
 
 @dataclass
@@ -158,8 +187,14 @@ def _score(preds: list[Span], gold_in: list[Span], gold_out: list[Span], tally: 
             tally.untyped.gold_missed += 1
 
 
-def score_rows(rows: Iterable[dict], language: str | None = None) -> Tally:
-    """Span-level counts over rows ({text, language, pii_spans}), optionally one language."""
+def score_rows(
+    rows: Iterable[dict], language: str | None = None, detector: Detector | None = None
+) -> Tally:
+    """Span-level counts over rows ({text, language, pii_spans}), optionally one language.
+
+    ``detector`` replaces this project's ``find_pii_spans`` (and skips the check
+    that the spans rebuild the validator's output, which only applies to it).
+    """
     tally = Tally()
     for row in rows:
         if language is not None and row["language"] != language:
@@ -173,9 +208,12 @@ def score_rows(rows: Iterable[dict], language: str | None = None) -> Tally:
         tally.rows += 1
         gold_in = [(LABEL_MAP[lb], s, e) for lb, s, e in spans if lb in LABEL_MAP]
         gold_out = [(lb, s, e) for lb, s, e in spans if lb not in LABEL_MAP]
-        preds = find_pii_spans(text)
-        if redact_spans(text, preds) != _validator_output(text):
-            tally.mirror_mismatches += 1
+        if detector is None:
+            preds = find_pii_spans(text)
+            if redact_spans(text, preds) != _validator_output(text):
+                tally.mirror_mismatches += 1
+        else:
+            preds = detector(text)
         _score(preds, gold_in, gold_out, tally)
     return tally
 
@@ -271,10 +309,118 @@ def _print_tally(title: str, t: Tally) -> None:
     print(f"  predictions excluded (overlap only out-of-scope labels): {t.typed.pred_excluded}")
 
 
+def _print_per_type(title: str, t: Tally) -> None:
+    print(f"\n## {title}")
+    print(f"  {'type':16s} {'precision':>36s}   {'recall':>36s}")
+    for ptype, c in t.per_type.items():
+        prec = _pct(c.pred_tp, c.pred_tp + c.pred_fp)
+        rec = _pct(c.gold_found, c.gold_found + c.gold_missed)
+        print(f"  {ptype:16s} {prec:>36s}   {rec:>36s}")
+
+
+def _print_shared_types(title: str, t: Tally, types: Iterable[str]) -> None:
+    """Typed precision and recall over ``types`` (those Presidio has a recognizer for)."""
+    shared = [t.per_type[ptype] for ptype in types]
+    tp = sum(c.pred_tp for c in shared)
+    fp = sum(c.pred_fp for c in shared)
+    found = sum(c.gold_found for c in shared)
+    missed = sum(c.gold_missed for c in shared)
+    print(f"  {title}: precision {_pct(tp, tp + fp)}, recall {_pct(found, found + missed)}")
+
+
+def shared_types(entities: Iterable[str]) -> list[str]:
+    """Our PII types that the given Presidio entities map to, sorted."""
+    return sorted({PRESIDIO_ENTITIES[entity] for entity in entities})
+
+
+def presidio_results(
+    texts: Iterable[str], model: str = PRESIDIO_SPACY_MODEL
+) -> tuple[dict[str, list[tuple[str, int, int, float]]], list[str]]:
+    """Presidio's (type, start, end, score) results per text, and the entities it ran.
+
+    Default recognizers, spaCy ``model``, English, no score threshold, and only the
+    entities of PRESIDIO_ENTITIES that the default registry loads (the second value).
+    """
+    try:
+        from presidio_analyzer import AnalyzerEngine
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
+    except ImportError as exc:
+        raise SystemExit(
+            "Presidio is not installed. Run:\n"
+            '  pip install -e ".[bench]"\n'
+            f"  python -m spacy download {model}"
+        ) from exc
+    nlp = NlpEngineProvider(
+        nlp_configuration={
+            "nlp_engine_name": "spacy",
+            "models": [{"lang_code": "en", "model_name": model}],
+        }
+    ).create_engine()
+    analyzer = AnalyzerEngine(nlp_engine=nlp, supported_languages=["en"])
+    supported = set(analyzer.get_supported_entities("en"))
+    entities = [entity for entity in PRESIDIO_ENTITIES if entity in supported]
+    results = {
+        text: sorted(
+            (PRESIDIO_ENTITIES[r.entity_type], r.start, r.end, r.score)
+            for r in analyzer.analyze(text=text, language="en", entities=entities)
+        )
+        for text in texts
+    }
+    return results, entities
+
+
+def compare_with_presidio(rows: list[dict], model: str = PRESIDIO_SPACY_MODEL) -> None:
+    """English rows only: this detector and Presidio under the same scorer."""
+    english = [row for row in rows if row["language"] == "English"]
+    ours = score_rows(english)
+    _print_tally("English, this project's regex rail", ours)
+    _print_per_type("Per type, English, this project's regex rail (typed)", ours)
+
+    started = time.monotonic()
+    results, entities = presidio_results((row["text"] for row in english), model)
+    seconds = time.monotonic() - started
+    shared = shared_types(entities)
+    missing = [entity for entity in PRESIDIO_ENTITIES if entity not in entities]
+    print(
+        f"\nPresidio: default recognizers, spaCy {model}, {len(entities)} entities"
+        f" mapped to {len(shared)} of our {len(PII_TYPES)} types;"
+        f" {seconds:.0f} s for {len(english)} rows"
+    )
+    if missing:
+        print(f"  not loaded by the default registry: {', '.join(missing)}")
+    tallies: dict[float, Tally] = {}
+    for threshold in PRESIDIO_THRESHOLDS:
+
+        def detect(text: str, threshold: float = threshold) -> list[Span]:
+            return [(t, s, e) for t, s, e, score in results[text] if score >= threshold]
+
+        tally = tallies[threshold] = score_rows(english, detector=detect)
+        _print_tally(f"English, Presidio, score >= {threshold}", tally)
+        if threshold in PER_TYPE_THRESHOLDS:
+            _print_per_type(f"Per type, English, Presidio at score >= {threshold} (typed)", tally)
+
+    print(f"\n## English, only the {len(shared)} types both cover ({', '.join(shared)})")
+    _print_shared_types("this project's regex rail", ours, shared)
+    for threshold, tally in tallies.items():
+        _print_shared_types(f"Presidio at score >= {threshold:<4} ", tally, shared)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--refresh", action="store_true", help="re-download the dataset")
     parser.add_argument("--cache", type=Path, default=CACHE)
+    parser.add_argument(
+        "--detector",
+        choices=["regex", "presidio"],
+        default="regex",
+        help="regex: this project's rail (default); presidio: compare with Presidio on English",
+    )
+    parser.add_argument(
+        "--spacy-model",
+        default=PRESIDIO_SPACY_MODEL,
+        help=f"with --detector presidio: the spaCy model (default {PRESIDIO_SPACY_MODEL}, "
+        "Presidio's own default)",
+    )
     args = parser.parse_args(argv)
 
     if args.refresh or not args.cache.exists():
@@ -296,6 +442,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"In-scope gold spans by label: {dict(sorted(in_scope.items()))}")
     print(f"Out-of-scope gold spans: {sum(labels.values()) - sum(in_scope.values())}")
 
+    if args.detector == "presidio":
+        compare_with_presidio(rows, args.spacy_model)
+        return 0
+
     english = score_rows(rows, language="English")
     everything = score_rows(rows)
     print(f"Rows skipped (gold offsets outside the text): {everything.skipped_rows}")
@@ -305,12 +455,7 @@ def main(argv: list[str] | None = None) -> int:
     excluded = sorted(everything.excluded_by_label.items(), key=lambda kv: -kv[1])
     print(f"  excluded predictions by overlapping out-of-scope label: {dict(excluded)}")
 
-    print("\n## Per type, all languages (typed)")
-    print(f"  {'type':16s} {'precision':>36s}   {'recall':>36s}")
-    for ptype, c in everything.per_type.items():
-        prec = _pct(c.pred_tp, c.pred_tp + c.pred_fp)
-        rec = _pct(c.gold_found, c.gold_found + c.gold_missed)
-        print(f"  {ptype:16s} {prec:>36s}   {rec:>36s}")
+    _print_per_type("Per type, all languages (typed)", everything)
     return 0
 
 
