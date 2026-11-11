@@ -7,6 +7,14 @@ the package metadata, the dashboard API and `/health` read.
 
 ## [Unreleased]
 
+- `pip install neurosymbolic-autocorrector` with no extras now gives a working
+  MCP server. `autocorrector --help` failed there with `ModuleNotFoundError:
+  guardrails`, because the server imported the Guardrails AI wrapper at start.
+  The PII patterns and span functions moved to `guardrails/pii.py`, which
+  imports nothing outside the standard library; the server runs them inside a
+  Guardrails AI guard when the `[guardrails]` extra is installed and directly
+  when it is not. The redacted text is the same either way (checked on every
+  golden case). `guardrails/validators.py` still exports the old names.
 - Dashboard build and lint tooling updated within its current major versions
   (vite 7.3.8 and the packages `npm audit fix` moves); `npm audit` then reports
   no high-severity finding. Seven moderate ones remain in the linter's

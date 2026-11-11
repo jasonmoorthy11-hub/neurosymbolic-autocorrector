@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from autocorrector.guardrails import validators
+from autocorrector.guardrails import pii
 from autocorrector.guardrails.telemetry import build_guard, build_pii_guard
 from autocorrector.guardrails.validators import (
     ComplianceCheckValidator,
@@ -359,7 +359,7 @@ class TestPIIDetection:
     def test_find_pii_spans_match_swallowing_a_token_absorbs_its_span(self, monkeypatch):
         # No real pattern matches "[" or "]", so build a later pattern that does.
         monkeypatch.setattr(
-            validators,
+            pii,
             "_PII_PATTERNS",
             {"ssn": (r"\d{3}", "[S]"), "email": (r"x\S+y", "[E]")},
         )
@@ -515,15 +515,15 @@ class TestPipelineGuardrails:
 class TestRedactionTokensRoundTrip:
     """Redaction is idempotent: a token never matches a pattern a second time."""
 
-    @pytest.mark.parametrize("pii_type", list(validators._PII_PATTERNS))
+    @pytest.mark.parametrize("pii_type", list(pii._PII_PATTERNS))
     def test_token_survives_guard(self, pii_type):
-        token = validators._PII_PATTERNS[pii_type][1]
+        token = pii._PII_PATTERNS[pii_type][1]
         text = f"Your {token} is on file."
         assert build_pii_guard().validate(text).validated_output == text
 
-    @pytest.mark.parametrize("pii_type", list(validators._PII_PATTERNS))
+    @pytest.mark.parametrize("pii_type", list(pii._PII_PATTERNS))
     def test_token_survives_span_mirror(self, pii_type):
-        token = validators._PII_PATTERNS[pii_type][1]
+        token = pii._PII_PATTERNS[pii_type][1]
         text = f"Your {token} is on file."
         assert find_pii_spans(text) == []
         assert redact_spans(text, find_pii_spans(text)) == text

@@ -452,7 +452,7 @@ class TestMcpToolsPiiRail:
     async def test_log_correction_event_keeps_redaction_tokens(self, tmp_path):
         """Text already redacted by validate_action/get_correction is stored byte-identical."""
         from autocorrector.audit.store import AuditStore
-        from autocorrector.guardrails.validators import _PII_PATTERNS
+        from autocorrector.guardrails.pii import _PII_PATTERNS
         from autocorrector.mcp_server.server import log_correction_event
 
         redacted = " ".join(token for _, token in _PII_PATTERNS.values())

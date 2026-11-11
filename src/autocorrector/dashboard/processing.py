@@ -15,7 +15,7 @@ from autocorrector.dashboard.state import (
     get_audit_store,
     get_kg_store,
 )
-from autocorrector.guardrails.validators import find_pii_spans, redact_spans
+from autocorrector.guardrails.pii import find_pii_spans, redact_spans
 from autocorrector.logging_config import request_id_var
 from autocorrector.models import (
     CorrectionAction,

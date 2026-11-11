@@ -20,8 +20,8 @@ from langgraph.graph import END, START, StateGraph
 from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
+from autocorrector.guardrails.pii import detect_pii_types
 from autocorrector.guardrails.telemetry import build_pii_guard
-from autocorrector.guardrails.validators import detect_pii_types
 from autocorrector.intent_classifier.classifier import IntentClassifier
 from autocorrector.knowledge_graph.rewriter import fact_edits
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore

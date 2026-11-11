@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1789 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1794 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -93,7 +93,7 @@ src/autocorrector/
 ├── dashboard/         — api.py (app, middleware, /health), routes/{events,queue,demo,ws}.py, state.py, processing.py, models.py
 ├── evaluation/        — dataset.py (golden cases), heldout.py (blind set: never run or edit), registry.py, scorer.py, runner.py, invariants.py (corrected-text checks; tests/golden_outputs.json pins each case's output; re-record with `--invariants --record-outputs`), llm_judge.py
 ├── explainability/    — Correction reasoning engine
-├── guardrails/        — validators.py (PII detection), nemo_rails.py (NeMo wrapper), telemetry.py (Guardrails telemetry off switch)
+├── guardrails/        — pii.py (PII patterns and span functions, no third-party imports), validators.py (Guardrails AI validators around them), nemo_rails.py (NeMo wrapper), telemetry.py (Guardrails telemetry off switch)
 ├── intent_classifier/ — Rule-based intent detection (9 types)
 ├── knowledge_graph/   — store.py (KG + LLM corrections), defaults.py, rules.py, facts.py, claims.py, rewriter.py (span tier), templates.py, schema.py (Neo4j seed); ingestion.py (the Markdown parser also reads `policies/` for the citation check in evaluation/invariants.py) and retriever.py are experimental
 ├── mcp_server/        — server.py (FastMCP tools + resources)

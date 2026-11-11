@@ -37,7 +37,7 @@ from typing import Any
 
 from autocorrector.evaluation.dataset import EvalCase
 from autocorrector.evaluation.scorer import Proportion
-from autocorrector.guardrails.validators import find_pii_spans, redact_spans
+from autocorrector.guardrails.pii import find_pii_spans, redact_spans
 from autocorrector.knowledge_graph.claims import sentence_spans
 from autocorrector.knowledge_graph.ingestion import ingest_directory
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore

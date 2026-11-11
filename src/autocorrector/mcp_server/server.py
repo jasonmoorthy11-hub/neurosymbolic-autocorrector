@@ -22,6 +22,7 @@ Prompt:
 from __future__ import annotations
 
 import hmac
+import importlib.util
 import json
 import logging
 import uuid
@@ -37,8 +38,7 @@ from starlette.responses import JSONResponse
 from autocorrector.audit.store import AuditStore
 from autocorrector.config import get_settings
 from autocorrector.explainability.engine import ExplainabilityEngine
-from autocorrector.guardrails.telemetry import build_pii_guard
-from autocorrector.guardrails.validators import detect_pii_types
+from autocorrector.guardrails.pii import detect_pii_types, redact_pii
 from autocorrector.intent_classifier.classifier import IntentClassifier
 from autocorrector.knowledge_graph.claims import apply_fact_corrections
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
@@ -105,8 +105,21 @@ def _get_resources(ctx: Context) -> tuple[KnowledgeGraphStore, IntentClassifier,
     return lifespan["kg"], lifespan["classifier"], lifespan["audit_store"]
 
 
+def _guardrails_installed() -> bool:
+    """Whether guardrails-ai (the ``[guardrails]`` extra) can be imported."""
+    return importlib.util.find_spec("guardrails") is not None
+
+
 def _redact_pii(text: str) -> tuple[str, list[str]]:
-    """Run the PII rail: return the redacted text and the PII types found."""
+    """Run the PII rail: return the redacted text and the PII types found.
+
+    With guardrails-ai installed the patterns run inside its guard; without it
+    they run directly. The redacted text is the same either way.
+    """
+    if not _guardrails_installed():
+        return redact_pii(text)
+    from autocorrector.guardrails.telemetry import build_pii_guard
+
     result = build_pii_guard().validate(text)
     if result.validated_output and result.validated_output != text:
         return result.validated_output, detect_pii_types(text)
