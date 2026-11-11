@@ -5,6 +5,13 @@ under a release is that tag's own message.
 The version number lives in `src/autocorrector/__init__.py` (`__version__`), which
 the package metadata, the dashboard API and `/health` read.
 
+## [Unreleased]
+
+- Dashboard build and lint tooling updated within its current major versions
+  (vite 7.3.8 and the packages `npm audit fix` moves); `npm audit` then reports
+  no high-severity finding. Seven moderate ones remain in the linter's
+  dependency chain (minimatch under typescript-eslint).
+
 ## [1.6] - 2026-11-11
 
 Known weaknesses found since v1.5, fixed here unless a line says "Not fixed":
