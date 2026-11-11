@@ -14,10 +14,10 @@ non-English replies to escalation); an LLM correction tier is optional.
 **Results at a glance** (commands and full output in [docs/evaluation.md](docs/evaluation.md)):
 
 - **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No LLM on the default path; about 12 ms per reply.
-- **Regression suite:** 519/519 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
+- **Regression suite:** 517/517 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
 - **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
-- **External PII benchmark:** precision 63.8%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
-- **Real agent turns:** on 19,144 human-written agent turns from a public role-play dataset, the pipeline flagged about 0.3% where the refund rule cannot fire, and about 3 in 10 of those flags were right (16 of 57 and 15 of 50). Most flags on other people's wording were wrong. The [audit](docs/evaluation.md#real-agent-turns-results-one-run-2026-11-09) lists every class; two were fixed afterwards and one in part; the largest, the refund rule firing on the word, was not; the data was not re-scored.
+- **External PII benchmark:** precision 63.7%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
+- **Real agent turns:** on 19,144 human-written agent turns from a public role-play dataset, the pipeline flagged about 0.3% where the refund rule cannot fire, and about 3 in 10 of those flags were right (16 of 57 and 15 of 50). Most flags on other people's wording were wrong. The [audit](docs/evaluation.md#real-agent-turns-results-one-run-2026-11-09) lists every class; two were fixed afterwards; the other two, among them the largest (the refund rule firing on the word), were not; the data was not re-scored.
 
 ![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
 
@@ -137,9 +137,9 @@ Four numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 519 cases | Self-authored, **in-sample**: written alongside the code and used during development; 109 rows added after the held-out run | 519/519 actions correct (99.3–100.0) |
+| Golden, 517 cases | Self-authored, **in-sample**: written alongside the code and used during development; 107 rows added after the held-out run | 517/517 actions correct (99.3–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
-| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.8% (62.1–65.4), recall 46.5% (45.0–48.0); all 7 languages: 55.5% / 34.2% |
+| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.7% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 | Real agent turns | ABCD v1.1, 19,144 human-written agent turns, three assumed customer contexts, one run before the fixes it led to | Flagged 0.30%, 0.26% and 3.03% of turns; flags that were right: 28.1% (18.1–40.8), 30.0% (19.1–43.8), 41.8% (37.9–45.9) |
 
 The in-sample score is a regression suite, not evidence of accuracy. The held-out
@@ -283,7 +283,9 @@ Known, measured, or found by the held-out run:
   a word that marks a noun ("your", "the", "a", "by", "which" ...). Without one
   it still reads as a credit, because it may be the verb ("I'll credit card
   ending 4417 with $90"), so "We accept cash and credit card for orders over
-  $600" is still rewritten as an over-limit credit.
+  $600" is still escalated as an over-limit credit. The other way round, a
+  credit that runs into "card" with no punctuation after such a word is read
+  as the card ("I've added the credit card ending 4417 will show $80").
 - The refund-window rule (REFUND-001) fires on the word, not on granting a
   refund. Outside the 30-day window "So you'd like a refund for the
   headphones?", "That refund is still pending" and "I'm sorry, I can't refund
@@ -294,12 +296,17 @@ Known, measured, or found by the held-out run:
   refunds worded as exactly those things ("You'd like a refund? Sure thing.",
   "I can't refund you until tomorrow morning."), and a missed late refund costs
   more than a held refusal. Telling the two apart needs more than keywords.
-- PROMISE-001 is a keyword rule with two idioms carved out ("don't last
-  forever", and "you'll never miss a sale" or an event, an offer and the like).
-  Any other figure of speech with "forever", "lifetime" or "never again" is
-  still rewritten as a commitment. SLA-001 has no carve-out: "will definitely
-  be" counts as a timeline guarantee with or without a date, so "I will
-  definitely be able to look into that" is rewritten.
+- PROMISE-001 and SLA-001 fire on their keywords inside idioms too: "Promo codes
+  don't last forever", "you'll never miss a clearance event" and "I will
+  definitely be able to look into that" are rewritten as commitments. Blanking
+  those idioms was tried for v1.6 and removed, because a commitment could ride
+  on each ("Most promos don't last forever, but yours will.").
+- The address pattern takes a number, some words and a street type. Before
+  "Way", "Road", "Place", "Court", "Drive" or "Circle" it skips a number
+  followed only by lower-case function words ("72 is on its way") or by a
+  lower-case unit of time or count ("5 years down the road"), so an address
+  typed that way in lower case ("12 the drive") is not redacted. A phrase like
+  "72 is on its way back to Main Street" is still redacted as an address.
 - Not fixable by a rule and left as they are: a store's street address or a
   company mailbox in a reply is redacted as PII like a customer's would be, and a
   refund that depends on a condition the reply states ("once we receive the item")

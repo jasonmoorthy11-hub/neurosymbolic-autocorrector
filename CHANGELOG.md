@@ -41,8 +41,8 @@ Known weaknesses found since v1.5, each fixed here:
   104. The six left are five severity changes the suite cannot see and one
   redundant keyword (docs/evaluation.md).
 
-False-positive classes found by the real-turn audit (below). Two are fixed, one in
-part, and the largest (the refund rule) is not; the golden rows RT-001 onwards
+False-positive classes found by the real-turn audit (below). Two are fixed; the
+refund rule (the largest) and the idioms are not; the golden rows RT-001 onwards
 were written for this project, not copied from the audited turns. The audit is
 not re-run; its numbers predate these changes:
 
@@ -75,21 +75,22 @@ not re-run; its numbers predate these changes:
   noun ("your", "the", "a", "by", "which" ...); a credit named elsewhere in the
   reply still does. Without such a word it still matches, because it may be the
   verb ("I'll credit card ending 4417 with $90", "and credit cards ending ..."),
-  so "We accept cash and credit card" still counts as a mention (RT-009 to
-  RT-013). What this gives up: "As an apology I'm
+  so "We accept cash and credit card" still counts as a mention. "each", "all"
+  and "her" are not such words ("We will each credit card ending 4417 with
+  $60") (RT-009 to RT-013). What this gives up: "As an apology I'm
   sending $600 to your credit card" used to escalate only because of that
   misreading and is now allowed; no keyword names a payment that is not called a
   credit. A capped credit now reads "a $50 credit" where the reply said "an $80
   credit" (it kept "an").
 - The PII rail redacted "Your refund of $72 is on its way back to your credit
   card" as a street address ("72 is on its way"; "Way" is a street type and the
-  pattern ignores case). A street-name word can no longer be a lower-case
-  function word or unit of time or count; lowercase addresses ("123 main st")
-  and capitalised ones ("12 The Avenue") are still found (RT-037). On the
-  external PII benchmark this removes nine address predictions over all
-  languages, one of them correct; on the English rows precision goes from
-  63.6% to 63.8% (2054/3221) and recall from 2062 to 2061 of 4,432 (still
-  46.5%).
+  pattern ignores case). Before "Way", "Road", "Place", "Court", "Drive" and
+  "Circle" a number is no longer a house number when only lower-case function
+  words follow it, or a lower-case unit of time or count ("3 business days each
+  way"). Other addresses are found as before, in any case ("12 the avenue",
+  "9 all saints road"); "12 the drive" in lower case is not (RT-037). On the
+  external PII benchmark this removes one false address prediction: English
+  precision 63.6% to 63.7% (2055/3228), recall unchanged.
 - Not fixed: REFUND-001 fires on the word "refund", not on granting one. 45 days
   after purchase, "So you'd like a refund for the headphones?", "That refund is
   still pending" and "I'm sorry, I can't refund this order" are all rewritten;
@@ -100,14 +101,13 @@ not re-run; its numbers predate these changes:
   your order to process that refund for you."), so it was removed and the rule
   behaves as in v1.5. Ten rows (between RT-015 and RT-030) pin replies that
   grant a late refund.
-- PROMISE-001 fired on two idioms: "Promo codes don't last forever" and "you'll
-  never miss a clearance event" (a sale, an event, an offer; "never miss a
-  delivery" is still a commitment). Those wordings are blanked before the
-  rule's keywords are matched; the same keyword elsewhere in the reply still
-  fires (RT-031 to RT-034). Any other idiom with "forever", "never again" or
-  "lifetime" still counts as a commitment. Not fixed: SLA-001 on "I will
-  definitely be able to ..."; blanking it let timed commitments through ("...
-  ship it to St. Louis by Friday"), so it still counts as a timeline guarantee.
+- Not fixed: PROMISE-001 and SLA-001 fire on idioms that contain a keyword
+  ("Promo codes don't last forever", "you'll never miss a clearance event", "I
+  will definitely be able to ..."). Blanking the three idioms before keyword
+  matching was tried and removed: a commitment could ride on each ("Most promos
+  don't last forever, but yours will.", "We will definitely be able to ship it
+  to St. Louis by Friday."). RT-032, RT-034 and RT-036 pin commitments next to
+  such wording.
 
 New measurements:
 
@@ -127,7 +127,7 @@ New measurements:
   language misdetections on codes and usernames. Ids and labels are in
   `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
-  (hold 289 of 519 against 59 here); arithmetic, in-sample.
+  (hold 289 of 517 against 59 here); arithmetic, in-sample.
 
 - `scripts/evaluate.py --invariants` checks the corrected text of the 230 cases
   of the golden set that the pipeline corrects: idempotent 230/230; of the 183 with

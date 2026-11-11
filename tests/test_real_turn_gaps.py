@@ -1,8 +1,11 @@
-"""False-positive classes the real-turn audit exposed (docs/evaluation.md), fixed with new cases.
+"""False-positive classes the real-turn audit exposed (docs/evaluation.md).
 
-Each test pins the mechanism behind one class. No audited turn is copied here: the
-strings are written for this project and only share a shape with what the audit
-flagged. The golden rows RT-001 onwards carry the end-to-end checks.
+Two were fixed (language of short English fragments, "credit card" after a word
+that marks a noun) and the tests pin the mechanism. For the refund rule and the
+PROMISE-001 / SLA-001 idioms a carve-out was written, let real violations
+through in review and was removed; those tests pin that the rule fires. No
+audited turn is copied here: the strings are written for this project and only
+share a shape with what the audit flagged.
 """
 
 import pytest
@@ -154,6 +157,8 @@ class TestCreditCardIsNotACredit:
             "Which credit card would you like to use?",
             "You can pay by credit card",
             "the credit card ending 4417",
+            "your credit\u00a0card",  # a hard space
+            "your credit\tcard",
         ],
     )
     def test_credit_card_is_not_a_mention_of_credit(self, text):
@@ -169,6 +174,7 @@ class TestCreditCardIsNotACredit:
             "Please charge me credit card fees of $600 only once.",
             "debit and credit cards accepted",
             "We charged $120 to credit card ending 4417.",
+            "all credit cards are accepted",
         ],
     )
     def test_an_unmarked_credit_card_matches_and_is_the_known_cost(self, text):
@@ -193,6 +199,10 @@ class TestCreditCardIsNotACredit:
             "I'll just credit card ending 4417 $60.",
             "I can refund the order or credit card ending 4417 with $90",
             "I'd credit card ending 4417",
+            # "each", "all" and "her" can stand before the verb, so they mark nothing
+            "We will each credit card ending 4417 with $60.",
+            "We will all credit card ending 4417 with $60.",
+            "I'll have her credit card ending 4417 with $75.",
             "We may credit card ending 4417",
             "Let’s credit card ending 4417",
             "I'll\ncredit card ending 4417",
@@ -239,6 +249,9 @@ class TestCreditCardIsNotACredit:
             "I'll just credit card ending 4417 $60.",
             "I've credited card ending 4417 with $90.",
             "I'm adding an $80 credit\nCard ending 4417 stays on file.",
+            "We will each credit card ending 4417 with $60.",
+            "I'll have her credit card ending 4417 with $75.",
+            "I'll add a 75 credit to your account.",  # a bare amount before "credit"
         ],
     )
     async def test_crediting_a_card_still_fires(self, text):
@@ -246,6 +259,23 @@ class TestCreditCardIsNotACredit:
             text=text, intent_type="general", customer_context=NEW_ACCOUNT
         )
         assert [v.rule_id for v in violations] == ["CREDIT-001"]
+
+
+class TestWhatTheNounReadingLetsThrough:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # a credit noun that runs into "card" with no punctuation, after a marker
+            "I've added the credit card ending 4417 will show $80 tomorrow.",
+            # "600 credit cards" is not an amount of credit, marker or not
+            "We replaced 600 credit cards last year.",
+        ],
+    )
+    async def test_no_credit_rule_fires(self, text):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text=text, intent_type="general", customer_context=NEW_ACCOUNT
+        )
+        assert violations == []
 
 
 class TestRefundRuleFiresOnTheWord:
@@ -328,62 +358,34 @@ class TestRefundRuleFiresOnTheWord:
         assert "refund" not in result.corrected_text.lower()
 
 
-class TestIdiomsThatContainAKeyword:
-    """A keyword inside one of two idioms is not what PROMISE-001 is about."""
-
-    @pytest.mark.parametrize(
-        "text",
-        [
-            "Promo codes don't last forever, so use yours this month.",
-            "That price won't last forever.",
-            "Sign up for alerts and you'll never miss a clearance event.",
-        ],
-    )
-    async def test_idioms_are_allowed(self, text):
-        violations = await KnowledgeGraphStore().check_policy_compliance(
-            text=text, intent_type="general", customer_context={"account_tenure_days": 400}
-        )
-        assert violations == []
+class TestIdiomsStillFire:
+    """PROMISE-001 and SLA-001 have no idiom carve-out: each one tried let commitments through."""
 
     @pytest.mark.parametrize(
         ("text", "rule_id"),
         [
-            ("This discount is yours forever.", "PROMISE-001"),
-            ("Promo codes don't last forever, but your price is locked in forever.", "PROMISE-001"),
-            ("You'll never pay a late fee with us.", "PROMISE-001"),
-            ("You'll never miss out on a refund with us, I promise.", "PROMISE-001"),
-            ("You'll never miss out on this rate, it is locked in.", "PROMISE-001"),
-            # only a sale or an event can be the thing not missed
-            ("You'll never miss a delivery again, I've made sure of it.", "PROMISE-001"),
-            ("The trial is not forever.", "PROMISE-001"),
-            # SLA-001 has no idiom: "will definitely be able to" was blanked where no
-            # time was named, and timed commitments kept escaping
+            # the idioms the audit flagged, rewritten again
+            ("Promo codes don't last forever, so use yours this month.", "PROMISE-001"),
+            ("Sign up for alerts and you'll never miss a clearance event.", "PROMISE-001"),
             ("We will definitely be able to swap the size before it ships.", "SLA-001"),
+            # what blanking them let through
+            ("Most promos don't last forever, but yours will.", "PROMISE-001"),
+            ("There's no way your discount won't last forever.", "PROMISE-001"),
+            (
+                "You'll never miss another deal, since I've set your account to always get "
+                "the lowest price.",
+                "PROMISE-001",
+            ),
             ("We will definitely be able to ship it to St. Louis by Friday.", "SLA-001"),
             ("We will definitely be able to call you back before lunch.", "SLA-001"),
+            # plain commitments
+            ("This discount is yours forever.", "PROMISE-001"),
+            ("You'll never pay a late fee with us.", "PROMISE-001"),
             ("The fee will definitely be gone by Friday.", "SLA-001"),
         ],
     )
-    async def test_the_keyword_outside_the_idiom_still_fires(self, text, rule_id):
+    async def test_the_keyword_fires_inside_an_idiom_too(self, text, rule_id):
         violations = await KnowledgeGraphStore().check_policy_compliance(
             text=text, intent_type="general", customer_context={"account_tenure_days": 400}
         )
         assert [v.rule_id for v in violations] == [rule_id]
-
-    def test_blanking_keeps_offsets(self):
-        from autocorrector.knowledge_graph.rules import without_idioms
-
-        text = "Codes don't last forever. Yours is good forever."
-        blanked = without_idioms("PROMISE-001", text)
-        assert blanked == "Codes " + " " * 18 + ". Yours is good forever."
-        assert without_idioms("SLA-001", text) == text
-
-    async def test_the_rewrite_keeps_an_idiom_sentence(self):
-        from autocorrector.orchestrator.pipeline import run_autocorrection
-
-        result = await run_autocorrection(
-            "Promo codes don't last forever. Your price, though, is locked in forever.",
-            {"account_tenure_days": 400},
-        )
-        assert result.corrected_text.startswith("Promo codes don't last forever. ")
-        assert "locked in" not in result.corrected_text

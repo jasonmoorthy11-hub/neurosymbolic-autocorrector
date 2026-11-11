@@ -36,11 +36,13 @@ _ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 NOT_BEFORE = {
     "credit": r"(?:/debit|[ \t\u00a0]+or[ \t\u00a0]+debit)?(?:[ \t\u00a0]+|-)cards?(?!\w)"
 }
+# Not markers, because the verb can follow them: "each", "all" ("We will each
+# credit card ending ...") and "her" ("I'll have her credit card ending ...").
 # fmt: off
 _NOUN_MARKERS = (
-    "your", "the", "a", "my", "our", "their", "his", "her", "this", "that", "which", "what",
-    "any", "all", "major", "other", "another", "new", "same", "different", "valid", "by",
-    "via", "with", "on", "of", "no", "each", "every",
+    "your", "the", "a", "my", "our", "their", "his", "this", "that", "which", "what", "any",
+    "major", "other", "another", "new", "same", "different", "valid", "by", "via", "with", "on",
+    "of", "no", "every",
 )
 # fmt: on
 

@@ -188,6 +188,8 @@ class TestPIIDetection:
             "Order 5512 is on its way.",
             "It takes 3 business days each way.",
             "You have 14 days this way.",
+            "That is 5 years down the road.",
+            "Call 911 in the first place.",
         ],
     )
     def test_a_number_before_an_everyday_phrase_is_not_an_address(self, text):
@@ -199,16 +201,30 @@ class TestPIIDetection:
             ("Please ship it to 72 Maple Way, Springfield.", "72 Maple Way"),
             ("we have 123 main st on file", "123 main st"),
             ("It goes to 9 Orchard Court tomorrow.", "9 Orchard Court"),
-            # a capitalised function word is part of a street name
-            ("12 The Avenue", "12 The Avenue"),
-            ("Send it to 20 Back Lane please", "20 Back Lane"),
-            ("9 All Saints Road", "9 All Saints Road"),
+            # function words are part of a street name before any street type ...
+            ("Please send it to 12 the avenue, leeds.", "12 the avenue"),
+            ("ok ill ship the replacement to 20 back lane", "20 back lane"),
             ("8 Will Rogers Boulevard", "8 Will Rogers Boulevard"),
+            # ... and before "Road", "Court", "Drive" when a name word or a capital is there
+            ("your address on file is 9 all saints road", "9 all saints road"),
             ("61 Our Lady Court", "61 Our Lady Court"),
+            ("12 The Drive", "12 The Drive"),
         ],
     )
-    def test_a_street_address_is_still_found_in_any_case(self, text, span):
+    def test_a_street_address_is_found(self, text, span):
         assert [text[start:end] for _, start, end in find_pii_spans(text)] == [span]
+
+    @pytest.mark.parametrize("text", ["send to 12 the drive", "we are at 4 days road"])
+    def test_a_lower_case_address_that_reads_as_a_phrase_is_the_known_loss(self, text):
+        assert find_pii_spans(text) == []
+
+    def test_the_address_pattern_is_linear_on_long_runs(self):
+        import time
+
+        start = time.perf_counter()
+        find_pii_spans("72 " + "is on its " * 10000 + "way")
+        find_pii_spans("5 " + "Oak " * 10000)
+        assert time.perf_counter() - start < 2
 
     def test_no_false_positive_on_normal_numbers(self):
         """Normal account references shouldn't trigger bank account detection."""

@@ -157,15 +157,22 @@ class FactualAccuracyValidator(Validator):
 # 3. PII Detection Validator
 # ---------------------------------------------------------------------------
 
-# A word of a street name: letters, and none of the words that put a number and a
-# street type in one phrase by accident. Those are excluded only in lower case:
-# "12 The Avenue" and "20 Back Lane" are addresses, "72 is on its way" is not.
-_STREET_WORD = (
-    r"(?!(?-i:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
-    r"|your|my|our|their|his|her|all|each|every|more|other|and|or|but|not|no|will|can|per|as"
-    r"|out|up|down|back|along|under|over|days?|weeks?|months?|years?|hours?|minutes?|times?"
-    r"|items?|orders?)\b)[A-Z][a-z]+"
+# Street addresses. "Way", "Road", "Place", "Court", "Drive" and "Circle" are also
+# everyday nouns, so before one of those a number is not a house number when
+# every word between is a lower-case function word ("72 is on its way", "911 in
+# the first place") or any of them is a lower-case unit of time or count ("3
+# business days each way", "5 years down the road"). Before "Street", "Avenue",
+# "Lane" and the abbreviations nothing is excluded: "12 the avenue", "20 back lane".
+_FUNCTION_WORDS = (
+    r"(?-i:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
+    r"|your|my|our|their|his|her|all|each|every|either|any|some|more|other|and|or|but|not|no"
+    r"|will|can|per|as|out|up|down|back|along|under|over|first|next|last|same)"
 )
+_UNIT_WORDS = r"(?-i:days?|weeks?|months?|years?|hours?|minutes?|times?|items?|orders?)"
+_PLAIN_STREET = r"(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Ln|Lane|Dr|Rd|Ct|Pl|Cir)"
+_NOUN_STREET = r"(?:Drive|Road|Way|Court|Place|Circle)"
+_WORD = r"[A-Z][a-z]+"
+_NAME_WORD = rf"(?!{_UNIT_WORDS}\b){_WORD}"
 
 # Common PII patterns — ordered so prefix-based patterns run before general numeric ones
 _PII_PATTERNS = {
@@ -211,12 +218,11 @@ _PII_PATTERNS = {
         "[DL REDACTED]",
     ),
     "address": (
-        # number, street name, street type. A street-name word is not a function
-        # word or a unit of time or count: "72 is on its way" and "3 business days
-        # each way" are not addresses ("Way" is a street type).
-        rf"\b\d{{1,5}}\s+{_STREET_WORD}(?:\s+{_STREET_WORD})*\s+"
-        r"(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Dr(?:ive)?|Ln|Lane|Rd|Road|Way|Ct|Court"
-        r"|Pl(?:ace)?|Cir(?:cle)?)\.?"
+        r"\b\d{1,5}\s+(?:"
+        rf"{_WORD}(?:\s+{_WORD})*\s+{_PLAIN_STREET}"
+        rf"|(?!(?:{_FUNCTION_WORDS}\s+)+{_NOUN_STREET}\b)"
+        rf"{_NAME_WORD}(?:\s+{_NAME_WORD})*\s+{_NOUN_STREET}"
+        r")\.?"
         r"(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)?\b",
         "[ADDRESS REDACTED]",
     ),

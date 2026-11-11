@@ -4,9 +4,9 @@ Four numbers, kept separate because they mean different things:
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 519 cases | Self-authored, **in-sample**: written alongside the code and used during development; 109 rows (GAP-001 to GAP-024, PIN-001 to PIN-056 and 29 RT rows) added after the held-out run | 519/519 actions correct (99.3–100.0) |
+| Golden, 517 cases | Self-authored, **in-sample**: written alongside the code and used during development; 107 rows (GAP-001 to GAP-024, PIN-001 to PIN-056 and 27 RT rows) added after the held-out run | 517/517 actions correct (99.3–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
-| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.8% (62.1–65.4), recall 46.5% (45.0–48.0); all 7 languages: 55.5% / 34.2% |
+| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.7% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 | Real agent turns | ABCD v1.1 (MIT), 19,144 human-written agent turns from role-played chats for another company, three assumed customer contexts, one run | Flagged: 0.30%, 0.26% and 3.03% of turns. Flags that were right: 16/57 = 28.1% (18.1–40.8), 15/50 = 30.0% (19.1–43.8), 243/581 = 41.8% (37.9–45.9) |
 
 The in-sample score is a regression suite, not evidence of accuracy: every golden
@@ -24,9 +24,9 @@ someone else.
 
 | Claim | Data | Kind | n | Result (95% Wilson CI) | Command | Pipeline at |
 |---|---|---|---|---|---|---|
-| Actions correct | Golden set v3.5 | in-sample | 519 | 519/519 (99.3–100.0) | `scripts/evaluate.py` | v1.6 tree, run 2026-11-11 |
+| Actions correct | Golden set v3.5 | in-sample | 517 | 517/517 (99.3–100.0) | `scripts/evaluate.py` | v1.6 tree, run 2026-11-11 |
 | Actions correct | Held-out set | blind, one run | 60 | 53/60, 88.3% (77.8–94.2) | `scripts/evaluate.py --dataset heldout` (not re-run) | `fa71907` |
-| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,221 predicted, 4,432 gold | precision 63.8% (62.1–65.4), recall 46.5% (45.0–48.0) | `scripts/bench_pii.py` | v1.6 tree, run 2026-11-11 |
+| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,228 predicted, 4,432 gold | precision 63.7% (62.0–65.3), recall 46.5% (45.1–48.0) | `scripts/bench_pii.py` | v1.6 tree, run 2026-11-11 |
 | Rule changes the golden suite notices | 104 single changes to the 8 rules | in-sample, and in-sample to that list of changes | 104 | 98 (94.2%); no interval, the 104 are all of them | `scripts/mutate_policy.py` | v1.6 tree, run 2026-11-11 |
 | Corrected text holds together | The 230 cases of the golden set that the pipeline corrects | in-sample | 230; 183 with edits; 13 with an untouched sentence | idempotent 230/230, edit log replays 180/183, citations resolve 183/183, untouched sentences kept 13/13; counts, no interval | `scripts/evaluate.py --invariants` | v1.6 tree, run 2026-11-11 |
 | PII rail next to Presidio 2.2.366 (`en_core_web_lg`), the 7 types both cover | Same external set, English | external, synthetic | 1,869 gold | This rail: precision 58.7%, recall 72.9%. Presidio at score ≥ 0.5: 90.7% / 66.5%; at ≥ 0.4: 48.8% / 80.1%. Which is ahead depends on the cut-off | `scripts/bench_pii.py --detector presidio` | v1.6 tree, run 2026-11-11 |
@@ -72,14 +72,14 @@ python3 scripts/evaluate.py --invariants       # structural checks on the correc
 Output of `python3 scripts/evaluate.py` (excerpt, verbatim):
 
 ```
-  Accuracy:     100.0%  (519/519, 95% CI 99.3-100.0)
+  Accuracy:     100.0%  (517/517, 95% CI 99.3-100.0)
   Precision:    100.0%  (289/289, 95% CI 98.7-100.0)
   Recall:       100.0%  (289/289, 95% CI 98.7-100.0)
   F0.5:         1.000
   PII Precision: 100.0%  (60/60, 95% CI 94.0-100.0)
   PII Recall:    100.0%  (60/60, 95% CI 94.0-100.0)
-  PII flag agrees:      100.0%  (519/519, 95% CI 99.3-100.0)
-  Fact flag agrees:     100.0%  (519/519, 95% CI 99.3-100.0)
+  PII flag agrees:      100.0%  (517/517, 95% CI 99.3-100.0)
+  Fact flag agrees:     100.0%  (517/517, 95% CI 99.3-100.0)
   Expected rules found: 100.0%  (201/201, 95% CI 98.1-100.0)
 ```
 
@@ -121,14 +121,14 @@ report followed by a grant. The seven rows that sat next to them (RT-014, 016,
 018, 020, 022, 024, 026: a question, a status report, statements of policy, a
 refusal, each allowed) were removed on 2026-11-11 together with the carve-out
 they tested (see [Fixes made after the audit](#fixes-made-after-the-audit-2026-11-10)).
-RT-031 to RT-034 cover two idioms that contain a PROMISE-001 keyword ("don't last
-forever", "you'll never miss a ... event"): each is allowed, next to a reply where
-the same keyword is a commitment and is still corrected. RT-036 pins "will
-definitely be ... by Friday" as a timeline guarantee; RT-035, which had "will
-definitely be able to" as allowed, was removed the same way. RT-037 is a refund
-on its way back to a card, 5 days after purchase, which the PII rail used to
-redact as a street address ("72 is on its way"). That leaves 29 RT rows and 519
-cases.
+RT-032 and RT-034 pin two PROMISE-001 commitments ("locked in forever" after a
+remark that promo codes do not last forever, and a fee the customer will never
+pay) and RT-036 pins "will definitely be ... by Friday" as a timeline guarantee.
+The rows that had an idiom as allowed (RT-031, 033, 035: "don't last forever",
+"you'll never miss a ... event", "will definitely be able to") were removed the
+same way, with the idiom carve-outs. RT-037 is a refund on its way back to a
+card, 5 days after purchase, which the PII rail used to redact as a street
+address ("72 is on its way"). That leaves 27 RT rows and 517 cases.
 
 ### Mutation score: how much of the rule set the golden suite pins down
 
@@ -146,7 +146,7 @@ changed threshold.
 |---|---|
 | 434 cases (before the PIN rows) | 43 (41.3%) |
 | 490 cases (v3.4) | 98 (94.2%) |
-| 519 cases (v3.5, after the real-turn fixes) | 98 (94.2%), the same six survivors |
+| 517 cases (v3.5, after the real-turn fixes) | 98 (94.2%), the same six survivors |
 
 The 104 are every change of those five kinds, not a sample, so there is no
 interval; they also overlap (the keep-one-keyword mutant drops what the single
@@ -179,7 +179,7 @@ The six survivors, classified:
 This scores the test suite, not the pipeline: it says the golden rows now react to
 98 of these 104 single changes to the 8 rules, not that the rules are right. Run on
 2026-11-09: 77.8 s for the 490-case set (527 s for the first run, where each of the
-61 survivors ran every case); on 2026-11-11: 65.8 s for the 519-case set. Not part
+61 survivors ran every case); on 2026-11-11: 65.7 s for the 517-case set. Not part
 of CI.
 
 ```bash
@@ -228,7 +228,7 @@ pipeline is deterministic, so no interval is given.
 - Determinism: `tests/golden_outputs.json` records one SHA-256 per case over its
   action, delivered text, rule ids found in the original reply, PII types and edits (not the
   fact errors, the guardrails list, the explanation, the confidence or the
-  intent). The test suite compares all 519 on each run and names the cases that
+  intent). The test suite compares all 517 on each run and names the cases that
   differ; CI repeats the run under two other `PYTHONHASHSEED` values. On
   2026-11-10 the hash over all outputs was identical on Python 3.14.7 with
   guardrails-ai 0.10.2 and Python 3.12.15 with guardrails-ai 0.11.0, each under
@@ -248,11 +248,11 @@ check is listed under "Failures" and leaves the exit status at 0.
 
 ### What a block-only gate would do on this set (arithmetic, in-sample)
 
-Not a measurement: this is counting the golden labels. 289 of the 519 cases are
+Not a measurement: this is counting the golden labels. 289 of the 517 cases are
 labelled as needing action (230 correct, 59 escalate). A gate with the same
 detection that can only hold a flagged reply for a person would hold all 289
-(55.7%). This pipeline holds 59 (11.4%), sends 230 corrected (44.3%) and sends 230
-unchanged (44.3%). The shares reflect how the set was written (it is synthetic and
+(55.9%). This pipeline holds 59 (11.4%), sends 230 corrected (44.5%) and sends 228
+unchanged (44.1%). The shares reflect how the set was written (it is synthetic and
 deliberately dense with violations), not real traffic.
 
 ## Held-out set
@@ -410,15 +410,14 @@ two rows changed: date_of_birth is 90/90 and 90/250 since the v1.1 pattern chang
 and email is 1361/1362 and 1368/1422 since the v1.6 pattern change (one French
 address with an accented local part is now redacted in part, in two places).
 
-Re-run on 2026-11-11, after the address pattern stopped taking a lower-case
-function word or unit of time for a street name ("Your refund of $72 is on its
-way back to your credit card" was redacted as the address "72 is on its way"):
-English precision 63.8% (2054/3221, 62.1–65.4) and recall 46.5% (2061/4432,
-45.0–48.0); all languages 55.5% (2727/4914) and 34.2% (2737/7997); 56 and 81
-predictions excluded. The address row is now 72.9% (588/807) and 13.7%
-(590/4303): nine predictions fewer, one of them a correct one. The other rows
-are unchanged. The change was made for the sentence above, not for this
-benchmark, and these are the numbers the summary tables quote.
+Re-run on 2026-11-11, after the address pattern stopped taking a number in front
+of an everyday phrase for a house number ("Your refund of $72 is on its way back
+to your credit card" was redacted as the address "72 is on its way"): English
+precision 63.7% (2055/3228, 62.0–65.3) and recall 46.5% (2062/4432, 45.1–48.0);
+all languages 55.4% (2728/4922) and 34.2% (2738/7997); 58 and 83 predictions
+excluded. The address row is now 72.3% (589/815) and 13.7% (591/4303): one
+false prediction fewer and no correct one lost. The other rows are unchanged.
+These are the numbers the summary tables quote.
 
 ### Reading these numbers
 
@@ -467,7 +466,7 @@ nothing in the package imports it.
 
 | Detector, English, typed | Precision | Recall |
 |---|---|---|
-| This project's regex rail | 63.8% (2054/3221) | 46.5% (2061/4432) |
+| This project's regex rail | 63.7% (2055/3228) | 46.5% (2062/4432) |
 | Presidio, score ≥ 0 (its default) | 12.8% (1518/11885) | 34.4% (1526/4432) |
 | Presidio, score ≥ 0.4 | 48.8% (1490/3053) | 33.8% (1498/4432) |
 | Presidio, score ≥ 0.5 | 90.7% (1236/1362) | 28.0% (1243/4432) |
@@ -492,7 +491,7 @@ predictions.
 | bank_account | 0.0% (0/83) | 0.0% (0/194) | 19.3% (92/476) | 49.0% (95/194) | 98.9% (92/93) | 49.0% (95/194) |
 | routing_number | 84.8% (39/46) | 43.3% (39/90) | disabled by default | 0/90 | disabled by default | 0/90 |
 | drivers_license | 31.5% (17/54) | 23.6% (17/72) | 27.1% (46/170) | 63.9% (46/72) | 70.5% (31/44) | 43.1% (31/72) |
-| address | 73.8% (574/778) | 24.7% (576/2330) | no recognizer | 0/2330 | no recognizer | 0/2330 |
+| address | 73.2% (575/785) | 24.8% (577/2330) | no recognizer | 0/2330 | no recognizer | 0/2330 |
 | phone | 34.7% (384/1108) | 72.4% (385/532) | 29.5% (406/1377) | 76.3% (406/532) | 69.2% (227/328) | 42.7% (227/532) |
 
 How to read it:
@@ -751,8 +750,8 @@ What this does and does not show:
 ### Fixes made after the audit (2026-11-10)
 
 The numbers above describe the pipeline at `461d0fe`. Two of the false-positive
-classes were then fixed, one in part, and the largest was not, though a fix was
-tried. The golden rows RT-001 onwards were written for this project (no audited
+classes were then fixed. The other two, among them the largest, were not, though
+a fix for each was tried. The golden rows RT-001 onwards were written for this project (no audited
 turn is copied into the repository):
 
 | Class | Flags in the audit | Fix | Commits |
@@ -760,7 +759,7 @@ turn is copied into the repository):
 | Language misdetection | 28 per context, all false | Short plain-ASCII text without an amount, text with no letters, and plain-ASCII text carrying two or more common English words and fewer than two function words of Spanish, French, Portuguese, German, Italian or Dutch are English | `4c9feae`, `176b059` |
 | CREDIT-001 on "credit card" | 6 of 7 false | "credit" does not match in "credit card" after a word that marks a noun ("your", "the", "a", "by" ...); an unmarked "credit card" still matches, because it may be the verb | `f208605`, `253390c`, rewritten after the last review |
 | REFUND-001 on the word | 238 of 531 false | **Not fixed.** A carve-out for refusals, questions, status reports and statements of policy was written in five forms; reviewers found late refunds that each form let through, and it was removed. The rule fires on the word, as in the audit | `943cd22`, `56a4e84`, `71068d7`, `7e057d0`, then removed |
-| PROMISE-001 and SLA-001 idioms | 3 of 5 false | Fixed in part: two PROMISE-001 idioms are blanked before keyword matching. The SLA-001 one ("will definitely be able to") was blanked too and then put back, because timed commitments kept escaping with it | `96b920f`, narrowed after the last review |
+| PROMISE-001 and SLA-001 idioms | 3 of 5 false | **Not fixed.** Three idioms ("don't last forever", "you'll never miss a ...", "will definitely be able to") were blanked before keyword matching; reviewers found commitments that escaped with each ("Most promos don't last forever, but yours will."), and the blanking was removed | `96b920f`, then removed |
 
 Not fixed, because no rule separates them: a store's street address or a company
 mailbox redacted as PII (3 flags per context, counted ambiguous), and refunds that
@@ -797,11 +796,18 @@ How to read this:
   on probes written against earlier forms of the fix, not a measured miss
   rate; the probes of the later reviews are not in the repository, apart from
   the examples quoted here, which are tests.
-- The same reviews cut two other fixes back. "credit card" is now skipped only
-  after a word that marks a noun, because every way of telling the verb ("I'll
-  go ahead and credit card ending 4417 for $75") missed real credits. The
-  SLA-001 idiom is gone, because "We will definitely be able to ship it to
-  St. Louis by Friday" escaped with it.
+- The same reviews undid the idiom fix and cut the "credit card" fix back. The
+  three idioms were blanked before keyword matching, and a commitment could
+  ride on each: "Most promos don't last forever, but yours will.", "We will
+  definitely be able to ship it to St. Louis by Friday." They fire again.
+  "credit card" is now skipped only after a word that marks a noun, because
+  every way of telling the verb ("I'll go ahead and credit card ending 4417 for
+  $75") missed real credits.
+- What the audit bought, then: two of its four fixable classes are fixed, and
+  the other two are known, measured and listed, with tests that pin the rule
+  firing. The pattern in the withdrawn fixes is the same: a keyword rule
+  can be told what not to match, and each such exception was also a way to
+  word a real violation.
 
 ## One LLM-tier recording (Claude Haiku 5.5, 2026-11-05)
 
