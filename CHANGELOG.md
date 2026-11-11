@@ -5,9 +5,9 @@ under a release is that tag's own message.
 The version number lives in `src/autocorrector/__init__.py` (`__version__`), which
 the package metadata, the dashboard API and `/health` read.
 
-## [Unreleased]
+## [1.6] - 2026-11-11
 
-Known weaknesses found since v1.5, each fixed here:
+Known weaknesses found since v1.5, fixed here unless a line says "Not fixed":
 
 - A rule keyword matched any word that started with it, and a keyword that is also a
   name: "Thanks, Sue. Your order shipped this morning." and "Those suede boots are
