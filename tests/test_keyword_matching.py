@@ -255,8 +255,10 @@ class TestAuditScript:
 
     def test_matches_separates_collisions_from_lookalikes(self):
         audit = self._load()
+        # "credit-card" on its own counts: the compound is skipped only after a word
+        # that marks a noun ("a credit-card payment"), which a word list never has
         assert audit.matches("credit", ["credit-union", "credit-card", "credited", "creditor"]) == (
-            ["credit-union"],
+            ["credit-union", "credit-card"],
             ["credited"],
         )
         assert audit.matches("us", ["used", "usher"]) == ([], ["used"])

@@ -41,9 +41,10 @@ Known weaknesses found since v1.5, each fixed here:
   104. The six left are five severity changes the suite cannot see and one
   redundant keyword (docs/evaluation.md).
 
-False-positive classes found by the real-turn audit (below), each fixed with new
-golden rows (RT-001 onwards, written for this project, not copied from the audited
-turns). The audit is not re-run; its numbers predate these fixes:
+False-positive classes found by the real-turn audit (below). Two are fixed, one in
+part, and the largest (the refund rule) is not; the golden rows RT-001 onwards
+were written for this project, not copied from the audited turns. The audit is
+not re-run; its numbers predate these changes:
 
 - Language detection escalated order codes, bare numbers, usernames and typo-ridden
   English as 16 different languages. Short plain-ASCII text is now English unless
@@ -70,45 +71,43 @@ turns). The audit is not re-run; its numbers predate these fixes:
 - "credit card" counted as a mention of a credit, so "The $89 renewal went through on
   your credit card this morning" was rewritten as an over-limit credit offer for
   a new account (CREDIT-001). The keyword "credit" no longer matches in "credit
-  card(s)", "credit-card" or "credit or debit card"; a credit named elsewhere in
-  the reply still does, and so does crediting a card, known by the word before
-  it ("I'll credit card ending 4417", "Let me credit card ending ...") or by
-  what follows ("gladly credit card ending 4417 with $90") (RT-009 to RT-013). What this gives up: "As an apology I'm
+  card(s)", "credit-card" or "credit or debit card" after a word that marks a
+  noun ("your", "the", "a", "by", "which" ...); a credit named elsewhere in the
+  reply still does. Without such a word it still matches, because it may be the
+  verb ("I'll credit card ending 4417 with $90", "and credit cards ending ..."),
+  so "We accept cash and credit card" still counts as a mention (RT-009 to
+  RT-013). What this gives up: "As an apology I'm
   sending $600 to your credit card" used to escalate only because of that
   misreading and is now allowed; no keyword names a payment that is not called a
   credit. A capped credit now reads "a $50 credit" where the reply said "an $80
   credit" (it kept "an").
 - The PII rail redacted "Your refund of $72 is on its way back to your credit
   card" as a street address ("72 is on its way"; "Way" is a street type and the
-  pattern ignores case). A street-name word can no longer be a function word or
-  a unit of time or count; lowercase addresses ("123 main st") are still found
-  (RT-037). On the external PII benchmark this removes twelve address
-  predictions, two of them correct: English precision 63.6% to 63.8%
-  (2053/3218), recall 2062 to 2060 of 4,432 (still 46.5%).
-- REFUND-001 fired on the word "refund", not on granting one: 45 days after
-  purchase, "So you'd like a refund for the headphones?", "That refund is still
-  pending", "Premium members get unlimited refunds" and "I'm sorry, I can't refund
-  this order" were all rewritten. A reply is now excused when every part of it is
-  a refusal, a question that neither proposes the refund nor takes it as settled,
-  or a neutral remark (a greeting, thanks, an apology, looking something up), so
-  the first and the last of those four are allowed. Everything else fires,
-  including a question that takes the refund as settled or proposes it ("How
-  should we send your refund, to your card or as store credit?", "Would you like
-  your money back?") (RT-014 to RT-030). What this does not fix: a status report
-  and a statement of policy are still rewritten, the second and third of the
-  four. Excusing those as well was tried first and withdrawn: four reviews each
-  found late refunds it let through ("You'd like a refund? Sure thing.", "I
-  can't refund the shipping fee, just the $80 for the item itself."), so the rule
-  now fails toward the supervisor on any wording it does not know.
-- PROMISE-001 and SLA-001 fired on three idioms: "Promo codes don't last forever",
-  "you'll never miss a clearance event" (a sale, an event, an offer; "never miss
-  a delivery" is still a commitment) and "I will definitely be able to ..." where
-  the sentence names no time or number ("By Friday we will ...", "... this
-  afternoon" and "... at 9am" still fire). Those wordings are blanked before the rule's keywords are matched;
-  the same keyword elsewhere in the reply still fires (RT-031 to RT-036). Only
-  these three are covered: "This will definitely be sorted" with no date still
-  counts as a timeline guarantee, and any other idiom with "forever", "never
-  again" or "lifetime" still counts as a commitment.
+  pattern ignores case). A street-name word can no longer be a lower-case
+  function word or unit of time or count; lowercase addresses ("123 main st")
+  and capitalised ones ("12 The Avenue") are still found (RT-037). On the
+  external PII benchmark this removes nine address predictions over all
+  languages, one of them correct; on the English rows precision goes from
+  63.6% to 63.8% (2054/3221) and recall from 2062 to 2061 of 4,432 (still
+  46.5%).
+- Not fixed: REFUND-001 fires on the word "refund", not on granting one. 45 days
+  after purchase, "So you'd like a refund for the headphones?", "That refund is
+  still pending" and "I'm sorry, I can't refund this order" are all rewritten;
+  this was 238 of the 531 refund flags in the audit. A carve-out for questions,
+  refusals, status reports and statements of policy was written in five forms.
+  Reviewers found late refunds each form let through ("You'd like a refund?
+  Sure thing.", "I can't refund you until tomorrow morning.", "Let me pull up
+  your order to process that refund for you."), so it was removed and the rule
+  behaves as in v1.5. Ten rows (between RT-015 and RT-030) pin replies that
+  grant a late refund.
+- PROMISE-001 fired on two idioms: "Promo codes don't last forever" and "you'll
+  never miss a clearance event" (a sale, an event, an offer; "never miss a
+  delivery" is still a commitment). Those wordings are blanked before the
+  rule's keywords are matched; the same keyword elsewhere in the reply still
+  fires (RT-031 to RT-034). Any other idiom with "forever", "never again" or
+  "lifetime" still counts as a commitment. Not fixed: SLA-001 on "I will
+  definitely be able to ..."; blanking it let timed commitments through ("...
+  ship it to St. Louis by Friday"), so it still counts as a timeline guarantee.
 
 New measurements:
 
@@ -128,7 +127,7 @@ New measurements:
   language misdetections on codes and usernames. Ids and labels are in
   `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
-  (hold 289 of 527 against 59 here); arithmetic, in-sample.
+  (hold 289 of 519 against 59 here); arithmetic, in-sample.
 
 - `scripts/evaluate.py --invariants` checks the corrected text of the 230 cases
   of the golden set that the pipeline corrects: idempotent 230/230; of the 183 with

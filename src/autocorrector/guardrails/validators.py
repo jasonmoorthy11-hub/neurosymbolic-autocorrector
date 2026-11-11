@@ -158,9 +158,10 @@ class FactualAccuracyValidator(Validator):
 # ---------------------------------------------------------------------------
 
 # A word of a street name: letters, and none of the words that put a number and a
-# street type in one phrase by accident
+# street type in one phrase by accident. Those are excluded only in lower case:
+# "12 The Avenue" and "20 Back Lane" are addresses, "72 is on its way" is not.
 _STREET_WORD = (
-    r"(?!(?:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
+    r"(?!(?-i:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
     r"|your|my|our|their|his|her|all|each|every|more|other|and|or|but|not|no|will|can|per|as"
     r"|out|up|down|back|along|under|over|days?|weeks?|months?|years?|hours?|minutes?|times?"
     r"|items?|orders?)\b)[A-Z][a-z]+"

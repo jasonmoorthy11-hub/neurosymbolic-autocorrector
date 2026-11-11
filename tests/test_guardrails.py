@@ -199,6 +199,12 @@ class TestPIIDetection:
             ("Please ship it to 72 Maple Way, Springfield.", "72 Maple Way"),
             ("we have 123 main st on file", "123 main st"),
             ("It goes to 9 Orchard Court tomorrow.", "9 Orchard Court"),
+            # a capitalised function word is part of a street name
+            ("12 The Avenue", "12 The Avenue"),
+            ("Send it to 20 Back Lane please", "20 Back Lane"),
+            ("9 All Saints Road", "9 All Saints Road"),
+            ("8 Will Rogers Boulevard", "8 Will Rogers Boulevard"),
+            ("61 Our Lady Court", "61 Our Lady Court"),
         ],
     )
     def test_a_street_address_is_still_found_in_any_case(self, text, span):

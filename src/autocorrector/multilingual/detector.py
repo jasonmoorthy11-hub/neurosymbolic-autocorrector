@@ -75,8 +75,8 @@ _ENGLISH_MARKERS = frozenset({
 # a borrowed phrase): "Su plan The New You ya esta activo".
 # fmt: off
 _FOREIGN_FUNCTION_WORDS = frozenset({
-    "el", "los", "las", "por", "para", "su", "una", "que", "del", "esta", "ya", "hay", "la",  # es
-    "le", "les", "des", "je", "vous", "nous", "est", "pas", "pour", "une", "et", "de", "votre",
+    "el", "los", "las", "por", "para", "su", "una", "que", "del", "esta", "ya", "hay",  # es
+    "le", "les", "des", "je", "vous", "nous", "est", "pas", "pour", "une", "et", "votre",
     "tu",  # fr
     "os", "uma", "voce", "nao", "seu", "sua",  # pt
     "ich", "der", "das", "und", "nicht", "ist", "ihnen", "sie", "wir", "mit", "ein", "eine",

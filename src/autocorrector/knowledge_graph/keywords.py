@@ -26,44 +26,23 @@ _ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 # A keyword that is the first word of a compound naming something else: "credit
 # card" is a means of payment, not a credit. The bare keyword does not match there
 # ("$40 back to your credit card" offers no credit), nor in "credit-card" or "credit
-# or debit card", and only on the same line. Its inflections always match
-# ("credited card ending 4417"), and so does the verb, known by the word before
-# it or by what follows ("I'll credit card ending 4417", "to credit cards ending
-# ...", "gladly credit card ending 4417 with $90"). "a $75 credit on your credit
-# card statement" still matches at the first "credit".
+# or debit card", but only where the word before it marks a noun ("your", "the",
+# "a", "by" ...) and only on the same line. Anywhere else it matches, because it
+# may be the verb ("I'll credit card ending 4417 with $90", "and credit cards
+# ending ..."): telling the verb by the words around it was tried and missed real
+# credits, so an unmarked "credit card" errs toward the rule ("We accept cash and
+# credit card" matches). Inflections always match ("credited card ending 4417"),
+# and "a $75 credit on your credit card statement" matches at the first "credit".
 NOT_BEFORE = {
     "credit": r"(?:/debit|[ \t\u00a0]+or[ \t\u00a0]+debit)?(?:[ \t\u00a0]+|-)cards?(?!\w)"
 }
-# Words that make the keyword a verb where it stands right before such a compound.
-# Only words that cannot precede the noun: "and", "me", "now", "also", "then",
-# "just", "please", "should", "must" and "did" were tried and matched "cash and
-# credit card" and "charge me credit card fees".
-_VERB_CUES = (
-    "to",
-    "'ll",
-    "\u2019ll",
-    "'d",
-    "\u2019d",
-    "will",
-    "can",
-    "could",
-    "would",
-    "may",
-    "might",
-    "shall",
-    "I",
-    "we",
-    "let's",
-    "let\u2019s",
-    "let me",
+# fmt: off
+_NOUN_MARKERS = (
+    "your", "the", "a", "my", "our", "their", "his", "her", "this", "that", "which", "what",
+    "any", "all", "major", "other", "another", "new", "same", "different", "valid", "by",
+    "via", "with", "on", "of", "no", "each", "every",
 )
-# ...and what follows makes it a verb whatever stands before it: a card named by
-# its last digits and credited "with" an amount ("I'll gladly credit card ending
-# 4417 with $90")
-VERB_BEFORE = {
-    "credit": r"[ \t\u00a0]+cards?[ \t\u00a0]+ending[ \t\u00a0]+(?:in[ \t\u00a0]+)?\d+"
-    r"(?:[ \t\u00a0]+and[ \t\u00a0]+\d+)*[ \t\u00a0]+with[ \t\u00a0]+\$?\d"
-}
+# fmt: on
 
 
 def _suffixes(word: str, phrase: bool) -> list[str]:
@@ -81,10 +60,9 @@ def _suffixes(word: str, phrase: bool) -> list[str]:
     return ["'s", *plural, *past, "ing"]
 
 
-def _after_cue(cue: str, kw: str) -> str:
-    """Lookbehind for ``kw`` right after a whole-word verb cue ("I", not "Citi")."""
-    boundary = "" if cue[0] in "'\u2019" else r"(?<!\w)"
-    return rf"(?<={boundary}{re.escape(cue)}[ \t\n\u00a0]{re.escape(kw)})"
+def _after_marker(marker: str, kw: str) -> str:
+    """Lookbehind for ``kw`` right after a whole-word noun marker ("a", not "Visa")."""
+    return rf"(?<=(?<!\w){re.escape(marker)}[ \t\u00a0]{re.escape(kw)})"
 
 
 @lru_cache(maxsize=4096)
@@ -97,8 +75,8 @@ def keyword_pattern(keyword: str) -> re.Pattern[str]:
     if not phrase and kw.endswith("e"):
         body += "|" + re.escape(kw[:-1]) + "ing"
     if kw in NOT_BEFORE:
-        as_verb = "|".join(_after_cue(cue, kw) for cue in _VERB_CUES)
-        bare = rf"{re.escape(kw)}(?:(?!{NOT_BEFORE[kw]})|{as_verb}|(?={VERB_BEFORE[kw]}))"
+        as_noun = "|".join(_after_marker(marker, kw) for marker in _NOUN_MARKERS)
+        bare = rf"{re.escape(kw)}(?!(?:{as_noun}){NOT_BEFORE[kw]})"
         body = body.replace(re.escape(kw), bare, 1)
     return re.compile(rf"(?<!\w)(?:{body})(?!\w)", re.IGNORECASE)
 
@@ -116,7 +94,7 @@ def mentions_keyword(text: str, keywords: list[str]) -> bool:
 
     "sue" matches "sued" and "suing" but not "suede" or "issue"; "credit"
     matches "credited" but not "creditor"; "always will" does not match
-    "always willing"; "credit" does not match in "credit card". Case is ignored,
+    "always willing"; "credit" does not match in "your credit card". Case is ignored,
     except that a keyword which is also a given name is skipped where the text
     greets a person by it ("Thanks, Sue.").
     """
