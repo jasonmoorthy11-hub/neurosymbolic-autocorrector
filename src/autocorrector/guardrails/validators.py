@@ -175,7 +175,7 @@ _EVERYDAY_NOUN = rf"(?-i:way|road|place|court|drive|circle)\b(?!{_STREET_GOES_ON
 _FUNCTION_WORD = (
     r"(?-i:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
     r"|your|my|our|their|his|her|all|each|every|either|any|some|more|other|and|or|but|not|no"
-    r"|will|can|per|as|out|up|down|back|along|under|over|first|next|last|same)"
+    r"|will|can|per|as|first)"
 )
 _UNIT_WORD = r"(?-i:days?|weeks?|months?|years?|hours?|minutes?|times?|items?|orders?)"
 _LOWER_WORD = r"(?-i:[a-z]+)"

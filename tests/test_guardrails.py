@@ -195,6 +195,10 @@ class TestPIIDetection:
     def test_a_number_before_an_everyday_phrase_is_not_an_address(self, text):
         assert find_pii_spans(text) == []
 
+    def test_a_phrase_the_veto_does_not_know_is_still_redacted(self):
+        text = "Your 2 packages are on their way."
+        assert [text[a:b] for _, a, b in find_pii_spans(text)] == ["2 packages are on their way"]
+
     @pytest.mark.parametrize(
         ("text", "span"),
         [
@@ -217,6 +221,9 @@ class TestPIIDetection:
             # an everyday noun that is not where the street ends
             ("we deliver to 23 first place drive", "23 first place drive"),
             ("i have 14 back road court on file", "14 back road court"),
+            # "back", "down" and "last" are not function words here
+            ("we are at 15 back road", "15 back road"),
+            ("it is 16 down road", "16 down road"),
             # a city, state and ZIP after it settle the matter
             (
                 "send to 12 the drive, Springfield, IL 62704",
@@ -227,7 +234,16 @@ class TestPIIDetection:
     def test_a_street_address_is_found(self, text, span):
         assert [text[start:end] for _, start, end in find_pii_spans(text)] == [span]
 
-    @pytest.mark.parametrize("text", ["send to 12 the drive", "we are at 4 days road"])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "send to 12 the drive",
+            "we are at 4 days road",
+            "101 first place",
+            "12 the drive, Springfield IL 62704",  # not the exact ", City, ST 12345" form
+            "i live at 4 days lane on the way to town",
+        ],
+    )
     def test_a_lower_case_address_that_reads_as_a_phrase_is_the_known_loss(self, text):
         assert find_pii_spans(text) == []
 
@@ -237,8 +253,10 @@ class TestPIIDetection:
         start = time.perf_counter()
         find_pii_spans("72 " + "is on its " * 10000 + "way")
         find_pii_spans("5 " + "Oak " * 10000)
-        find_pii_spans("3 " + "x days " * 6000 + "way")
         assert time.perf_counter() - start < 5  # about 20 ms; quadratic would take minutes
+        start = time.perf_counter()
+        find_pii_spans("3 " + "x days " * 6000)  # 1.4 s if the unit lookahead were unbounded
+        assert time.perf_counter() - start < 1
 
     def test_no_false_positive_on_normal_numbers(self):
         """Normal account references shouldn't trigger bank account detection."""

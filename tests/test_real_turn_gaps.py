@@ -261,7 +261,7 @@ class TestCreditCardIsNotACredit:
         assert [v.rule_id for v in violations] == ["CREDIT-001"]
 
 
-class TestWhatTheNounReadingLetsThrough:
+class TestCreditCardNounReading:
     @pytest.mark.parametrize(
         "text",
         [

@@ -88,7 +88,8 @@ not re-run; its numbers predate these changes:
   it, in lower case, is function words and then "way", "road", "place", "court",
   "drive" or "circle", or a unit of time or count on the way to one ("3 business
   days each way"), unless the street goes on to another street type or a city,
-  state and ZIP follow. Every other address is matched exactly as before (RT-037).
+  state and ZIP follow in the form ", City, ST 12345". Other addresses are matched
+  as before (RT-037).
   What this gives up: an address typed in lower case that reads as such a
   phrase ("12 the drive", "4 days road"). The external PII benchmark output is
   unchanged.
