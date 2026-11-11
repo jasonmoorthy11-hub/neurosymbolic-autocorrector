@@ -157,22 +157,32 @@ class FactualAccuracyValidator(Validator):
 # 3. PII Detection Validator
 # ---------------------------------------------------------------------------
 
-# Street addresses. "Way", "Road", "Place", "Court", "Drive" and "Circle" are also
-# everyday nouns, so before one of those a number is not a house number when
-# every word between is a lower-case function word ("72 is on its way", "911 in
-# the first place") or any of them is a lower-case unit of time or count ("3
-# business days each way", "5 years down the road"). Before "Street", "Avenue",
-# "Lane" and the abbreviations nothing is excluded: "12 the avenue", "20 back lane".
-_FUNCTION_WORDS = (
+# Street addresses: a number, a name, a street type; the longest run wins ("45
+# Shady Lane Drive"). "way", "road", "place", "court", "drive" and "circle" are
+# also everyday nouns, so a number is not a house number when what follows it,
+# all in lower case, is function words and then one of those nouns ("72 is on its
+# way", "911 in the first place"), or a unit of time or count on the way to one
+# ("3 business days each way", "5 years down the road"). Neither applies when
+# the street goes on to another street type ("23 first place drive") or a
+# "City, ST 12345" tail follows.
+_STREET_TYPE = (
+    r"(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Dr(?:ive)?|Ln|Lane|Rd|Road|Way|Ct|Court"
+    r"|Pl(?:ace)?|Cir(?:cle)?)"
+)
+_CITY_TAIL = r"\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?"
+_STREET_GOES_ON = rf"(?:\s+(?:[A-Z][a-z]+\s+){{0,4}}{_STREET_TYPE}\b|\.?{_CITY_TAIL})"
+_EVERYDAY_NOUN = rf"(?-i:way|road|place|court|drive|circle)\b(?!{_STREET_GOES_ON})"
+_FUNCTION_WORD = (
     r"(?-i:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
     r"|your|my|our|their|his|her|all|each|every|either|any|some|more|other|and|or|but|not|no"
     r"|will|can|per|as|out|up|down|back|along|under|over|first|next|last|same)"
 )
-_UNIT_WORDS = r"(?-i:days?|weeks?|months?|years?|hours?|minutes?|times?|items?|orders?)"
-_PLAIN_STREET = r"(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Ln|Lane|Dr|Rd|Ct|Pl|Cir)"
-_NOUN_STREET = r"(?:Drive|Road|Way|Court|Place|Circle)"
-_WORD = r"[A-Z][a-z]+"
-_NAME_WORD = rf"(?!{_UNIT_WORDS}\b){_WORD}"
+_UNIT_WORD = r"(?-i:days?|weeks?|months?|years?|hours?|minutes?|times?|items?|orders?)"
+_LOWER_WORD = r"(?-i:[a-z]+)"
+_NOT_A_HOUSE_NUMBER = (
+    rf"(?!(?:{_FUNCTION_WORD}\s+)+{_EVERYDAY_NOUN})"
+    rf"(?!(?:{_LOWER_WORD}\s+){{0,3}}{_UNIT_WORD}\s+(?:{_LOWER_WORD}\s+){{0,4}}{_EVERYDAY_NOUN})"
+)
 
 # Common PII patterns — ordered so prefix-based patterns run before general numeric ones
 _PII_PATTERNS = {
@@ -218,12 +228,8 @@ _PII_PATTERNS = {
         "[DL REDACTED]",
     ),
     "address": (
-        r"\b\d{1,5}\s+(?:"
-        rf"{_WORD}(?:\s+{_WORD})*\s+{_PLAIN_STREET}"
-        rf"|(?!(?:{_FUNCTION_WORDS}\s+)+{_NOUN_STREET}\b)"
-        rf"{_NAME_WORD}(?:\s+{_NAME_WORD})*\s+{_NOUN_STREET}"
-        r")\.?"
-        r"(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)?\b",
+        rf"\b\d{{1,5}}\s+{_NOT_A_HOUSE_NUMBER}"
+        rf"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+{_STREET_TYPE}\.?(?:{_CITY_TAIL})?\b",
         "[ADDRESS REDACTED]",
     ),
     "phone": (

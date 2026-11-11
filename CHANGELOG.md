@@ -84,13 +84,14 @@ not re-run; its numbers predate these changes:
   credit" (it kept "an").
 - The PII rail redacted "Your refund of $72 is on its way back to your credit
   card" as a street address ("72 is on its way"; "Way" is a street type and the
-  pattern ignores case). Before "Way", "Road", "Place", "Court", "Drive" and
-  "Circle" a number is no longer a house number when only lower-case function
-  words follow it, or a lower-case unit of time or count ("3 business days each
-  way"). Other addresses are found as before, in any case ("12 the avenue",
-  "9 all saints road"); "12 the drive" in lower case is not (RT-037). On the
-  external PII benchmark this removes one false address prediction: English
-  precision 63.6% to 63.7% (2055/3228), recall unchanged.
+  pattern ignores case). A number is no longer a house number when what follows
+  it, in lower case, is function words and then "way", "road", "place", "court",
+  "drive" or "circle", or a unit of time or count on the way to one ("3 business
+  days each way"), unless the street goes on to another street type or a city,
+  state and ZIP follow. Every other address is matched exactly as before (RT-037).
+  What this gives up: an address typed in lower case that reads as such a
+  phrase ("12 the drive", "4 days road"). The external PII benchmark output is
+  unchanged.
 - Not fixed: REFUND-001 fires on the word "refund", not on granting one. 45 days
   after purchase, "So you'd like a refund for the headphones?", "That refund is
   still pending" and "I'm sorry, I can't refund this order" are all rewritten;

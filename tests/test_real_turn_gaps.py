@@ -232,6 +232,7 @@ class TestCreditCardIsNotACredit:
             "I've credited $85 to your account for the trouble.",
             "I've added an $80 credit, and it will show on your credit card statement.",
             "We accept all major credit cards. I can also add a $75 credit to your account.",
+            "I'll add a 75 credit to your account.",  # a bare amount before "credit"
         ],
     )
     async def test_a_credit_over_the_limit_still_fires(self, text):
@@ -251,7 +252,6 @@ class TestCreditCardIsNotACredit:
             "I'm adding an $80 credit\nCard ending 4417 stays on file.",
             "We will each credit card ending 4417 with $60.",
             "I'll have her credit card ending 4417 with $75.",
-            "I'll add a 75 credit to your account.",  # a bare amount before "credit"
         ],
     )
     async def test_crediting_a_card_still_fires(self, text):
@@ -267,15 +267,30 @@ class TestWhatTheNounReadingLetsThrough:
         [
             # a credit noun that runs into "card" with no punctuation, after a marker
             "I've added the credit card ending 4417 will show $80 tomorrow.",
-            # "600 credit cards" is not an amount of credit, marker or not
-            "We replaced 600 credit cards last year.",
+            # a credit offered as "a credit or debit card refund"
+            "Would you like the $75 as a credit or debit card refund?",
         ],
     )
-    async def test_no_credit_rule_fires(self, text):
+    async def test_a_credit_read_as_the_card_is_the_known_loss(self, text):
         violations = await KnowledgeGraphStore().check_policy_compliance(
             text=text, intent_type="general", customer_context=NEW_ACCOUNT
         )
         assert violations == []
+
+    async def test_a_count_of_credit_cards_is_not_an_amount_of_credit(self):
+        violations = await KnowledgeGraphStore().check_policy_compliance(
+            text="We replaced 600 credit cards last year.",
+            intent_type="general",
+            customer_context=NEW_ACCOUNT,
+        )
+        assert violations == []
+
+    async def test_a_capped_credit_takes_the_article_of_the_new_amount(self):
+        from autocorrector.orchestrator.pipeline import run_autocorrection
+
+        result = await run_autocorrection("I've added an $80 credit to your account.", NEW_ACCOUNT)
+        assert "a $50 credit" in result.corrected_text
+        assert "an $50" not in result.corrected_text
 
 
 class TestRefundRuleFiresOnTheWord:

@@ -6,7 +6,7 @@ Four numbers, kept separate because they mean different things:
 |---|---|---|
 | Golden, 517 cases | Self-authored, **in-sample**: written alongside the code and used during development; 107 rows (GAP-001 to GAP-024, PIN-001 to PIN-056 and 27 RT rows) added after the held-out run | 517/517 actions correct (99.3–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
-| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.7% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
+| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
 | Real agent turns | ABCD v1.1 (MIT), 19,144 human-written agent turns from role-played chats for another company, three assumed customer contexts, one run | Flagged: 0.30%, 0.26% and 3.03% of turns. Flags that were right: 16/57 = 28.1% (18.1–40.8), 15/50 = 30.0% (19.1–43.8), 243/581 = 41.8% (37.9–45.9) |
 
 The in-sample score is a regression suite, not evidence of accuracy: every golden
@@ -26,7 +26,7 @@ someone else.
 |---|---|---|---|---|---|---|
 | Actions correct | Golden set v3.5 | in-sample | 517 | 517/517 (99.3–100.0) | `scripts/evaluate.py` | v1.6 tree, run 2026-11-11 |
 | Actions correct | Held-out set | blind, one run | 60 | 53/60, 88.3% (77.8–94.2) | `scripts/evaluate.py --dataset heldout` (not re-run) | `fa71907` |
-| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,228 predicted, 4,432 gold | precision 63.7% (62.0–65.3), recall 46.5% (45.1–48.0) | `scripts/bench_pii.py` | v1.6 tree, run 2026-11-11 |
+| PII spans found, English | gretelai/synthetic_pii_finance_multilingual, test split | external, synthetic | 3,229 predicted, 4,432 gold | precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0) | `scripts/bench_pii.py` | v1.6 tree, run 2026-11-11 |
 | Rule changes the golden suite notices | 104 single changes to the 8 rules | in-sample, and in-sample to that list of changes | 104 | 98 (94.2%); no interval, the 104 are all of them | `scripts/mutate_policy.py` | v1.6 tree, run 2026-11-11 |
 | Corrected text holds together | The 230 cases of the golden set that the pipeline corrects | in-sample | 230; 183 with edits; 13 with an untouched sentence | idempotent 230/230, edit log replays 180/183, citations resolve 183/183, untouched sentences kept 13/13; counts, no interval | `scripts/evaluate.py --invariants` | v1.6 tree, run 2026-11-11 |
 | PII rail next to Presidio 2.2.366 (`en_core_web_lg`), the 7 types both cover | Same external set, English | external, synthetic | 1,869 gold | This rail: precision 58.7%, recall 72.9%. Presidio at score ≥ 0.5: 90.7% / 66.5%; at ≥ 0.4: 48.8% / 80.1%. Which is ahead depends on the cut-off | `scripts/bench_pii.py --detector presidio` | v1.6 tree, run 2026-11-11 |
@@ -412,12 +412,8 @@ address with an accented local part is now redacted in part, in two places).
 
 Re-run on 2026-11-11, after the address pattern stopped taking a number in front
 of an everyday phrase for a house number ("Your refund of $72 is on its way back
-to your credit card" was redacted as the address "72 is on its way"): English
-precision 63.7% (2055/3228, 62.0–65.3) and recall 46.5% (2062/4432, 45.1–48.0);
-all languages 55.4% (2728/4922) and 34.2% (2738/7997); 58 and 83 predictions
-excluded. The address row is now 72.3% (589/815) and 13.7% (591/4303): one
-false prediction fewer and no correct one lost. The other rows are unchanged.
-These are the numbers the summary tables quote.
+to your credit card" was redacted as the address "72 is on its way"): every
+count is the same as on 2026-11-10, the address row included.
 
 ### Reading these numbers
 
@@ -466,7 +462,7 @@ nothing in the package imports it.
 
 | Detector, English, typed | Precision | Recall |
 |---|---|---|
-| This project's regex rail | 63.7% (2055/3228) | 46.5% (2062/4432) |
+| This project's regex rail | 63.6% (2055/3229) | 46.5% (2062/4432) |
 | Presidio, score ≥ 0 (its default) | 12.8% (1518/11885) | 34.4% (1526/4432) |
 | Presidio, score ≥ 0.4 | 48.8% (1490/3053) | 33.8% (1498/4432) |
 | Presidio, score ≥ 0.5 | 90.7% (1236/1362) | 28.0% (1243/4432) |
@@ -491,7 +487,7 @@ predictions.
 | bank_account | 0.0% (0/83) | 0.0% (0/194) | 19.3% (92/476) | 49.0% (95/194) | 98.9% (92/93) | 49.0% (95/194) |
 | routing_number | 84.8% (39/46) | 43.3% (39/90) | disabled by default | 0/90 | disabled by default | 0/90 |
 | drivers_license | 31.5% (17/54) | 23.6% (17/72) | 27.1% (46/170) | 63.9% (46/72) | 70.5% (31/44) | 43.1% (31/72) |
-| address | 73.2% (575/785) | 24.8% (577/2330) | no recognizer | 0/2330 | no recognizer | 0/2330 |
+| address | 73.2% (575/786) | 24.8% (577/2330) | no recognizer | 0/2330 | no recognizer | 0/2330 |
 | phone | 34.7% (384/1108) | 72.4% (385/532) | 29.5% (406/1377) | 76.3% (406/532) | 69.2% (227/328) | 42.7% (227/532) |
 
 How to read it:

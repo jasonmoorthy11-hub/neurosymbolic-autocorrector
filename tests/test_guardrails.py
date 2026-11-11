@@ -209,6 +209,19 @@ class TestPIIDetection:
             ("your address on file is 9 all saints road", "9 all saints road"),
             ("61 Our Lady Court", "61 Our Lady Court"),
             ("12 The Drive", "12 The Drive"),
+            ("12 the Drive", "12 the Drive"),
+            # the longest street wins, as before v1.6
+            ("It ships to 45 Shady Lane Drive.", "45 Shady Lane Drive"),
+            ("1500 East Street Road", "1500 East Street Road"),
+            ("8 Mount St Helens Way", "8 Mount St Helens Way"),
+            # an everyday noun that is not where the street ends
+            ("we deliver to 23 first place drive", "23 first place drive"),
+            ("i have 14 back road court on file", "14 back road court"),
+            # a city, state and ZIP after it settle the matter
+            (
+                "send to 12 the drive, Springfield, IL 62704",
+                "12 the drive, Springfield, IL 62704",
+            ),
         ],
     )
     def test_a_street_address_is_found(self, text, span):
@@ -224,7 +237,8 @@ class TestPIIDetection:
         start = time.perf_counter()
         find_pii_spans("72 " + "is on its " * 10000 + "way")
         find_pii_spans("5 " + "Oak " * 10000)
-        assert time.perf_counter() - start < 2
+        find_pii_spans("3 " + "x days " * 6000 + "way")
+        assert time.perf_counter() - start < 5  # about 20 ms; quadratic would take minutes
 
     def test_no_false_positive_on_normal_numbers(self):
         """Normal account references shouldn't trigger bank account detection."""
