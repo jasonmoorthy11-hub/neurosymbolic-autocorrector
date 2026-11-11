@@ -89,12 +89,12 @@ not re-run; its numbers predate these changes:
   "drive" or "circle", or a unit of time or count on the way to one ("3 business
   days each way"), unless the street goes on to another street type or a city,
   state and ZIP follow in the form ", City, ST 12345". Direction and order words
-  ("back", "down", "last", "same" and six more) count as part of such a phrase
-  only beside a function word ("72 is back on its way"); alone they name a street
-  ("15 back road"). Other addresses are matched as before (RT-037).
+  ("back", "down", "last", "same" and six more) count as function words here
+  ("72 is back on its way", "Order 4471 under way"). Other addresses are matched
+  as before (RT-037).
   What this gives up: an address typed in lower case that reads as such a
-  phrase ("12 the drive", "12 the back road", "4 days road"). The external PII benchmark output is
-  unchanged.
+  phrase ("12 the drive", "15 back road", "4 days road"). The external PII
+  benchmark output is unchanged.
 - Not fixed: REFUND-001 fires on the word "refund", not on granting one. 45 days
   after purchase, "So you'd like a refund for the headphones?", "That refund is
   still pending" and "I'm sorry, I can't refund this order" are all rewritten;

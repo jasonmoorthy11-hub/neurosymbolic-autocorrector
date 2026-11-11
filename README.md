@@ -306,13 +306,13 @@ Known, measured, or found by the held-out run:
   number followed, in lower case, by function words and then "way", "road",
   "place", "court", "drive" or "circle" ("72 is on its way"), or by a unit of
   time or count on the way to one ("5 years down the road"). Direction and
-  order words such as "back" or "last" count only beside a function word ("72
-  is back on its way" is skipped, "15 back road" is redacted). An address typed
-  that way in lower case is therefore not redacted ("12 the drive", "12 the
-  back road", "101 first place", "4 days road", "4 days lane on the way to
-  town"), unless ", City, ST 12345" comes straight after that noun. Phrases the skip does not know are
-  still redacted as addresses: "Your 2 packages are on their way", "72 is on
-  its way back to Main Street".
+  order words such as "back", "under" or "last" count as function words ("72
+  is back on its way", "Order 4471 under way"). An address typed that way in
+  lower case is therefore not redacted ("12 the drive", "15 back road", "101
+  first place", "4 days road", "4 days lane on the way to town"), unless
+  ", City, ST 12345" comes straight after that noun. Phrases the skip does not
+  know are still redacted as addresses: "Your 2 packages are on their way",
+  "72 is on its way back to Main Street".
 - Not fixable by a rule and left as they are: a store's street address or a
   company mailbox in a reply is redacted as PII like a customer's would be, and a
   refund that depends on a condition the reply states ("once we receive the item")
