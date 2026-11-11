@@ -161,7 +161,8 @@ class FactualAccuracyValidator(Validator):
 # Shady Lane Drive"). "way", "road", "place", "court", "drive" and "circle" are
 # also everyday nouns, so a number is not a house number when what follows it,
 # all in lower case, is function words and then one of those nouns ("72 is on its
-# way", "911 in the first place"), or a unit of time or count on the way to one
+# way", "911 in the first place"; direction and order words such as "back" count
+# only beside a function word), or a unit of time or count on the way to one
 # ("3 business days each way", "5 years down the road"). Neither applies when
 # the street goes on to another street type ("23 first place drive") or a
 # "City, ST 12345" tail follows.
@@ -177,10 +178,15 @@ _FUNCTION_WORD = (
     r"|your|my|our|their|his|her|all|each|every|either|any|some|more|other|and|or|but|not|no"
     r"|will|can|per|as|first)"
 )
+# Direction and order words read as part of a phrase only next to a function word
+# ("72 is back on its way", "2 along the way"); alone they name a street ("15 back
+# road"). The two lists share no word, which keeps the lookahead linear.
+_DIRECTION_WORD = r"(?-i:out|up|down|back|along|under|over|next|last|same)"
+_PHRASE_WORD = rf"(?:{_FUNCTION_WORD}|{_DIRECTION_WORD})"
 _UNIT_WORD = r"(?-i:days?|weeks?|months?|years?|hours?|minutes?|times?|items?|orders?)"
 _LOWER_WORD = r"(?-i:[a-z]+)"
 _NOT_A_HOUSE_NUMBER = (
-    rf"(?!(?:{_FUNCTION_WORD}\s+)+{_EVERYDAY_NOUN})"
+    rf"(?!(?:{_DIRECTION_WORD}\s+)*{_FUNCTION_WORD}\s+(?:{_PHRASE_WORD}\s+)*{_EVERYDAY_NOUN})"
     rf"(?!(?:{_LOWER_WORD}\s+){{0,3}}{_UNIT_WORD}\s+(?:{_LOWER_WORD}\s+){{0,4}}{_EVERYDAY_NOUN})"
 )
 

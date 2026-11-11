@@ -190,6 +190,18 @@ class TestPIIDetection:
             "You have 14 days this way.",
             "That is 5 years down the road.",
             "Call 911 in the first place.",
+            # a direction or order word next to a function word is still a phrase
+            "Your refund of $72 is back on its way to your card.",
+            "We will send the other $40 the same way.",
+            "I found 2 along the way.",
+            "Item 4 is under way.",
+            "Store 312 is down the road.",
+            "Please move those 2 out of the way.",
+            "Team 88 is in the last place.",
+            "Ticket 4471 is back on its way.",
+            "There are 3 over the road.",
+            "Take exit 24 up the road.",
+            "We ship 6 the next way.",
         ],
     )
     def test_a_number_before_an_everyday_phrase_is_not_an_address(self, text):
@@ -221,9 +233,18 @@ class TestPIIDetection:
             # an everyday noun that is not where the street ends
             ("we deliver to 23 first place drive", "23 first place drive"),
             ("i have 14 back road court on file", "14 back road court"),
-            # "back", "down" and "last" are not function words here
+            # a direction or order word alone, with no function word, is a street name
             ("we are at 15 back road", "15 back road"),
             ("it is 16 down road", "16 down road"),
+            ("we are at 17 last road", "17 last road"),
+            ("we are at 18 up road", "18 up road"),
+            ("we are at 19 over road", "19 over road"),
+            ("we are at 21 under road", "21 under road"),
+            ("we are at 22 next road", "22 next road"),
+            ("we are at 23 same road", "23 same road"),
+            ("we are at 24 along road", "24 along road"),
+            ("we are at 25 out road", "25 out road"),
+            ("we are at 26 down under road", "26 down under road"),
             # a city, state and ZIP after it settle the matter
             (
                 "send to 12 the drive, Springfield, IL 62704",
@@ -240,6 +261,7 @@ class TestPIIDetection:
             "send to 12 the drive",
             "we are at 4 days road",
             "101 first place",
+            "we are at 12 the back road",
             "12 the drive, Springfield IL 62704",  # not the exact ", City, ST 12345" form
             "i live at 4 days lane on the way to town",
         ],
@@ -255,7 +277,10 @@ class TestPIIDetection:
         find_pii_spans("5 " + "Oak " * 10000)
         assert time.perf_counter() - start < 5  # about 20 ms; quadratic would take minutes
         start = time.perf_counter()
-        find_pii_spans("3 " + "x days " * 6000)  # 1.4 s if the unit lookahead were unbounded
+        # about 1 ms; with both unit-lookahead bounds removed, 12000 repeats took 11 s
+        find_pii_spans("3 " + "x days " * 20000)
+        find_pii_spans("7 " + "back the " * 10000 + "way")
+        find_pii_spans("7 " + "back " * 20000 + "way")
         assert time.perf_counter() - start < 1
 
     def test_no_false_positive_on_normal_numbers(self):

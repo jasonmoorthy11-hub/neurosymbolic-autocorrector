@@ -305,10 +305,12 @@ Known, measured, or found by the held-out run:
 - The address pattern takes a number, some words and a street type. It skips a
   number followed, in lower case, by function words and then "way", "road",
   "place", "court", "drive" or "circle" ("72 is on its way"), or by a unit of
-  time or count on the way to one ("5 years down the road"). An address typed
-  that way in lower case is therefore not redacted ("12 the drive", "101 first
-  place", "4 days road", "4 days lane on the way to town"), unless it is
-  followed by exactly ", City, ST 12345". Phrases the skip does not know are
+  time or count on the way to one ("5 years down the road"). Direction and
+  order words such as "back" or "last" count only beside a function word ("72
+  is back on its way" is skipped, "15 back road" is redacted). An address typed
+  that way in lower case is therefore not redacted ("12 the drive", "12 the
+  back road", "101 first place", "4 days road", "4 days lane on the way to
+  town"), unless ", City, ST 12345" comes straight after that noun. Phrases the skip does not know are
   still redacted as addresses: "Your 2 packages are on their way", "72 is on
   its way back to Main Street".
 - Not fixable by a rule and left as they are: a store's street address or a
