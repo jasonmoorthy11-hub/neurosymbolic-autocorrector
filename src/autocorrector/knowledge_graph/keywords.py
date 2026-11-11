@@ -27,35 +27,43 @@ _ADDRESS_ENDS = re.compile(r"\s*(?:[,.!?]|$)")
 # card" is a means of payment, not a credit. The bare keyword does not match there
 # ("$40 back to your credit card" offers no credit), nor in "credit-card" or "credit
 # or debit card", and only on the same line. Its inflections always match
-# ("credited card ending 4417"), and so does the verb ("I'll credit card ending
-# 4417 with $90", "to credit cards ending ..."). "a $75 credit on your credit card
-# statement" still matches at the first "credit".
+# ("credited card ending 4417"), and so does the verb, known by the word before
+# it or by what follows ("I'll credit card ending 4417", "to credit cards ending
+# ...", "gladly credit card ending 4417 with $90"). "a $75 credit on your credit
+# card statement" still matches at the first "credit".
 NOT_BEFORE = {
     "credit": r"(?:/debit|[ \t\u00a0]+or[ \t\u00a0]+debit)?(?:[ \t\u00a0]+|-)cards?(?!\w)"
 }
-# Words that make the keyword a verb where it stands before such a compound
+# Words that make the keyword a verb where it stands right before such a compound.
+# Only words that cannot precede the noun: "and", "me", "now", "also", "then",
+# "just", "please", "should", "must" and "did" were tried and matched "cash and
+# credit card" and "charge me credit card fees".
 _VERB_CUES = (
     "to",
     "'ll",
     "\u2019ll",
+    "'d",
+    "\u2019d",
     "will",
     "can",
     "could",
     "would",
-    "should",
-    "must",
-    "did",
+    "may",
+    "might",
+    "shall",
     "I",
     "we",
-    "and",
-    "me",
-    "just",
     "let's",
-    "please",
-    "then",
-    "also",
-    "now",
+    "let\u2019s",
+    "let me",
 )
+# ...and what follows makes it a verb whatever stands before it: a card named by
+# its last digits and credited "with" an amount ("I'll gladly credit card ending
+# 4417 with $90")
+VERB_BEFORE = {
+    "credit": r"[ \t\u00a0]+cards?[ \t\u00a0]+ending[ \t\u00a0]+(?:in[ \t\u00a0]+)?\d+"
+    r"(?:[ \t\u00a0]+and[ \t\u00a0]+\d+)*[ \t\u00a0]+with[ \t\u00a0]+\$?\d"
+}
 
 
 def _suffixes(word: str, phrase: bool) -> list[str]:
@@ -76,7 +84,7 @@ def _suffixes(word: str, phrase: bool) -> list[str]:
 def _after_cue(cue: str, kw: str) -> str:
     """Lookbehind for ``kw`` right after a whole-word verb cue ("I", not "Citi")."""
     boundary = "" if cue[0] in "'\u2019" else r"(?<!\w)"
-    return rf"(?<={boundary}{re.escape(cue)} {re.escape(kw)})"
+    return rf"(?<={boundary}{re.escape(cue)}[ \t\n\u00a0]{re.escape(kw)})"
 
 
 @lru_cache(maxsize=4096)
@@ -90,7 +98,7 @@ def keyword_pattern(keyword: str) -> re.Pattern[str]:
         body += "|" + re.escape(kw[:-1]) + "ing"
     if kw in NOT_BEFORE:
         as_verb = "|".join(_after_cue(cue, kw) for cue in _VERB_CUES)
-        bare = rf"{re.escape(kw)}(?:(?!{NOT_BEFORE[kw]})|{as_verb})"
+        bare = rf"{re.escape(kw)}(?:(?!{NOT_BEFORE[kw]})|{as_verb}|(?={VERB_BEFORE[kw]}))"
         body = body.replace(re.escape(kw), bare, 1)
     return re.compile(rf"(?<!\w)(?:{body})(?!\w)", re.IGNORECASE)
 

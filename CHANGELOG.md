@@ -71,28 +71,40 @@ turns). The audit is not re-run; its numbers predate these fixes:
   your credit card this morning" was rewritten as an over-limit credit offer for
   a new account (CREDIT-001). The keyword "credit" no longer matches in "credit
   card(s)", "credit-card" or "credit or debit card"; a credit named elsewhere in
-  the reply still does, and so does crediting a card ("I'll credit card ending
-  4417 with $90", "Let me credit card ending ...") (RT-009 to RT-013). What this gives up: "As an apology I'm
+  the reply still does, and so does crediting a card, known by the word before
+  it ("I'll credit card ending 4417", "Let me credit card ending ...") or by
+  what follows ("gladly credit card ending 4417 with $90") (RT-009 to RT-013). What this gives up: "As an apology I'm
   sending $600 to your credit card" used to escalate only because of that
   misreading and is now allowed; no keyword names a payment that is not called a
   credit. A capped credit now reads "a $50 credit" where the reply said "an $80
   credit" (it kept "an").
+- The PII rail redacted "Your refund of $72 is on its way back to your credit
+  card" as a street address ("72 is on its way"; "Way" is a street type and the
+  pattern ignores case). A street-name word can no longer be a function word or
+  a unit of time or count; lowercase addresses ("123 main st") are still found
+  (RT-037). On the external PII benchmark this removes twelve address
+  predictions, two of them correct: English precision 63.6% to 63.8%
+  (2053/3218), recall 2062 to 2060 of 4,432 (still 46.5%).
 - REFUND-001 fired on the word "refund", not on granting one: 45 days after
   purchase, "So you'd like a refund for the headphones?", "That refund is still
   pending", "Premium members get unlimited refunds" and "I'm sorry, I can't refund
-  this order" were all rewritten. A mention is now excused when the agent does
-  nothing anywhere in the reply (no "I'll", "I've", "approved", "today", "now" ...)
-  and the mention sits in a refusal, a question put to the customer, a report on
-  a refund already under way or a statement of policy. Everything else fires,
+  this order" were all rewritten. A reply is now excused when every part of it is
+  a refusal, a question that neither proposes the refund nor takes it as settled,
+  or a neutral remark (a greeting, thanks, an apology, looking something up), so
+  the first and the last of those four are allowed. Everything else fires,
   including a question that takes the refund as settled or proposes it ("How
-  should we send your refund, to your card or as store credit?", "How about a full
-  refund?") (RT-014 to RT-030). What this gives up: an offer phrased as a plain
-  question ("Would you like your money back?") is now allowed, and so is a grant
-  worded as a status with no agent and no "now" in it ("Your refund has been
-  completed and you'll see it in 3 days").
+  should we send your refund, to your card or as store credit?", "Would you like
+  your money back?") (RT-014 to RT-030). What this does not fix: a status report
+  and a statement of policy are still rewritten, the second and third of the
+  four. Excusing those as well was tried first and withdrawn: four reviews each
+  found late refunds it let through ("You'd like a refund? Sure thing.", "I
+  can't refund the shipping fee, just the $80 for the item itself."), so the rule
+  now fails toward the supervisor on any wording it does not know.
 - PROMISE-001 and SLA-001 fired on three idioms: "Promo codes don't last forever",
-  "you'll never miss a clearance event" and "I will definitely be able to ..."
-  where the sentence names no time ("... by Friday" and "... at 9am" still fire). Those wordings are blanked before the rule's keywords are matched;
+  "you'll never miss a clearance event" (a sale, an event, an offer; "never miss
+  a delivery" is still a commitment) and "I will definitely be able to ..." where
+  the sentence names no time or number ("By Friday we will ...", "... this
+  afternoon" and "... at 9am" still fire). Those wordings are blanked before the rule's keywords are matched;
   the same keyword elsewhere in the reply still fires (RT-031 to RT-036). Only
   these three are covered: "This will definitely be sorted" with no date still
   counts as a timeline guarantee, and any other idiom with "forever", "never
@@ -116,7 +128,7 @@ New measurements:
   language misdetections on codes and usernames. Ids and labels are in
   `tests/fixtures/abcd_flagged.json`.
 - docs/evaluation.md states what a block-only gate would do on the golden labels
-  (hold 289 of 526 against 59 here); arithmetic, in-sample.
+  (hold 289 of 527 against 59 here); arithmetic, in-sample.
 
 - `scripts/evaluate.py --invariants` checks the corrected text of the 230 cases
   of the golden set that the pipeline corrects: idempotent 230/230; of the 183 with

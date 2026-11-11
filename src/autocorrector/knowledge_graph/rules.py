@@ -46,60 +46,77 @@ NON_OFFER_PATTERNS = [
     r"(?:not|isn'?t|no longer)\s+(?:possible|eligible)",
 ]
 
-# The refund-window rule is about granting a refund, not about the word. A clause
-# that mentions a refund keyword does not grant one when it is a refusal, a
-# question put to the customer, a report on a refund already under way or a
-# statement of policy, and the agent does not act in it. The real-turn audit found
-# 238 of 531 REFUND-001 flags were of these kinds.
+# The refund-window rule is about granting a refund, not about the word. A reply
+# that mentions a refund keyword is excused only when every part of every sentence
+# is a refusal, a question that neither proposes the refund nor takes it as
+# settled, or a neutral remark (a greeting, thanks, an apology, looking something
+# up). Anything else fires, whatever it says, so wording nobody thought of errs
+# toward the supervisor. The first form of this carve-out worked the other way
+# round (it excused listed status and policy wordings unless the agent was seen
+# to act), and each of four reviews found grants it let through: "You'd like a
+# refund? Sure thing.", "I can't refund the shipping fee, just the $80 for the
+# item itself.", "Your refund request has been paid out."
 REFUND_RULE_ID = "REFUND-001"
 # Refusals the message-level NON_OFFER_PATTERNS do not name
 REFUND_REFUSAL = re.compile(
     r"\b(?:cannot|can\s?not|can't|won't|unable\s+to|not\s+(?:be\s+)?able\s+to)\s+"
     r"(?:\w+\s+){0,2}?(?:refund|process|accept)\b"
 )
-# ...unless the negative is an idiom for eagerness: "I can't wait to refund you",
-# "I won't hesitate to refund this", "There's no reason I can't refund it"
-REFUND_EAGER = re.compile(r"\bwait\s+to\b|\bhesitate\s+to\b|\bno\s+reason\b")
-REFUND_NON_GRANT_PATTERNS = [
-    # status of a refund that already exists
-    r"\brefund(?:\s+status)?\s+(?:is|was|has\s+been)\s+(?:still\s+|currently\s+|already\s+)*"
-    r"(?:in\s+progress|in\s+process|being\s+processed|processing|pending|complete|completed"
-    r"|not\s+started|not\s+yet\s+started)\b",
-    r"\b(?:status\s+of|waiting\s+(?:for|on)|you\s+initiated|you\s+requested|requesting)\s+"
-    r"(?:your|the|that|this|a|an)\s+(?:\w+\s+)?refund\b",
-    r"\brefund\s+(?:status|policy|window|request)\b",
-    # policy and membership statements
-    r"\bunlimited\s+refunds\b",
-    r"\brefunds\s+are\s+(?:only\s+|just\s+|always\s+)*available\b",
-]
-# The agent doing something, or something being done or happening now, anywhere in
-# the reply. Then nothing in the reply is excused, not even a refusal: "I can't
-# normally refund orders this old, but I've made it happen", "I see your refund
-# request. I've approved it.", "I'll refund you now, ok?", "Your refund is now
-# complete". Looking something up is not doing something ("I'll check the status").
-_LOOKING = (
-    r"(?:been\s+)?(?:check|look|locat|find|found|see|seen|pull|review|ask|need|to|a|an|the|your)\b"
+# ...unless the negative is an idiom for eagerness ("I can't wait to refund you",
+# "I won't hesitate to refund this", "There's no reason I can't refund it") or
+# refuses only a part ("I can't refund more than the $80 you paid")
+REFUND_EAGER = re.compile(
+    r"\bwait\s+to\b|\bhesitate\s+to\b|\bno\s+reason\b"
+    r"|\b(?:more|other|faster|sooner)\s+than\b|\bexcept\b|\bonly\b|\banything\s+but\b"
 )
-REFUND_AGENT_ACTS = re.compile(
-    r"\b(?:i|we)(?:'(?:ll|ve|d)|\s+(?:will|have|shall|just|already|did|went|made|got))"
-    rf"(?!\w)(?!\s+{_LOOKING})"
-    r"|\b(?:i|we)(?:'m|'re|\s+am|\s+are)\s+(?:now\s+|just\s+)?"
-    r"(?:refund|issu|process|send|request|approv|credit|return|start|putt|giv|releas|submit)\w*ing\b"
-    r"|\b(?:i|we)\s+can\s+(?:refund|offer|issue|process|give|send|do|approve|make|start|put)\b"
-    r"|\blet\s+me\s+(?:refund|get|issue|process|send|start|put|do)\b"
-    r"|\b(?:approved|granted|accepted|done|today|tonight|now|right\s+away|immediately"
-    r"|as\s+we\s+speak|went\s+through|you\s+get|consider\s+it)\b"
+# A question excused although it mentions a refund: it asks what the customer
+# wants or did. "Would you like ...", "Do you want ..." and "Why not ..." are
+# offers, so they are not here.
+REFUND_QUESTION_ECHO = re.compile(
+    r"\byou(?:'d|\s+would)\s+like\b"
+    r"|(?<!\bdo\s)(?<!\bdid\s)\byou\s+(?:want|wanted|need|needed)\b(?!\s+(?:me|us)\b)"
+    r"|\b(?:you(?:'re|\s+are)|are\s+you|were\s+you)\s+"
+    r"(?:after|asking|requesting|looking|hoping|calling|seeking|wanting)\b"
+    r"|\bis\s+(?:this|that|it)\s+(?:about|regarding)\b"
+    r"|\bhave\s+you\b"
+    r"|\bwhy\s+(?:do|did|are|would)\s+you\b"
 )
-# A question that takes the refund as settled, or proposes it, still grants it:
-# "How should we send your refund, to your card or as store credit?"
+# A question that takes the refund as settled, or proposes it, grants it: "How
+# should we send your refund, to your card or as store credit?", "Where should
+# the refund go?". Checked on every question, with or without a refund keyword.
 REFUND_QUESTION_GRANTS = re.compile(
     r"\bhow\s+(?:would|do|did|should)\s+(?:you\s+|we\s+|i\s+)?(?:like|want|prefer|send)\b"
-    r"|\bhow\s+about\b"
+    r"|\bhow\s+about\b|\bwhere\b"
     r"|\b(?:shall|should|can|could|may)\s+(?:i|we)\s+(?:go\s+ahead|offer|issue|process|give|send|refund)\b"
-    r"|\b(?:want|like)\s+(?:me|us)\s+to\s+(?:go\s+ahead|offer|issue|process|give|send|refund)\b"
+    r"|\b(?:want|like)\s+(?:me|us)\s+to\b"
     r"|\bwould\s+(?:you\s+accept|an?\s+(?:\w+\s+)?refund)\b"
-    r"|\b(?:gift\s+card|paper\s+check|store\s+credit|refund\s+method|which\s+card|visa"
-    r"|mastercard|original\s+payment)\b"
+    r"|\b(?:refund|money)\s+(?:go|going|back\s+to)\b"
+    r"|\b(?:gift\s+card|paper\s+check|cheque|store\s+credit|refund\s+method|cards?|visa"
+    r"|mastercard|amex|paypal|venmo|bank|account|wallet|original\s+payment)\b"
+)
+# The neutral remarks, matched against a whole part and nothing more
+_TROUBLE = r"(?:that|this|the\s+(?:trouble|wait|delay|inconvenience|confusion|mix-up))"
+REFUND_NEUTRAL = re.compile(
+    r"(?:oh\s+|ah\s+|so\s+|well\s+)?(?:"
+    r"(?:hi|hello|hey|dear|good\s+(?:morning|afternoon|evening))(?:\s+there|\s+[a-z]+)?"
+    r"|(?:thanks|thank\s+you)(?:\s+(?:so|very)\s+much)?(?:\s+for\s+(?:your\s+patience|waiting"
+    r"|holding|reaching\s+out|contacting\s+us|getting\s+in\s+touch|your\s+message|that))?"
+    r"|(?:(?:i|we)(?:'m|'re|\s+am|\s+are)\s+)?(?:(?:so|very|really|truly)\s+)?sorry"
+    rf"(?:\s+(?:about|for)\s+{_TROUBLE})?"
+    rf"|(?:my|our)\s+apologies|(?:i|we)\s+apologi[sz]e(?:\s+(?:about|for)\s+{_TROUBLE})?"
+    r"|unfortunately|i\s+understand|one\s+moment(?:\s+please)?|just\s+a\s+moment|please\s+hold"
+    r"|bear\s+with\s+me"
+    r")"
+)
+# Looking something up is not doing something ("I'll check the status of your
+# refund"), unless the part goes on to report an outcome
+REFUND_LOOKING = re.compile(
+    r"(?:let\s+me|allow\s+me\s+to|(?:i|we)(?:'ll|\s+will|\s+can))(?:\s+just|\s+quickly)?\s+"
+    r"(?:check|look\s+(?:into|up|at|for)|pull\s+up|review|take\s+a\s+look"
+    r"|see\s+(?:what|if|whether|where|how))\b"
+)
+REFUND_OUTCOME = re.compile(
+    r"\b(?:approved|granted|refunded|issued|sent|processed|credited|paid|done|released)\b"
 )
 # Clauses end at punctuation or a line break; a conjunction splits one into parts
 _CLAUSE = re.compile(r"([^,;.!?\n]+)([,;.!?]*)")
@@ -115,18 +132,25 @@ _CONFIRMATION_TAGS = frozenset({"correct", "right", "is that right", "is that co
 # matched; the same keyword anywhere else in the reply still fires.
 RULE_IDIOMS = {
     "PROMISE-001": re.compile(
-        r"\b(?:do|does|did|will|wo|ca|can)n?['\u2019]?t\s+last\s+forever\b"
-        r"|\byou['\u2019]ll\s+never\s+miss\s+(?:a|an|another|any)\b",
+        r"\b(?:do|does|did|will|wo|ca|can)n?['’]?t\s+last\s+forever\b"
+        r"|\byou['’]ll\s+never\s+miss\s+(?:a|an|another|any)\s+(?:\w+\s+)?"
+        r"(?:sale|deal|event|offer|promotion|promo|launch|drop|announcement)s?\b",
         re.IGNORECASE,
     ),
-    # ...only where the sentence goes on to name no time ("... by Friday" still fires)
+    "SLA-001": re.compile(r"\bwill\s+definitely\s+be\s+able\s+to\b", re.IGNORECASE),
+}
+# ...and only in a sentence that names no time: "By Friday we will definitely be
+# able to deliver it" and "... refund you this afternoon" still fire
+IDIOM_UNLESS = {
     "SLA-001": re.compile(
-        r"\bwill\s+definitely\s+be\s+able\s+to\b(?![^.!?\n]*\b(?:by|within|today|tonight"
-        r"|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|minutes?|hours?"
-        r"|days?|weeks?|at)\b|[^.!?\n]*\d)",
+        r"\d|\b(?:by|within|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday"
+        r"|saturday|sunday|seconds?|minutes?|hours?|days?|weeks?|months?|years?|morning"
+        r"|afternoon|evening|noon|midnight|weekend|next|soon|shortly|immediately|now"
+        r"|right\s+away|no\s+time)\b",
         re.IGNORECASE,
     ),
 }
+_SENTENCE = re.compile(r"[^.!?\n]+[.!?\n]*|[.!?\n]+")
 
 # Patterns indicating hedged/non-guarantee timeline references (skip SLA-001)
 NON_GUARANTEE_PATTERNS = [
@@ -221,28 +245,53 @@ def without_idioms(rule_id: str, text: str) -> str:
     idioms = RULE_IDIOMS.get(rule_id)
     if idioms is None:
         return text
-    return idioms.sub(lambda m: " " * len(m.group()), text)
+
+    def blank(sentence: str) -> str:
+        return idioms.sub(lambda m: " " * len(m.group()), sentence)
+
+    unless = IDIOM_UNLESS.get(rule_id)
+    if unless is None:
+        return blank(text)
+    pieces = []
+    for sentence in _SENTENCE.findall(text):
+        blanked = blank(sentence)
+        pieces.append(sentence if unless.search(blanked) else blanked)
+    return "".join(pieces)
+
+
+def _refund_part_excused(part: str, question: bool, keywords: list[str]) -> bool:
+    """True when one part of a sentence neither grants a refund nor could."""
+    bare = part.strip(" \t-*>\"'()")
+    if not any(char.isalnum() for char in bare):
+        return True
+    if question:
+        if REFUND_QUESTION_GRANTS.search(part):
+            return False
+        return not mentions_keyword(part, keywords) or bool(REFUND_QUESTION_ECHO.search(part))
+    if REFUND_REFUSAL.search(part):
+        return not REFUND_EAGER.search(part)
+    if REFUND_NEUTRAL.fullmatch(bare):
+        return True
+    return bool(REFUND_LOOKING.match(bare)) and not REFUND_OUTCOME.search(bare)
 
 
 def grants_refund(text: str, keywords: list[str]) -> bool:
-    """True when ``text`` mentions a refund keyword in a way that grants the refund.
+    """True when ``text`` mentions a refund keyword and is not excused as a whole.
 
-    Every mention grants, unless the agent does nothing anywhere in the reply
-    (``REFUND_AGENT_ACTS``) and each mention sits in a part of a sentence that
-    refuses, asks the customer a question that does not take the refund as
-    settled, or matches one of ``REFUND_NON_GRANT_PATTERNS``. Fails closed.
+    A reply is excused only when every part of every sentence is a refusal, a
+    question that neither proposes the refund nor takes it as settled, or a
+    neutral remark (see ``_refund_part_excused``). Fails closed: a status
+    report, a statement of policy and any wording not listed here all grant.
     """
-    normalised = _SPACES.sub(" ", text.lower().replace("\u2019", "'"))
-    parts: list[tuple[str, bool, bool]] = []  # (part, in a question, refuses)
+    normalised = _SPACES.sub(" ", text.lower().replace("’", "'"))
+    parts: list[tuple[str, bool]] = []  # (part, in a question)
     chain: list[list[str]] = []
 
     def close(asks: bool) -> None:
         tagged = asks and len(chain) > 1 and " ".join(chain[-1]).strip() in _CONFIRMATION_TAGS
         for index, clause in enumerate(chain):
             question = asks and (tagged or index == len(chain) - 1)
-            for part in clause:
-                refuses = bool(REFUND_REFUSAL.search(part)) and not REFUND_EAGER.search(part)
-                parts.append((part, question, refuses))
+            parts.extend((part, question) for part in clause)
         chain.clear()
 
     for match in _CLAUSE.finditer(normalised):
@@ -252,20 +301,9 @@ def grants_refund(text: str, keywords: list[str]) -> bool:
             close("?" in ends)  # the sentence ends here (or at a line break)
     close(False)  # a reply that stops on a comma
 
-    mentions = [entry for entry in parts if mentions_keyword(entry[0], keywords)]
-    if not mentions:
+    if not any(mentions_keyword(part, keywords) for part, _ in parts):
         return False
-    if any(REFUND_AGENT_ACTS.search(part) for part, _, refuses in parts if not refuses):
-        return True
-    for part, question, refuses in mentions:
-        if refuses:
-            continue
-        if question:
-            if REFUND_QUESTION_GRANTS.search(part):
-                return True
-        elif not any(re.search(pat, part) for pat in REFUND_NON_GRANT_PATTERNS):
-            return True
-    return False
+    return not all(_refund_part_excused(part, question, keywords) for part, question in parts)
 
 
 def violations_for(
@@ -304,7 +342,7 @@ def violations_for(
         if is_non_offer and rule.get("rule_id", "").startswith(("CREDIT", "REFUND")):
             continue
 
-        # Step 1b': the refund-window rule needs a clause that grants the refund
+        # Step 1b': the refund-window rule is excused only as a whole reply
         if rule.get("rule_id") == REFUND_RULE_ID and not grants_refund(
             text, rule.get("keywords", [])
         ):

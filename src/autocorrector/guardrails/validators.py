@@ -157,6 +157,15 @@ class FactualAccuracyValidator(Validator):
 # 3. PII Detection Validator
 # ---------------------------------------------------------------------------
 
+# A word of a street name: letters, and none of the words that put a number and a
+# street type in one phrase by accident
+_STREET_WORD = (
+    r"(?!(?:is|are|was|were|be|been|on|in|at|of|to|for|from|by|with|its|it|the|a|an|this|that"
+    r"|your|my|our|their|his|her|all|each|every|more|other|and|or|but|not|no|will|can|per|as"
+    r"|out|up|down|back|along|under|over|days?|weeks?|months?|years?|hours?|minutes?|times?"
+    r"|items?|orders?)\b)[A-Z][a-z]+"
+)
+
 # Common PII patterns — ordered so prefix-based patterns run before general numeric ones
 _PII_PATTERNS = {
     "ssn": (
@@ -201,7 +210,13 @@ _PII_PATTERNS = {
         "[DL REDACTED]",
     ),
     "address": (
-        r"\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Dr(?:ive)?|Ln|Lane|Rd|Road|Way|Ct|Court|Pl(?:ace)?|Cir(?:cle)?)\.?(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)?\b",
+        # number, street name, street type. A street-name word is not a function
+        # word or a unit of time or count: "72 is on its way" and "3 business days
+        # each way" are not addresses ("Way" is a street type).
+        rf"\b\d{{1,5}}\s+{_STREET_WORD}(?:\s+{_STREET_WORD})*\s+"
+        r"(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Dr(?:ive)?|Ln|Lane|Rd|Road|Way|Ct|Court"
+        r"|Pl(?:ace)?|Cir(?:cle)?)\.?"
+        r"(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)?\b",
         "[ADDRESS REDACTED]",
     ),
     "phone": (

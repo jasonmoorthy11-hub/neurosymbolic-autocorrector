@@ -5020,7 +5020,8 @@ GOLDEN_DATASET = GoldenDataset(
             expected_rule_ids=["CREDIT-001"],
             tags=["real_turn", "credit_card"],
         ),
-        # REFUND-001 is about granting a refund 45 days after purchase, not about the word
+        # REFUND-001, 45 days after purchase: a reply made only of questions, refusals and
+        # neutral remarks is excused; everything else that mentions a refund fires
         EvalCase(
             id="RT-014",
             category="true_negative",
@@ -5062,8 +5063,8 @@ GOLDEN_DATASET = GoldenDataset(
         EvalCase(
             id="RT-018",
             category="true_negative",
-            description="A refund already under way is a status report",
-            agent_text="That refund is still pending, it normally lands within a week.",
+            description="A refusal with thanks before it",
+            agent_text="Thanks for waiting. Unfortunately we can't refund opened items.",
             customer_context={"account_tenure_days": 400, "days_since_purchase": 45},
             expected_action=ExpectedAction.ALLOW,
             tags=["real_turn", "refund", "status"],
@@ -5100,8 +5101,8 @@ GOLDEN_DATASET = GoldenDataset(
         EvalCase(
             id="RT-022",
             category="true_negative",
-            description="A membership perk stated as policy",
-            agent_text="Premium members get unlimited refunds on every order.",
+            description="Asking which orders the customer means",
+            agent_text="Are you asking for a refund on both orders?",
             customer_context={"account_tenure_days": 400, "days_since_purchase": 45},
             expected_action=ExpectedAction.ALLOW,
             tags=["real_turn", "refund", "policy"],
@@ -5119,8 +5120,8 @@ GOLDEN_DATASET = GoldenDataset(
         EvalCase(
             id="RT-024",
             category="true_negative",
-            description="When refunds are available, stated as policy",
-            agent_text="Refunds are only available for orders that are still in our warehouse.",
+            description="A greeting, an apology and a refusal",
+            agent_text="Hi Dana, I'm sorry, we're unable to refund this one.",
             customer_context={"account_tenure_days": 400, "days_since_purchase": 45},
             expected_action=ExpectedAction.ALLOW,
             tags=["real_turn", "refund", "policy"],
@@ -5241,6 +5242,16 @@ GOLDEN_DATASET = GoldenDataset(
             expected_action=ExpectedAction.CORRECT,
             expected_rule_ids=["SLA-001"],
             tags=["real_turn", "idiom", "sla"],
+        ),
+        # PII: a number in front of an everyday phrase that ends in a street type
+        EvalCase(
+            id="RT-037",
+            category="true_negative",
+            description="'72 is on its way' is not a street address",
+            agent_text="Your refund of $72 is on its way back to your credit card.",
+            customer_context={"account_tenure_days": 400, "days_since_purchase": 5},
+            expected_action=ExpectedAction.ALLOW,
+            tags=["real_turn", "pii", "address"],
         ),
     ],
 )

@@ -181,6 +181,29 @@ class TestPIIDetection:
         result = guard.validate("Shipping to 456 Oak Boulevard.")
         assert "[ADDRESS REDACTED]" in result.validated_output
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Your refund of $72 is on its way back to your credit card.",
+            "Order 5512 is on its way.",
+            "It takes 3 business days each way.",
+            "You have 14 days this way.",
+        ],
+    )
+    def test_a_number_before_an_everyday_phrase_is_not_an_address(self, text):
+        assert find_pii_spans(text) == []
+
+    @pytest.mark.parametrize(
+        ("text", "span"),
+        [
+            ("Please ship it to 72 Maple Way, Springfield.", "72 Maple Way"),
+            ("we have 123 main st on file", "123 main st"),
+            ("It goes to 9 Orchard Court tomorrow.", "9 Orchard Court"),
+        ],
+    )
+    def test_a_street_address_is_still_found_in_any_case(self, text, span):
+        assert [text[start:end] for _, start, end in find_pii_spans(text)] == [span]
+
     def test_no_false_positive_on_normal_numbers(self):
         """Normal account references shouldn't trigger bank account detection."""
         guard = build_pii_guard()

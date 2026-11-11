@@ -14,10 +14,10 @@ non-English replies to escalation); an LLM correction tier is optional.
 **Results at a glance** (commands and full output in [docs/evaluation.md](docs/evaluation.md)):
 
 - **What it does:** checks each reply against 8 policy rules, plan coverage facts and a 10-type PII rail, then allows, corrects or escalates it. No LLM on the default path; about 12 ms per reply.
-- **Regression suite:** 526/526 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
+- **Regression suite:** 527/527 actions correct on the golden set. Those cases were written alongside the code, so this shows nothing broke, not how accurate it is. A [mutation run](docs/evaluation.md#mutation-score-how-much-of-the-rule-set-the-golden-suite-pins-down) found the suite noticed only 43 of 104 single changes to the rules; with 56 rows written against the survivors it notices 98.
 - **Blind test:** 53/60 actions correct (88.3%, 95% CI 77.8–94.2) on a held-out set written from the policy text and committed before its only run.
-- **External PII benchmark:** precision 63.6%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
-- **Real agent turns:** on 19,144 human-written agent turns from a public role-play dataset, the pipeline flagged about 0.3% where the refund rule cannot fire, and about 3 in 10 of those flags were right (16 of 57 and 15 of 50). Most flags on other people's wording were wrong. The [audit](docs/evaluation.md#real-agent-turns-results-one-run-2026-11-09) lists every class; four were fixed afterwards and the data was not re-scored.
+- **External PII benchmark:** precision 63.8%, recall 46.5% on the English rows of a public synthetic finance set. The regex rail misses about half of the spans.
+- **Real agent turns:** on 19,144 human-written agent turns from a public role-play dataset, the pipeline flagged about 0.3% where the refund rule cannot fire, and about 3 in 10 of those flags were right (16 of 57 and 15 of 50). Most flags on other people's wording were wrong. The [audit](docs/evaluation.md#real-agent-turns-results-one-run-2026-11-09) lists every class; three were fixed afterwards and a fourth in part, and the data was not re-scored.
 
 ![The replay dashboard at 2x: metrics and charts fill in as the 25 recorded runs arrive, then the agent feed and pipeline trace show each correction with its cited rule](docs/media/replay.gif)
 
@@ -137,9 +137,9 @@ Four numbers, kept separate because they mean different things. All are from
 
 | Set | What it is | Result (95% Wilson CI) |
 |---|---|---|
-| Golden, 526 cases | Self-authored, **in-sample**: written alongside the code and used during development; 116 rows added after the held-out run | 526/526 actions correct (99.3–100.0) |
+| Golden, 527 cases | Self-authored, **in-sample**: written alongside the code and used during development; 117 rows added after the held-out run | 527/527 actions correct (99.3–100.0) |
 | Held-out, 60 cases | Self-authored, **held-out**: written blind from the policy text, committed before its first run | 53/60 actions correct, 88.3% (77.8–94.2) |
-| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.6% (62.0–65.3), recall 46.5% (45.1–48.0); all 7 languages: 55.4% / 34.2% |
+| External PII spans | gretelai/synthetic_pii_finance_multilingual, test split, our 10 PII types | English: precision 63.8% (62.1–65.4), recall 46.5% (45.0–48.0); all 7 languages: 55.5% / 34.2% |
 | Real agent turns | ABCD v1.1, 19,144 human-written agent turns, three assumed customer contexts, one run before the fixes it led to | Flagged 0.30%, 0.26% and 3.03% of turns; flags that were right: 28.1% (18.1–40.8), 30.0% (19.1–43.8), 41.8% (37.9–45.9) |
 
 The in-sample score is a regression suite, not evidence of accuracy. The held-out
@@ -280,21 +280,27 @@ Known, measured, or found by the held-out run:
   A payment that is not called one ("As an apology I'm sending $600 to your
   credit card") is not seen; before v1.6 it was caught by accident, because
   "credit card" read as a credit.
-- The refund-window rule (REFUND-001) reads wording, not intent. Since v1.6 a
-  reply in which the agent does nothing (no "I'll", "I've", "approved", "today",
-  "now" ...) is excused where it refuses, asks the customer a question, reports
-  on a refund already under way or states policy. That also lets through an offer
-  phrased as a plain question ("Would you like your money back?") and a grant
-  worded as a status with no agent in it ("Your refund has been completed and
-  you'll see it in 3 days"). The excuses are a fixed list of wordings, so a status
-  or policy sentence phrased another way is still rewritten, and so is any such
-  sentence in a reply where the agent does something else ("That refund is still
-  pending, I'll email you when it lands").
+- The refund-window rule (REFUND-001) reads wording, not intent, and it fails
+  toward the supervisor. Since v1.6 a reply that mentions a refund outside the
+  window is excused only when every part of it is a refusal ("I'm sorry, I can't
+  refund this order"), a question that neither proposes the refund nor takes it
+  as settled ("So you'd like a refund for the headphones?") or a neutral remark
+  (a greeting, thanks, an apology, "I'll check the status of your refund").
+  Everything else is rewritten, including replies that grant nothing: a status
+  report ("That refund is still pending"), a statement of policy ("Premium
+  members get unlimited refunds"), a question that only looks like an offer ("Do
+  you want the refund on the lamp?") and a refusal followed by any remark not on
+  the short neutral list ("... The 30-day window closed on the 3rd."). An
+  earlier form of this carve-out excused more and let late refunds through in
+  review after review; what can still slip past this one is a grant worded
+  entirely as refusals, questions and neutral remarks, and none is known.
 - PROMISE-001 and SLA-001 are keyword rules with three idioms carved out ("don't
-  last forever", "you'll never miss a ...", "will definitely be able to"). Any
-  other figure of speech with "forever", "lifetime" or "never again" is still
-  rewritten as a commitment, and "will definitely be" with no date still counts as
-  a timeline guarantee.
+  last forever", "you'll never miss a sale" or an event, an offer and the like,
+  and "will definitely be able to" in a sentence that names no time). Any other
+  figure of speech with "forever", "lifetime" or "never again" is still
+  rewritten as a commitment, "will definitely be" with no date still counts as
+  a timeline guarantee, and so does "will definitely be able to" in a sentence
+  with any number or time word in it, even an unrelated one.
 - Not fixable by a rule and left as they are: a store's street address or a
   company mailbox in a reply is redacted as PII like a customer's would be, and a
   refund that depends on a condition the reply states ("once we receive the item")
