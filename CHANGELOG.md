@@ -140,6 +140,8 @@ New measurements:
   there is one. One hash per golden output is recorded in
   `tests/golden_outputs.json`, compared on each test run (a difference names its
   cases) and under other hash seeds in CI.
+- Dashboard: on a phone-width feed card the footer row now wraps, so the Trace
+  button stays inside the card (with a long intent name only its icon showed).
 
 ## [1.5] - 2026-11-09
 

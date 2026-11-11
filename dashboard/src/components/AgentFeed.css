@@ -75,7 +75,10 @@
 
 .feed-meta {
   display: flex;
-  gap: 12px;
+  /* On a narrow card the Trace button drops to its own line instead of off the edge */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
   margin-top: 6px;
   font-size: 11px;
   color: var(--text-muted);
