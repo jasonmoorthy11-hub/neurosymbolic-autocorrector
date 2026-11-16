@@ -5,6 +5,9 @@
     python3 scripts/check_wheel.py dist/neurosymbolic_autocorrector-*.whl
 
 Reads the archive only; nothing is installed or imported. Exit 1 lists what is wrong.
+
+The blind held-out set stays in the repository: no file with "heldout" in its
+name may be in the wheel, and nothing outside the package and its metadata.
 """
 
 from __future__ import annotations
@@ -21,12 +24,19 @@ REQUIRED = (
     "autocorrector/evaluation/registry.py",
     "autocorrector/evaluation/dataset.py",
 )
-# The blind held-out set stays in the repository: a wheel that carried it would
-# hand every installer the cases a new accuracy claim must not have seen.
-FORBIDDEN = ("autocorrector/evaluation/heldout.py",)
 ENTRY_POINT = "autocorrector = autocorrector.mcp_server.server:main"
 # Extras stay extras: none of these may be a requirement without an `extra ==` marker.
 OPTIONAL_PACKAGES = ("guardrails-ai", "langgraph", "neo4j", "nemoguardrails", "presidio-analyzer")
+
+
+def _normalised(name: str) -> str:
+    """A project name as PyPI compares them: lower case, runs of ``-_.`` as one ``-``."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _read(archive: zipfile.ZipFile, names: set[str], suffix: str) -> str | None:
+    matches = [name for name in names if name.endswith(suffix)]
+    return archive.read(matches[0]).decode() if matches else None
 
 
 def problems(wheel: Path) -> list[str]:
@@ -35,20 +45,29 @@ def problems(wheel: Path) -> list[str]:
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
         found += [f"missing: {name}" for name in REQUIRED if name not in names]
-        found += [f"must not ship: {name}" for name in FORBIDDEN if name in names]
-        found += [f"not package code: {n}" for n in sorted(names) if n.startswith(("tests/", "."))]
-        info = [n for n in names if n.endswith(".dist-info/entry_points.txt")]
-        if not info or ENTRY_POINT not in archive.read(info[0]).decode():
-            found.append(f"entry point not declared: {ENTRY_POINT}")
-        metadata = [n for n in names if n.endswith(".dist-info/METADATA")]
-        requires = [
-            line.removeprefix("Requires-Dist: ").strip()
-            for line in archive.read(metadata[0]).decode().splitlines()
-            if line.startswith("Requires-Dist: ")
+        found += [f"must not ship: {name}" for name in sorted(names) if "heldout" in name]
+        found += [
+            f"not package code: {name}"
+            for name in sorted(names)
+            if not name.startswith("autocorrector/") and ".dist-info/" not in name
         ]
-        for requirement in requires:
-            name = re.match(r"[A-Za-z0-9._-]+", requirement).group().lower()
-            if name in OPTIONAL_PACKAGES and "extra ==" not in requirement:
+        entry_points = _read(archive, names, ".dist-info/entry_points.txt")
+        declared = [line.strip() for line in (entry_points or "").splitlines()]
+        if ENTRY_POINT not in declared:
+            found.append(f"entry point not declared: {ENTRY_POINT}")
+        metadata = _read(archive, names, ".dist-info/METADATA")
+        if metadata is None:
+            return [*found, "no METADATA file"]
+        for line in metadata.splitlines():
+            if not line.startswith("Requires-Dist:"):
+                continue
+            requirement = line.removeprefix("Requires-Dist:").strip()
+            name = re.match(r"[A-Za-z0-9._-]+", requirement)
+            if name is None:
+                found.append(f"unreadable requirement: {requirement}")
+            elif _normalised(name.group()) in OPTIONAL_PACKAGES and not re.search(
+                r"\bextra\s*==", requirement
+            ):
                 found.append(f"optional package is a base requirement: {requirement}")
     return found
 

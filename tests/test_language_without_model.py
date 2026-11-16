@@ -56,8 +56,10 @@ class TestLanguageWithoutModel:
             "Wir haben Ihre Bestellung heute Morgen verschickt.",
             "ご注文の商品は明日の午前中に発送されます。",
             "Crédito aplicado.",
-            # English without two of the common marker words: the stated cost
+            # English too: fewer than two marker words, or markers under a fifth of the words
             "Order shipped; tracking emailed shortly.",
+            "Your package is out for delivery.",
+            "I'll go ahead and issue you a $75 credit right now.",
         ],
     )
     def test_language_without_model_anything_else_is_undetermined(self, text):
@@ -91,6 +93,26 @@ class TestLanguageWithoutModel:
         )
         assert result.detected_language == "en"
         assert result.action_taken == CorrectionAction.CORRECT
+
+
+@pytest.mark.parametrize("result", [[], None, {"lang": "fr"}, {"lang": "fr", "score": "x"}])
+def test_language_unusable_result_is_treated_as_no_model(monkeypatch, result):
+    monkeypatch.setattr(detector, "_warned_model_unavailable", False)
+    monkeypatch.setattr(detector, "_HAS_FAST_LANGDETECT", True)
+    monkeypatch.setattr(detector, "_ft_detect", lambda text: result, raising=False)
+    assert detect_language("Wir haben Ihre Bestellung heute Morgen verschickt.") == UNDETERMINED
+    english = "Thanks for waiting, your order has shipped and you can track it today."
+    assert detect_language(english) == "en"
+
+
+def test_language_without_model_share_of_the_golden_set_that_escalates(monkeypatch):
+    """The stated cost: how much ordinary English is held while the model is missing."""
+    from autocorrector.evaluation.dataset import GOLDEN_DATASET
+
+    monkeypatch.setattr(detector, "_warned_model_unavailable", True)
+    monkeypatch.setattr(detector, "_HAS_FAST_LANGDETECT", False)
+    held = [c for c in GOLDEN_DATASET.cases if detect_language(c.agent_text) == UNDETERMINED]
+    assert (len(held), len(GOLDEN_DATASET.cases)) == (193, 517)  # README and CHANGELOG say so
 
 
 def test_language_with_model_is_unchanged():

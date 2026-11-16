@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "neurosymbolic-autocorrector"
 dynamic = ["version"]
 description = "Real-time policy-grounded correction of LLM agent outputs (knowledge-graph rules + symbolic checks + optional LLM rewrite)"
+readme = "README.md"
 license = "MIT"
 # guardrails-ai pulls in fastuuid, whose build (PyO3) does not support 3.15 yet
 requires-python = ">=3.12,<3.15"
@@ -36,6 +37,11 @@ dependencies = [
     "slowapi>=0.1.9",
     "python-dotenv>=1.0",  # scripts/seed_neo4j.py; also a pydantic-settings dependency
 ]
+
+[project.urls]
+Repository = "https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector"
+Demo = "https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/"
+Changelog = "https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

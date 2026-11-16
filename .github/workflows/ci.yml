@@ -156,7 +156,7 @@ jobs:
         run: |
           "$RUNNER_TEMP/venv/bin/autocorrector" --help
       - name: Language model cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .cache/fast_langdetect
           key: fast-langdetect-lid176

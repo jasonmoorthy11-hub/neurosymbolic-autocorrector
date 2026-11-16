@@ -1,0 +1,59 @@
+name: Publish to PyPI
+
+# Prepared, not yet used. It runs only when started by hand from the Actions tab,
+# and it can upload only after a trusted publisher for this repository, this
+# workflow file and the `pypi` environment has been registered on pypi.org.
+# No token is stored anywhere: PyPI accepts the run's OIDC identity.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (for example v1.7)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          pip install build
+          python -m build
+      - name: The version is a release, not a development version
+        run: |
+          ls dist
+          if ls dist | grep -q '\.dev'; then echo "development version: not published"; exit 1; fi
+      - name: The wheel has the server and not the held-out set
+        run: python scripts/check_wheel.py dist/*.whl
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Upload
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/neurosymbolic-autocorrector/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

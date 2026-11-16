@@ -114,8 +114,8 @@ def _pii_guard_builder() -> Callable[[], Any] | None:
     """
     try:
         from autocorrector.guardrails.telemetry import build_pii_guard
-    except ImportError as error:
-        logger.warning("guardrails-ai is not importable (%s); the PII patterns run directly", error)
+    except Exception as error:  # absent, shadowed, or broken on import: same answer
+        logger.warning("guardrails-ai is not importable (%r); the PII patterns run directly", error)
         return None
     return build_pii_guard
 
@@ -140,14 +140,18 @@ async def _run_validation(
     intent: DetectedIntent,
     customer_ctx: CustomerContext,
     kg: KnowledgeGraphStore,
+    language: str | None = None,
 ) -> ValidationResult:
-    """Run the full validation pipeline: policy check + fact check."""
+    """Run the full validation pipeline: policy check + fact check.
+
+    ``language`` is the caller's ``detect_language(text)`` when it already has it.
+    """
     violations: list[PolicyViolation] = []
     fact_errors: list[FactCheckResult] = []
 
     # Policy rules are English-only and these tools do not translate, so
     # non-English text is escalated rather than silently allowed.
-    if detect_language(text) != "en":
+    if (language or detect_language(text)) != "en":
         return ValidationResult(
             is_compliant=False,
             action=CorrectionAction.ESCALATE,
@@ -272,8 +276,8 @@ async def validate_action(
     customer_ctx = CustomerContext(**(customer_context or {}))
 
     # 3. Validate
-    validation = await _run_validation(text, intent, customer_ctx, kg)
     language = detect_language(text)
+    validation = await _run_validation(text, intent, customer_ctx, kg, language)
 
     if ctx:
         if language != "en":

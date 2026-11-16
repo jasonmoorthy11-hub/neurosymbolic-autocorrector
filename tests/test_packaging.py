@@ -7,7 +7,9 @@ server (`wheel` in .github/workflows/ci.yml).
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -110,20 +112,48 @@ def test_packaging_wheel_excludes_the_blind_set():
     assert "src/autocorrector/evaluation/heldout.py" in wheel["exclude"]
 
 
-def _fake_wheel(path: Path, names: list[str], requires: list[str]) -> Path:
+def test_packaging_server_json_fits_the_registry_rules():
+    """The MCP registry's stated limits (schema 2025-12-11); the registry is not called."""
+    from autocorrector import __version__
+
+    meta = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
+    assert re.fullmatch(r"io\.github\.jasonmoorthy11-hub/[a-zA-Z0-9._-]+", meta["name"])
+    assert 1 <= len(meta["description"]) <= 100
+    assert 1 <= len(meta["title"]) <= 100
+    release = re.sub(r"\.dev\d+$", "", __version__)  # server.json names the release being prepared
+    package = meta["packages"][0]
+    assert meta["version"] == package["version"] == release
+    assert (package["registryType"], package["transport"]) == ("pypi", {"type": "stdio"})
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert package["identifier"] == project["name"]
+    # PyPI ownership check: the marker must be in the README that becomes the description
+    assert project["readme"] == "README.md"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert f"<!-- mcp-name: {meta['name']} -->" in readme
+
+
+def _fake_wheel(
+    path: Path, names: list[str], requires: list[str] | None, entry_point: str = ENTRY_POINT
+) -> Path:
     with zipfile.ZipFile(path, "w") as archive:
         for name in names:
             archive.writestr(name, "")
-        archive.writestr("x-1.dist-info/entry_points.txt", f"[console_scripts]\n{ENTRY_POINT}\n")
-        archive.writestr(
-            "x-1.dist-info/METADATA", "".join(f"Requires-Dist: {r}\n" for r in requires)
-        )
+        if entry_point:
+            archive.writestr(
+                "x-1.dist-info/entry_points.txt", f"[console_scripts]\n{entry_point}\n"
+            )
+        if requires is not None:
+            archive.writestr(
+                "x-1.dist-info/METADATA", "".join(f"Requires-Dist: {r}\n" for r in requires)
+            )
     return path
 
 
 def test_packaging_check_wheel_accepts_a_good_wheel(tmp_path):
     wheel = _fake_wheel(
-        tmp_path / "ok.whl", list(REQUIRED), ["mcp<2,>=1.25", "neo4j<7,>=6.1; extra == 'neo4j'"]
+        tmp_path / "ok.whl",
+        list(REQUIRED),
+        ["mcp<2,>=1.25", "neo4j<7,>=6.1; extra == 'neo4j'", "langgraph>=1; extra=='langgraph'"],
     )
     assert problems(wheel) == []
 
@@ -131,15 +161,32 @@ def test_packaging_check_wheel_accepts_a_good_wheel(tmp_path):
 def test_packaging_check_wheel_names_what_is_wrong(tmp_path):
     wheel = _fake_wheel(
         tmp_path / "bad.whl",
-        [*REQUIRED[1:], "autocorrector/evaluation/heldout.py", "tests/test_x.py"],
-        ["guardrails-ai>=0.9"],
+        [
+            *REQUIRED[1:],
+            "autocorrector/evaluation/heldout.py",
+            "autocorrector/evaluation/__pycache__/heldout.cpython-312.pyc",
+            "tests/test_x.py",
+            "scripts/x.py",
+        ],
+        ["guardrails_ai>=0.9", "Presidio.Analyzer<3", "(bad)"],
+        entry_point=f"# {ENTRY_POINT}",
     )
     assert problems(wheel) == [
         f"missing: {REQUIRED[0]}",
+        "must not ship: autocorrector/evaluation/__pycache__/heldout.cpython-312.pyc",
         "must not ship: autocorrector/evaluation/heldout.py",
+        "not package code: scripts/x.py",
         "not package code: tests/test_x.py",
-        "optional package is a base requirement: guardrails-ai>=0.9",
+        f"entry point not declared: {ENTRY_POINT}",
+        "optional package is a base requirement: guardrails_ai>=0.9",
+        "optional package is a base requirement: Presidio.Analyzer<3",
+        "unreadable requirement: (bad)",
     ]
+
+
+def test_packaging_check_wheel_reports_missing_metadata_files(tmp_path):
+    wheel = _fake_wheel(tmp_path / "bare.whl", list(REQUIRED), None, entry_point="")
+    assert problems(wheel) == [f"entry point not declared: {ENTRY_POINT}", "no METADATA file"]
 
 
 def test_packaging_redaction_is_the_same_with_and_without_guardrails():

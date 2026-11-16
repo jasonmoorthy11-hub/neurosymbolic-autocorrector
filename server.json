@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jasonmoorthy11-hub/neurosymbolic-autocorrector",
+  "title": "Neurosymbolic Autocorrector",
+  "description": "Checks agent replies against 8 sample policy rules of a fictional company; corrects or escalates.",
+  "version": "1.7.0",
+  "websiteUrl": "https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/",
+  "repository": {
+    "url": "https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "neurosymbolic-autocorrector",
+      "version": "1.7.0",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" },
+      "packageArguments": [{ "type": "named", "name": "--stdio" }]
+    }
+  ]
+}

@@ -10,12 +10,14 @@ the package metadata, the dashboard API and `/health` read.
 - Language detection without its model no longer reads everything as English.
   On a first run with no network the 131 MB model cannot be downloaded, and a
   French or Spanish reply was then checked against the English-only rules,
-  which pass it. Now a reply is English only if it is plain ASCII and carries
-  two or more common English words; anything else is `und` and is escalated
-  (pipeline: `translation-unavailable`; MCP tools: escalate). One warning is
-  logged. Nothing changes when the model loads. The cost: English without two
-  of those words ("Order shipped; tracking emailed shortly.") is escalated on
-  a machine with no model.
+  which pass it. Now a reply is English only if it is plain ASCII, carries two
+  or more common English words and those words are at least a fifth of it;
+  anything else is `und` and is escalated (pipeline: `translation-unavailable`;
+  MCP tools: escalate). One warning is logged. Nothing changes when the model
+  returns a result. The cost, while the model is missing: 193 of the 517 golden
+  replies are held (162 of them should be allowed or corrected), for example
+  "Your package is out for delivery." The MCP `validate_action` tool now
+  detects the language once per call, not twice.
 - Installed with no extras (`pip install .`), the package now gives a working
   MCP server. `autocorrector --help` failed there with `ModuleNotFoundError:
   guardrails`, because the server imported the Guardrails AI wrapper at start.
@@ -26,13 +28,20 @@ the package metadata, the dashboard API and `/health` read.
   golden case). `guardrails/validators.py` still exports the four public names
   (`PII_TYPES`, `detect_pii_types`, `find_pii_spans`, `redact_spans`); the
   pattern table itself is `pii._PII_PATTERNS`. A guardrails-ai that is present
-  but fails to import also falls back to the plain patterns, with one warning.
+  but fails on import, whatever it raises, also falls back to the plain
+  patterns, with one warning.
 - The wheel no longer contains the held-out set (`evaluation/heldout.py`); the
   repository and the sdist still do. `evaluation/registry.py` offers the golden
   set alone when the file is absent. `scripts/check_wheel.py` checks a built
   wheel (server and entry point in, held-out set and tests out, no optional
   package among the base requirements), and a CI job builds the wheel, installs
   it with no extras and runs `autocorrector --help` and the MCP client against it.
+- Prepared for publishing, nothing published: `server.json` for the MCP
+  registry (schema 2025-12-11; stdio, PyPI package, "8 sample policy rules of a
+  fictional company"), the `mcp-name` marker in the README, `readme` and
+  project URLs in the package metadata, and `.github/workflows/publish.yml`,
+  which runs only when started by hand and can upload only once a PyPI trusted
+  publisher is registered for it.
 - Dashboard build and lint tooling updated within its current major versions
   (vite 7.3.8 and the packages `npm audit fix` moves, among them esbuild 0.27
   to 0.28 and one new development package, `@humanfs/types`); `npm audit` then

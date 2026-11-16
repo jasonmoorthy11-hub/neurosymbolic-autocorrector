@@ -1,5 +1,7 @@
 # Neurosymbolic Autocorrector
 
+<!-- mcp-name: io.github.jasonmoorthy11-hub/neurosymbolic-autocorrector -->
+
 [![CI](https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -135,9 +137,12 @@ shorter one with an accented letter or an amount) makes `fast-langdetect`
 download its model once (`lid.176.bin`, 131 MB, into `FTLANG_CACHE` or the
 system temp directory). Without a network that download fails and is tried
 again on each such reply. A reply is then read as English only if it is plain
-ASCII and carries two or more common English words; any other reply is marked
-`und` (undetermined) and escalated, so a first run offline holds foreign and
-unusual replies instead of checking them against the English rules.
+ASCII, carries two or more of 45 common English words, and those words
+are at least a fifth of it; any other reply is marked `und` (undetermined) and
+escalated. That is strict on purpose: while the model is missing, 193 of the
+517 golden replies (37%) are held, ordinary English among them ("Your package
+is out for delivery."), and no foreign reply is checked against the English
+rules beyond the cases listed under Limitations.
 
 The MCP server alone needs no extras: `pip install -e .` and `autocorrector
 --stdio`. It then runs the PII patterns directly instead of inside a Guardrails
@@ -289,8 +294,8 @@ Known, measured, or found by the held-out run:
   Italian or Dutch ("Garantiert: your new Erstattung today"). Function words of
   other languages are not known at all, so an unaccented Indonesian or Tagalog
   line with two English words in it passes as English. Without the model
-  (first run offline) the same word test is all there is: English without two
-  of those common words ("Order shipped; tracking emailed shortly.") is escalated.
+  (first run offline) the same word test is all there is, and it holds 193 of
+  the 517 golden replies, 162 of which should be allowed or corrected.
 - The credit rules need a credit word ("credit", "compensation", "discount", ...).
   A payment that is not called one ("As an apology I'm sending $600 to your
   credit card") is not seen; before v1.6 it was caught by accident, because
