@@ -146,10 +146,11 @@ rules beyond the cases listed under Limitations.
 
 The MCP server alone needs no extras: `pip install -e .` and `autocorrector
 --stdio`. It then runs the PII patterns directly instead of inside a Guardrails
-AI guard, with the same redacted text. The other parts are extras: `[langgraph]`
-for the pipeline, `[dashboard]` for the dashboard API, `[llm]` for the Anthropic
+AI guard, with the same redacted text. The other parts are extras:
+`[langgraph,guardrails]` for the pipeline (it imports both), `[dashboard]` for
+the dashboard API (it brings those two with it), `[llm]` for the Anthropic
 correction tier and translation (a key without it is ignored with a warning),
-`[guardrails]`, `[neo4j]`. `[dev]` includes `[dashboard]` and `[llm]`, so the
+`[neo4j]`. `[dev]` includes `[dashboard]` and `[llm]`, so the
 command above installs what the tests, the dashboard and the scripts use, apart
 from `scripts/seed_neo4j.py` (`[neo4j]`) and the Presidio comparison (`[bench]`).
 

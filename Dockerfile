@@ -35,9 +35,9 @@ RUN --mount=type=cache,target=/var/cache/ftlang \
     && (echo "$FTLANG_MODEL_MD5  lid.176.bin" | md5sum -c - \
         || { rm -f lid.176.bin; echo "lid.176.bin failed its checksum; removed, rebuild to retry"; exit 1; }) \
     && mkdir -p "$FTLANG_CACHE" && cp lid.176.bin "$FTLANG_CACHE/lid.176.bin"
-# detect_language() answers "en" when the model is missing or cannot be loaded,
-# so the warm-up sentence is French and the build fails unless the answer is
-# "fr"; the file must also still be there afterwards (fast-langdetect deletes a
+# detect_language() answers "und" for this sentence when the model is missing or
+# cannot be loaded, so the warm-up sentence is French and the build fails unless
+# the answer is "fr"; the file must also still be there afterwards (fast-langdetect deletes a
 # model that fails its checksum).
 RUN python -c "import sys; from autocorrector.multilingual.detector import detect_language; \
     lang = detect_language('Ceci est une phrase en francais pour verifier que le modele de langue est bien charge.'); \

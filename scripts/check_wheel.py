@@ -101,15 +101,20 @@ def problems(wheel: Path) -> list[str]:
         metadata = read("METADATA")
         if metadata is None:
             return [*found, "no METADATA file"]
-        for line in metadata.splitlines():
+        headers = re.split(r"\r?\n\r?\n", metadata, maxsplit=1)[0]  # the description follows
+        for line in headers.splitlines():
             if not line.startswith("Requires-Dist:"):
                 continue
             requirement = line.removeprefix("Requires-Dist:").strip()
             name = re.match(r"[A-Za-z0-9._-]+", requirement)
             if name is None:
                 found.append(f"unreadable requirement: {requirement}")
-            elif _normalised(name.group()) in OPTIONAL_PACKAGES and not _extra_only(requirement):
+            elif _extra_only(requirement):
+                continue
+            elif _normalised(name.group()) in OPTIONAL_PACKAGES:
                 found.append(f"optional package is a base requirement: {requirement}")
+            elif requirement[name.end() :].lstrip().startswith("["):
+                found.append(f"base requirement asks for extras: {requirement}")
     return found
 
 

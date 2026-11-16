@@ -257,6 +257,32 @@ def test_packaging_check_wheel_rejects_an_extra_marker_that_is_optional(tmp_path
     assert problems(wheel) == [f"optional package is a base requirement: {requirement}"]
 
 
+def test_packaging_check_wheel_rejects_a_base_requirement_that_asks_for_extras(tmp_path):
+    """`uvicorn[standard]` in base would pull uvloop, httptools and websockets in."""
+    wheel = _fake_wheel(tmp_path / "w.whl", list(REQUIRED), ["uvicorn[standard]>=0.34"])
+    assert problems(wheel) == ["base requirement asks for extras: uvicorn[standard]>=0.34"]
+    fine = ["uvicorn>=0.34", "uvicorn[standard]>=0.34; extra == 'dashboard'"]
+    assert problems(_fake_wheel(tmp_path / "ok.whl", list(REQUIRED), fine)) == []
+
+
+def test_packaging_check_wheel_reads_headers_not_the_description(tmp_path):
+    wheel = _fake_wheel(
+        tmp_path / "w.whl",
+        list(REQUIRED),
+        ["mcp>=1.25\n\nRequires-Dist: anthropic (in the README)"],
+    )
+    assert problems(wheel) == []
+
+
+def test_packaging_dashboard_extra_brings_what_the_pipeline_imports():
+    """The dashboard API runs the pipeline, which imports langgraph and the Guardrails wrapper."""
+    extras = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "optional-dependencies"
+    ]
+    own = [r for r in extras["dashboard"] if r.startswith("neurosymbolic-autocorrector[")]
+    assert own == ["neurosymbolic-autocorrector[langgraph,guardrails]"]
+
+
 def test_packaging_check_wheel_accepts_an_extra_marker_joined_with_and(tmp_path):
     wheel = _fake_wheel(
         tmp_path / "w.whl",
@@ -313,7 +339,10 @@ def test_packaging_publish_workflow_is_manual_and_builds_the_tag():
         elif re.match(r"\s+(- )?(uses|name|with|env|if):", line):
             in_run = False
         assert not (in_run and "${{" in line), line
-    assert re.search(r"pypa/gh-action-pypi-publish@[0-9a-f]{40} # v", workflow)
+    # Every action in the job that holds the publishing identity is pinned to a commit
+    upload_job = workflow.split("\n  publish:\n", 1)[1]
+    used = re.findall(r"uses: (\S+)", upload_job)
+    assert len(used) == 2 and all(re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", u) for u in used), used
 
 
 def test_packaging_redaction_is_the_same_with_and_without_guardrails():

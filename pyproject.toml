@@ -41,8 +41,10 @@ Demo = "https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/"
 Changelog = "https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-# The dashboard API (FastAPI + WebSocket); it runs the pipeline, so add [langgraph]
+# The dashboard API (FastAPI + WebSocket). It runs the pipeline, which imports
+# langgraph and the Guardrails AI wrapper, so it brings those two extras with it.
 dashboard = [
+    "neurosymbolic-autocorrector[langgraph,guardrails]",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
     "slowapi>=0.1.9",

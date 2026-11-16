@@ -33,7 +33,8 @@ the package metadata, the dashboard API and `/health` read.
 - The base install is what the MCP server needs (41 packages on Python 3.14,
   pip included, down from 62). FastAPI, slowapi and `uvicorn[standard]` moved to a new
   `[dashboard]` extra, and the Anthropic and OpenAI clients to a new `[llm]`
-  extra. `[dev]` and `[all]` include both, so `pip install -e
+  extra. `[dashboard]` brings `[langgraph]` and `[guardrails]` with it, because
+  the API runs the pipeline. `[dev]` and `[all]` include both new extras, so `pip install -e
   ".[dev,langgraph,guardrails]"` and the Docker image install what they did
   before. An Anthropic key without `[llm]` is ignored with a warning: the LLM
   tier and translation are skipped, and a foreign reply is escalated.

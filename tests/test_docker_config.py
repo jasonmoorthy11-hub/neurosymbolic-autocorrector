@@ -98,6 +98,7 @@ def test_dockerfile_copies_what_the_package_metadata_reads_before_installing():
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert dockerfile.count("pip install -e") == 1
     before_install = dockerfile.split("pip install -e", 1)[0]
     copied = " ".join(line for line in before_install.splitlines() if line.startswith("COPY "))
     for needed in ("pyproject.toml", project["readme"], "src/"):
