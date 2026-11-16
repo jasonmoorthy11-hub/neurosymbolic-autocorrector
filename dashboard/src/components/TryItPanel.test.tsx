@@ -111,7 +111,7 @@ describe("TryItPanel", () => {
     click("Load the checker");
     workers[0].say({ type: "ready" });
     type("textarea", "  I can offer you a $75 credit.  ");
-    type('input[type="number"]', "30");
+    type("input", "30");
     click("Check reply");
     expect(workers[0].sent[1]).toEqual({
       type: "check",
@@ -143,7 +143,7 @@ describe("TryItPanel", () => {
     click("Check reply");
     expect(host.querySelector('[role="alert"]')?.textContent).toBe("Type a reply to check.");
     type("textarea", "Hello there.");
-    type('input[type="number"]', "-3");
+    type("input", "-3");
     click("Check reply");
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("whole number of days");
     expect(workers[0].sent).toHaveLength(1);
@@ -170,24 +170,85 @@ describe("TryItPanel", () => {
     workers[0].say({ type: "ready" });
     click("Credit over the limit");
     expect((host.querySelector("textarea") as HTMLTextAreaElement).value).toContain("$75 credit");
-    expect((host.querySelector('input[type="number"]') as HTMLInputElement).value).toBe("30");
+    expect((host.querySelector("input") as HTMLInputElement).value).toBe("30");
+    // An example sets every field, so nothing is left over from the one before
+    click("Late refund");
+    const [tenure, purchase] = [...host.querySelectorAll("input")].map((i) => i.value);
+    expect([tenure, purchase]).toEqual(["", "45"]);
+  });
+});
+
+describe("TryItPanel focus and failures", () => {
+  it("keeps the pressed button while loading and moves focus to the reply when ready", () => {
+    button("Load the checker").focus();
+    click("Load the checker");
+    const loadingButton = button("Loading…");
+    expect(document.activeElement).toBe(loadingButton);
+    expect(loadingButton.getAttribute("aria-disabled")).toBe("true");
+    click("Loading…"); // a second press does nothing
+    expect(workers).toHaveLength(1);
+    workers[0].say({ type: "ready" });
+    expect(document.activeElement).toBe(host.querySelector("textarea"));
+  });
+
+  it("shows the worker's fixed message after a failed load and puts focus on the retry", () => {
+    click("Load the checker");
+    workers[0].say({ type: "error", message: "The checker could not be loaded." });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("The checker could not be loaded.");
+    expect(workers[0].terminated).toBe(true);
+    expect(document.activeElement).toBe(button("Try loading again"));
+  });
+
+  it("clears an old form error when the checker is loaded again", () => {
+    click("Load the checker");
+    workers[0].say({ type: "ready" });
+    click("Check reply");
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    act(() => workers[0].onerror?.({} as ErrorEvent));
+    click("Try loading again");
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("stops the worker when the panel goes away", () => {
+    click("Load the checker");
+    act(() => root.render(<span />));
+    expect(workers[0].terminated).toBe(true);
+  });
+
+  it("says so when the browser cannot start a worker", () => {
+    act(() => root.unmount());
+    root = createRoot(host);
+    act(() =>
+      root.render(
+        <TryItPanel
+          createWorker={() => {
+            throw new Error("no workers here");
+          }}
+        />,
+      ),
+    );
+    click("Load the checker");
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("This browser could not start the checker.");
   });
 });
 
 describe("toRequest", () => {
+  const form = { text: "Hi.", tenure: "", purchase: "", plan: "" };
   it("accepts a reply with no context", () => {
-    expect(toRequest("Hi.", "", "")).toEqual({ text: "Hi.", context: {} });
+    expect(toRequest(form)).toEqual({ text: "Hi.", context: {} });
   });
-  it("carries a known plan and rejects an unknown one", () => {
-    expect(toRequest("Hi.", "0", "premium_2024")).toEqual({
+  it("carries every context field the rules read", () => {
+    expect(toRequest({ ...form, tenure: "0", purchase: "45", plan: "premium_2024" })).toEqual({
       text: "Hi.",
-      context: { account_tenure_days: 0, plan_type: "premium_2024" },
+      context: { account_tenure_days: 0, days_since_purchase: 45, plan_type: "premium_2024" },
     });
-    expect(toRequest("Hi.", "", "gold")).toEqual({ error: "Unknown plan." });
   });
-  it("rejects fractions, negatives and over-long replies", () => {
-    expect("error" in toRequest("Hi.", "1.5", "")).toBe(true);
-    expect("error" in toRequest("Hi.", "99999", "")).toBe(true);
-    expect("error" in toRequest("x".repeat(2001), "", "")).toBe(true);
+  it("rejects an unknown plan, fractions, negatives, words and over-long replies", () => {
+    expect(toRequest({ ...form, plan: "gold" })).toEqual({ error: "Unknown plan." });
+    for (const bad of ["1.5", "-3", "abc", "1e3", "99999"]) {
+      expect("error" in toRequest({ ...form, tenure: bad }), bad).toBe(true);
+      expect("error" in toRequest({ ...form, purchase: bad }), bad).toBe(true);
+    }
+    expect("error" in toRequest({ ...form, text: "x".repeat(2001) })).toBe(true);
   });
 });

@@ -12,18 +12,20 @@ the package metadata, the dashboard API and `/health` read.
   loaded after a button press: 15.4 MB of files, 8.2 MB with gzip; about 10 s to
   the first result on a throttled "Fast 4G" connection, about 1 s on a local
   one). Nothing typed leaves the page. It assumes English, because the language
-  model does not run in a browser, and holds only text in a non-Latin script.
+  model does not run in a browser, and holds only text with letters outside
+  the Latin script. The form sends a tenure, days since purchase and a plan.
   The runtime is not committed: the build copies it from the pinned `pyodide`
   package and downloads six wheels, each checked against the sha256 in
-  Pyodide's lockfile. CI compares CPython with Pyodide on all 517 golden cases
-  and the 15 demo scenarios.
+  Pyodide's lockfile. CI compares CPython with Pyodide on all 517 golden cases,
+  the 15 demo scenarios and three replies in other scripts.
 - `orchestrator/runner.py`: the deterministic path (language check, intent, PII
   redaction, policy and fact checks, span and template corrections,
   revalidation, escalation) as one coroutine, `run_deterministic`, that imports
   only pydantic and cachetools besides the package. A test compares its result
   with the LangGraph pipeline's on all 517 golden cases and the 25 replay
   scenarios. With `assume_english=True` it skips language detection and holds
-  only text in a non-Latin script.
+  only text with letters outside the Latin script (which includes signs such
+  as µ and Ω).
 - Language detection without its model no longer reads everything as English.
   On a first run with no network the 131 MB model cannot be downloaded, and a
   French or Spanish reply was then checked against the English-only rules,

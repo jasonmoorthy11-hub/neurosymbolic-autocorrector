@@ -19,6 +19,16 @@ if (!expectedPath) {
 }
 const expected = JSON.parse(fs.readFileSync(expectedPath, "utf8"));
 
+// Under Node, Pyodide fetches a wheel it cannot find locally from its CDN; the
+// browser cannot, so a missing file must fail here too.
+const manifest = JSON.parse(fs.readFileSync(path.join(assets, "manifest.json"), "utf8"));
+for (const file of manifest.files) {
+  if (fs.statSync(path.join(assets, file.name)).size !== file.bytes) {
+    console.error(`${file.name}: not as built`);
+    process.exit(1);
+  }
+}
+
 const { loadPyodide } = await import(pathToFileURL(path.join(assets, "pyodide.mjs")).href);
 const pyodide = await loadPyodide({ indexURL: assets + path.sep });
 await pyodide.loadPackage(["pydantic", "cachetools"], { messageCallback: () => {} });

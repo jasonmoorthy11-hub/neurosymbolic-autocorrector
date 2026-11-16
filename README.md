@@ -235,17 +235,19 @@ python3 scripts/record_replay.py --llm     # one paid run with the LLM tier -> r
 cd dashboard && npm ci && VITE_REPLAY=1 npm run dev
 ```
 
-The replay build also has a "Try it" panel: type a reply, optionally a tenure in
-days and a plan, and the page checks it against the same eight sample rules. The
+The replay build also has a "Try it" panel: type a reply, optionally a tenure, the
+days since purchase and a plan, and the page checks it against the same eight
+sample rules. The
 rule core runs in the browser tab as Python under WebAssembly
 ([Pyodide](https://pyodide.org)), loaded only after the button is pressed (15.4 MB
 of files, 8.2 MB with gzip), and what is typed is not sent anywhere. It is the
 deterministic path only, without the LangGraph pipeline, Guardrails AI or the LLM
 tier, and it assumes English: the language model does not run in a browser, so a
 reply in another Latin-script language is checked against the English rules, and
-only text in another script is held. `orchestrator/runner.py` is that path as one
+only text with letters outside the Latin script is held. `orchestrator/runner.py` is that path as one
 coroutine; a test compares it with the pipeline on every golden case and replay
-scenario, and a CI step compares CPython with Pyodide on the same replies.
+scenario, and a CI step compares CPython with Pyodide on 535 replies (the golden
+cases, the 15 demo scenarios and three in other scripts).
 
 ```bash
 cd dashboard && npm ci && npm run tryit:assets   # Pyodide runtime, wheels, rule core -> public/tryit/ (not committed)

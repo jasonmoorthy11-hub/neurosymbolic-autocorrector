@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1884 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1892 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -47,7 +47,7 @@ python3 scripts/record_replay.py --check   # exit 1 if stale; re-record after pi
 cd dashboard && npm test      # vitest
 cd dashboard && VITE_REPLAY=1 npm run dev  # replay mode, no backend
 cd dashboard && npm run tryit:assets       # Pyodide runtime + wheels + rule core -> public/tryit/ (not committed; the Try it panel needs it)
-python3 scripts/tryit_expected.py > /tmp/expected.json && (cd dashboard && npm run tryit:parity /tmp/expected.json)  # CPython vs Pyodide, 532 replies
+python3 scripts/tryit_expected.py > /tmp/expected.json && (cd dashboard && npm run tryit:parity /tmp/expected.json)  # CPython vs Pyodide, 535 replies
 
 # Lint
 ruff check src tests scripts

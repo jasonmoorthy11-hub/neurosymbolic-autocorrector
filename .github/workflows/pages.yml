@@ -40,6 +40,8 @@ jobs:
         run: npm run build -- --base=/${{ github.event.repository.name }}/
         env:
           VITE_REPLAY: "1"
+      - name: The build carries the try-it runtime
+        run: test -s dist/tryit/pyodide.asm.wasm && test -s dist/tryit/core.json
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dashboard/dist

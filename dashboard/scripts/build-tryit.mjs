@@ -53,19 +53,22 @@ const BUDGET_BYTES = 17_000_000;
 const normalise = (name) => name.toLowerCase().replace(/[-_.]+/g, "-");
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-async function wheel(entry, version) {
-  const cached = path.join(cacheDir, entry.file_name);
+/** One wheel's bytes, from the cache or the CDN, only if they match the lockfile's sha256. */
+export async function wheel(entry, version, { fetchImpl = fetch, cache = cacheDir } = {}) {
+  if (!/^[0-9a-f]{64}$/.test(entry.sha256 ?? "")) throw new Error(`${entry.file_name}: no sha256 in the lockfile`);
+  if (path.basename(entry.file_name) !== entry.file_name) throw new Error(`${entry.file_name}: not a file name`);
+  const cached = path.join(cache, entry.file_name);
   if (fs.existsSync(cached) && sha256(fs.readFileSync(cached)) === entry.sha256) {
     return fs.readFileSync(cached);
   }
   const url = `https://cdn.jsdelivr.net/pyodide/v${version}/full/${entry.file_name}`;
-  const response = await fetch(url);
+  const response = await fetchImpl(url);
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (sha256(bytes) !== entry.sha256) {
     throw new Error(`${entry.file_name}: sha256 differs from pyodide-lock.json; not used`);
   }
-  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.mkdirSync(cache, { recursive: true });
   fs.writeFileSync(cached, bytes);
   return bytes;
 }

@@ -13,6 +13,7 @@ import pytest
 from autocorrector.config import Settings
 from autocorrector.evaluation.dataset import GOLDEN_DATASET
 from autocorrector.intent_classifier.classifier import IntentClassifier
+from autocorrector.knowledge_graph.rewriter import RewriteResult
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
 from autocorrector.models import CorrectionAction, CorrectionResult
 from autocorrector.multilingual.detector import UNDETERMINED
@@ -69,6 +70,74 @@ async def test_runner_golden_cases_reach_every_outcome():
     }
     assert (CorrectionAction.CORRECT, True, False) in seen
     assert (CorrectionAction.CORRECT, False, True) in seen
+
+
+# Branches no golden or replay input reaches: both paths get a store patched the
+# same way, on a reply with a HIGH violation (CREDIT-001), with and without PII.
+_OVER_LIMIT = "I can offer you a $75 credit for your trouble."
+_CRITICAL = "I'll apply a $750 credit to your account right away."
+_NEW_CUSTOMER = {"account_tenure_days": 30}
+
+
+def _generation_raises(kg: KnowledgeGraphStore) -> None:
+    async def boom(**_: Any):
+        raise RuntimeError("no correction available")
+
+    kg.generate_compliant_alternative_with_edits = boom  # type: ignore[method-assign]
+
+
+def _never_fixes(kg: KnowledgeGraphStore) -> None:
+    async def unchanged(*, original_text: str, **_: Any) -> RewriteResult:
+        return RewriteResult(text=original_text)
+
+    kg.generate_compliant_alternative_with_edits = unchanged  # type: ignore[method-assign]
+
+
+def _makes_it_critical(kg: KnowledgeGraphStore) -> None:
+    async def worse(**_: Any) -> RewriteResult:
+        return RewriteResult(text=_CRITICAL)
+
+    kg.generate_compliant_alternative_with_edits = worse  # type: ignore[method-assign]
+
+
+def _facts_raise_on_the_second_check(kg: KnowledgeGraphStore) -> None:
+    real, calls = kg.verify_facts, []
+
+    async def flaky(**kwargs: Any):
+        calls.append(1)
+        if len(calls) > 1:
+            raise RuntimeError("facts unavailable")
+        return await real(**kwargs)
+
+    kg.verify_facts = flaky  # type: ignore[method-assign]
+
+
+@pytest.mark.parametrize(
+    ("patch", "action", "marks"),
+    [
+        (_generation_raises, CorrectionAction.CORRECT, []),
+        (_never_fixes, CorrectionAction.CORRECT, []),
+        (_makes_it_critical, CorrectionAction.ESCALATE, []),
+        (_facts_raise_on_the_second_check, CorrectionAction.ESCALATE, ["validation-unavailable"]),
+    ],
+    ids=["generation raises", "max attempts", "critical after a correction", "facts raise later"],
+)
+@pytest.mark.parametrize("pii", ["", " Your SSN 123-45-6789 is on file."], ids=["no pii", "pii"])
+async def test_runner_matches_the_pipeline_on_patched_stores(patch, action, marks, pii):
+    text = _OVER_LIMIT + pii
+    stores = [KnowledgeGraphStore(), KnowledgeGraphStore()]
+    for store in stores:
+        patch(store)
+    graph = await run_autocorrection(
+        text, _NEW_CUSTOMER, kg_store=stores[0], classifier=IntentClassifier()
+    )
+    plain = await run_deterministic(text, _NEW_CUSTOMER, kg_store=stores[1])
+    assert _comparable(plain) == _comparable(graph)
+    # and the outcome is the one this branch gives: at the attempt limit the text
+    # is delivered as it stands, marked "correct", as the pipeline does
+    assert plain.action_taken == action
+    assert [m for m in plain.guardrails_applied if m != "pii-detection"] == marks
+    assert "123-45-6789" not in plain.corrected_text
 
 
 def test_runner_defaults_are_the_settings_defaults():

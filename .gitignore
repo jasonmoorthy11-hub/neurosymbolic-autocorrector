@@ -22,3 +22,6 @@ node_modules/
 
 # Local-only working files (plans, QA screenshots); never part of the repo
 .private/
+
+# Assembled by dashboard/scripts/build-tryit.mjs (Pyodide runtime, wheels, rule core)
+dashboard/public/tryit/

@@ -31,7 +31,13 @@ def inputs() -> list[tuple[str, str, dict[str, Any]]]:
         (f"demo-{n:02d}", s.text, s.context)
         for n, s in enumerate(STEP_SCENARIOS + PIPELINE_SCENARIOS, 1)
     ]
-    return golden + demo
+    # Not Latin script: the panel holds these (every other row is read as English)
+    held = [
+        ("script-01", "ご注文の商品は明日発送されます。", {}),
+        ("script-02", "Ваш заказ отправлен, кредит $75 начислен.", {"account_tenure_days": 30}),
+        ("script-03", "I can offer you a $75 credit, 감사합니다.", {"account_tenure_days": 30}),
+    ]
+    return golden + demo + held
 
 
 async def expected() -> list[dict[str, Any]]:

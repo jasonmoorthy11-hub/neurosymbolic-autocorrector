@@ -8,6 +8,7 @@ type Check = (text: string, context: string) => Promise<string>;
 interface Pyodide {
   loadPackage(names: string[], options?: { messageCallback?: (m: string) => void }): Promise<unknown>;
   runPython(code: string): unknown;
+  loadedPackages: Record<string, string>;
   FS: { mkdirTree(path: string): void; writeFile(path: string, data: string): void };
   globals: { get(name: string): { check: Check } };
 }
@@ -18,6 +19,8 @@ const scope = self as unknown as {
   location: { origin: string };
 };
 const base = new URL(`${import.meta.env.BASE_URL}tryit/`, scope.location.origin).href;
+
+const PACKAGES = ["pydantic", "cachetools"] as const;
 
 let check: Check | null = null;
 
@@ -31,7 +34,10 @@ async function load(): Promise<void> {
   };
   const pyodide = await runtime.loadPyodide({ indexURL: base });
   progress(2);
-  await pyodide.loadPackage(["pydantic", "cachetools"], { messageCallback: () => {} });
+  await pyodide.loadPackage([...PACKAGES], { messageCallback: () => {} });
+  // loadPackage resolves even when a wheel could not be fetched or failed its hash
+  const missing = PACKAGES.filter((name) => !(name in pyodide.loadedPackages));
+  if (missing.length) throw new Error(`not loaded: ${missing.join(", ")}`);
   progress(3);
   const response = await fetch(`${base}core.json`);
   if (!response.ok) throw new Error(`core.json: HTTP ${response.status}`);
@@ -46,14 +52,14 @@ async function load(): Promise<void> {
   scope.postMessage({ type: "ready" });
 }
 
-const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
 scope.onmessage = (event) => {
   const request = event.data;
   if (request.type === "load") {
-    load().catch((error) =>
-      scope.postMessage({ type: "error", message: `The checker could not be loaded (${reason(error)}).` }),
-    );
+    load().catch((error: unknown) => {
+      // The reason (a URL, a Python traceback) is for the console, not the page
+      console.error("try-it: load failed", error);
+      scope.postMessage({ type: "error", message: "The checker could not be loaded." });
+    });
     return;
   }
   if (!check) {
@@ -70,5 +76,8 @@ scope.onmessage = (event) => {
         ms: performance.now() - started,
       }),
     )
-    .catch(() => scope.postMessage({ type: "error", message: "The check failed on this reply." }));
+    .catch((error: unknown) => {
+      console.error("try-it: check failed", error);
+      scope.postMessage({ type: "error", message: "The check failed on this reply." });
+    });
 };
