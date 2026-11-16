@@ -60,6 +60,12 @@ export interface ReplayScenario {
   t_offset_ms: number;
 }
 
+/** What the pipeline found and did for one reply: the part of a scenario the trace steps show. */
+export type TraceResult = Omit<
+  ReplayScenario,
+  "id" | "title" | "agent_id" | "input" | "customer_context" | "t_offset_ms"
+>;
+
 export interface ReplayRule {
   rule_id: string;
   name: string;

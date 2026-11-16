@@ -13,8 +13,19 @@ replay hooks in `src/replay/` when `VITE_REPLAY=1`, so the components are the sa
 both modes. The demo deploy (`.github/workflows/pages.yml`) builds the replay mode
 with `--base=/neurosymbolic-autocorrector/` and publishes `dist/` to GitHub Pages.
 
+The replay mode has a "Try it" panel (`src/components/TryItPanel.tsx`): a Web Worker
+(`src/tryit/worker.ts`) loads Pyodide and the rule core from `public/tryit/` after
+the button is pressed and runs `orchestrator/runner.py` on what is typed. That
+directory is assembled, not committed: `npm run tryit:assets` copies the runtime from
+the pinned `pyodide` package, downloads the pydantic and cachetools wheels (each
+checked against the sha256 in Pyodide's lockfile) and packs the rule core from
+`../src`. Without it the panel says the checker could not be loaded. `npm run
+tryit:parity <expected.json>` runs the assembled core under Node and compares it
+with CPython (`../scripts/tryit_expected.py`).
+
 ```bash
 npm ci
+npm run tryit:assets           # once, and after a change under ../src (replay mode's Try it panel)
 npm run dev                    # live mode
 VITE_REPLAY=1 npm run dev      # replay mode
 npm run build                  # type-check + production build (live)

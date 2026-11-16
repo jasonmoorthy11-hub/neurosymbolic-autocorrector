@@ -223,3 +223,55 @@ async def run_deterministic(
         detected_language=language,
         edits=[] if action == CorrectionAction.ESCALATE else edits,
     )
+
+
+def result_record(result: CorrectionResult) -> dict[str, Any]:
+    """A result as the dashboard's pipeline trace reads it (JSON-ready).
+
+    These are the result fields of one scenario in ``replay.json``
+    (``scripts/record_replay.py`` adds the scenario's own fields around them);
+    the browser panel shows the same shape for a typed reply.
+    """
+    escalated = result.action_taken == CorrectionAction.ESCALATE
+    explanation = result.explanation
+    return {
+        "detected_language": result.detected_language,
+        "intent": result.intent.intent_type.value,
+        "intent_confidence": result.intent.confidence,
+        "pii_types": list(result.pii_types),
+        "violations": [
+            {
+                "rule_id": v.rule_id,
+                "rule_name": v.rule_name,
+                "description": v.description,
+                "severity": v.severity.value,
+                "source_document": v.source_document,
+                "source_section": v.source_section,
+            }
+            for v in result.validation.violations
+        ],
+        "fact_errors": [
+            {
+                "claim": f.claim,
+                "correct_value": f.correct_value,
+                "source_document": f.source_document,
+                "source_page": f.source_page,
+            }
+            for f in result.validation.fact_errors
+        ],
+        "edits": [e.model_dump(mode="json") for e in result.edits],
+        "action": result.action_taken.value,
+        "was_modified": result.was_modified,
+        # An escalation sends nothing: the supervisor decides
+        "corrected_text": None if escalated else result.corrected_text,
+        "severity": result.validation.severity.value,
+        "heuristic_confidence": result.confidence,
+        "guardrails_applied": list(result.guardrails_applied),
+        "explanation": None
+        if explanation is None
+        else {
+            "rationale": explanation.rationale,
+            "rules_applied": list(explanation.rules_applied),
+            "source_documents": list(explanation.source_documents),
+        },
+    }

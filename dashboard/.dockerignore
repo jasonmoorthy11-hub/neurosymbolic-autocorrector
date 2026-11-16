@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-ssr
+public/tryit
 .env*
 .git
 *.log

@@ -7,6 +7,16 @@ the package metadata, the dashboard API and `/health` read.
 
 ## [Unreleased]
 
+- The replay demo has a "Try it" panel: a typed reply is checked in the browser
+  tab by the rule core running as Python under WebAssembly (Pyodide 314.0.8,
+  loaded after a button press: 15.4 MB of files, 8.2 MB with gzip; about 10 s to
+  the first result on a throttled "Fast 4G" connection, about 1 s on a local
+  one). Nothing typed leaves the page. It assumes English, because the language
+  model does not run in a browser, and holds only text in a non-Latin script.
+  The runtime is not committed: the build copies it from the pinned `pyodide`
+  package and downloads six wheels, each checked against the sha256 in
+  Pyodide's lockfile. CI compares CPython with Pyodide on all 517 golden cases
+  and the 15 demo scenarios.
 - `orchestrator/runner.py`: the deterministic path (language check, intent, PII
   redaction, policy and fact checks, span and template corrections,
   revalidation, escalation) as one coroutine, `run_deterministic`, that imports

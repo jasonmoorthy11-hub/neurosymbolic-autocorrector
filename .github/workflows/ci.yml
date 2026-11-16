@@ -62,11 +62,24 @@ jobs:
       - run: npm run lint
       - name: Tests
         run: npx vitest run
+      - name: Try-it assets (Pyodide runtime, wheels checked against its lockfile, rule core)
+        run: npm run tryit:assets
       - name: Build (replay mode)
         # A sub-path base, as on GitHub Pages (pages.yml passes the repo name)
         run: npm run build -- --base=/x/
         env:
           VITE_REPLAY: "1"
+      - name: The replay build carries the try-it runtime
+        run: test -s dist/tryit/pyodide.asm.wasm && test -s dist/tryit/core.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Try-it parity (the same replies under CPython and under Pyodide)
+        # Base install only: the browser core needs nothing else
+        run: |
+          pip install -e ..
+          python ../scripts/tryit_expected.py > "$RUNNER_TEMP/expected.json"
+          node scripts/tryit-parity.mjs "$RUNNER_TEMP/expected.json"
 
   neo4j:
     name: Neo4j integration

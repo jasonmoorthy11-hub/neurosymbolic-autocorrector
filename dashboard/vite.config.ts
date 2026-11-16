@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // The try-it worker imports the Pyodide module at run time, which needs a module worker
+  worker: { format: 'es' },
   server: {
     port: 3000,
     proxy: {

@@ -1,0 +1,128 @@
+/* === Try it (replay build) === */
+.tryit-panel {
+  margin: 20px 0;
+}
+
+.tryit-panel .tryit-lead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  max-width: 78ch;
+}
+
+.tryit-start,
+.tryit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.tryit-note,
+.tryit-examples {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tryit-examples {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tryit-examples .btn-example {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.tryit-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.tryit-loading progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--focus);
+}
+
+.tryit-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  max-width: 720px;
+}
+
+.tryit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tryit-field--reply,
+.tryit-actions {
+  grid-column: 1 / -1;
+}
+
+.tryit-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tryit-form .tryit-field textarea,
+.tryit-form .tryit-field input,
+.tryit-form .tryit-field select {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-inset);
+  color: var(--text-strong);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tryit-form .tryit-field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.tryit-form .tryit-field textarea:focus-visible,
+.tryit-form .tryit-field input:focus-visible,
+.tryit-form .tryit-field select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.tryit-error {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 13px;
+  max-width: 720px;
+  box-sizing: border-box;
+}
+
+.tryit-result {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  max-width: 720px;
+}
+
+@media (max-width: 560px) {
+  .tryit-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -235,6 +235,22 @@ python3 scripts/record_replay.py --llm     # one paid run with the LLM tier -> r
 cd dashboard && npm ci && VITE_REPLAY=1 npm run dev
 ```
 
+The replay build also has a "Try it" panel: type a reply, optionally a tenure in
+days and a plan, and the page checks it against the same eight sample rules. The
+rule core runs in the browser tab as Python under WebAssembly
+([Pyodide](https://pyodide.org)), loaded only after the button is pressed (15.4 MB
+of files, 8.2 MB with gzip), and what is typed is not sent anywhere. It is the
+deterministic path only, without the LangGraph pipeline, Guardrails AI or the LLM
+tier, and it assumes English: the language model does not run in a browser, so a
+reply in another Latin-script language is checked against the English rules, and
+only text in another script is held. `orchestrator/runner.py` is that path as one
+coroutine; a test compares it with the pipeline on every golden case and replay
+scenario, and a CI step compares CPython with Pyodide on the same replies.
+
+```bash
+cd dashboard && npm ci && npm run tryit:assets   # Pyodide runtime, wheels, rule core -> public/tryit/ (not committed)
+```
+
 The recording covers 25 scenarios (the 15 demo scenarios and the 10 dashboard demo
 scenarios), run through the offline pipeline. The recorder refuses to run while an
 API key is set or NeMo rails are on, so every recorded correction comes from the
@@ -432,7 +448,8 @@ cd dashboard && npm test                                      # vitest
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the tests, lint and
 the replay drift check offline on Python 3.12 and 3.14, and lints, tests and builds
-the dashboard (the build in both live and replay modes). It also runs the 16 Neo4j
+the dashboard (the build in both live and replay modes, and the try-it core under
+Pyodide against CPython). It also runs the 16 Neo4j
 integration tests against a disposable Neo4j service and builds both Docker images.
 No secrets are used.
 

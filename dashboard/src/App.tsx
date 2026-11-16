@@ -16,6 +16,7 @@ import { ReplayBanner } from "./components/ReplayBanner";
 import { ReplayControls } from "./components/ReplayControls";
 import { ReplayFeed } from "./components/ReplayFeed";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { TryItPanel } from "./components/TryItPanel";
 import { REPLAY } from "./replay/mode";
 import type { EventFilters } from "./types/api";
 import "./App.css";
@@ -87,6 +88,8 @@ function App() {
             onRetry={() => { refreshTrends(); refreshSummary(); }}
             fineTime={REPLAY}
           />
+
+          {REPLAY && <TryItPanel />}
 
           <FilterBar filters={filters} onChange={setFilters} />
 

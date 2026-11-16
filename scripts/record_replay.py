@@ -46,8 +46,9 @@ from scenarios import PIPELINE_SCENARIOS, STEP_SCENARIOS
 from autocorrector.config import get_settings
 from autocorrector.dashboard.api import DEMO_SCENARIOS, rule_catalog
 from autocorrector.knowledge_graph.store import KnowledgeGraphStore
-from autocorrector.models import CorrectionAction, CorrectionResult
+from autocorrector.models import CorrectionResult
 from autocorrector.orchestrator.pipeline import run_autocorrection
+from autocorrector.orchestrator.runner import result_record
 
 ROOT = Path(__file__).resolve().parent.parent
 REPLAY_PATH = ROOT / "dashboard" / "public" / "replay" / "replay.json"
@@ -199,53 +200,13 @@ def replay_inputs() -> list[ReplayInput]:
 def scenario_record(
     inp: ReplayInput, result: CorrectionResult, latency_ms: float, t_offset_ms: int
 ) -> dict[str, Any]:
-    escalated = result.action_taken == CorrectionAction.ESCALATE
-    explanation = result.explanation
     return {
         "id": inp.id,
         "title": inp.title,
         "agent_id": inp.agent_id,
         "input": inp.text,
         "customer_context": inp.context,
-        "detected_language": result.detected_language,
-        "intent": result.intent.intent_type.value,
-        "intent_confidence": result.intent.confidence,
-        "pii_types": list(result.pii_types),
-        "violations": [
-            {
-                "rule_id": v.rule_id,
-                "rule_name": v.rule_name,
-                "description": v.description,
-                "severity": v.severity.value,
-                "source_document": v.source_document,
-                "source_section": v.source_section,
-            }
-            for v in result.validation.violations
-        ],
-        "fact_errors": [
-            {
-                "claim": f.claim,
-                "correct_value": f.correct_value,
-                "source_document": f.source_document,
-                "source_page": f.source_page,
-            }
-            for f in result.validation.fact_errors
-        ],
-        "edits": [e.model_dump(mode="json") for e in result.edits],
-        "action": result.action_taken.value,
-        "was_modified": result.was_modified,
-        # An escalation sends nothing: the supervisor decides
-        "corrected_text": None if escalated else result.corrected_text,
-        "severity": result.validation.severity.value,
-        "heuristic_confidence": result.confidence,
-        "guardrails_applied": list(result.guardrails_applied),
-        "explanation": None
-        if explanation is None
-        else {
-            "rationale": explanation.rationale,
-            "rules_applied": list(explanation.rules_applied),
-            "source_documents": list(explanation.source_documents),
-        },
+        **result_record(result),
         "latency_ms": round(latency_ms, 1),
         "t_offset_ms": t_offset_ms,
     }
