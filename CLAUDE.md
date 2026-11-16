@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1867 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1881 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -99,7 +99,7 @@ src/autocorrector/
 ├── knowledge_graph/   — store.py (KG + LLM corrections), defaults.py, rules.py, facts.py, claims.py, rewriter.py (span tier), templates.py, schema.py (Neo4j seed); ingestion.py (the Markdown parser also reads `policies/` for the citation check in evaluation/invariants.py) and retriever.py are experimental
 ├── mcp_server/        — server.py (FastMCP tools + resources)
 ├── multilingual/      — Language detection + LLM translation (detector.py, translator.py)
-└── orchestrator/      — pipeline.py (LangGraph graph definition)
+└── orchestrator/      — pipeline.py (LangGraph graph definition), runner.py (the same deterministic path as one coroutine, no LangGraph; `tests/test_runner_parity.py` holds the two together)
 ```
 
 ## Config

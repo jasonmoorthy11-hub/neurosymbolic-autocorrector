@@ -7,6 +7,13 @@ the package metadata, the dashboard API and `/health` read.
 
 ## [Unreleased]
 
+- `orchestrator/runner.py`: the deterministic path (language check, intent, PII
+  redaction, policy and fact checks, span and template corrections,
+  revalidation, escalation) as one coroutine, `run_deterministic`, that imports
+  only pydantic and cachetools besides the package. A test compares its result
+  with the LangGraph pipeline's on all 517 golden cases and the 25 replay
+  scenarios. With `assume_english=True` it skips language detection and holds
+  only text in a non-Latin script.
 - Language detection without its model no longer reads everything as English.
   On a first run with no network the 131 MB model cannot be downloaded, and a
   French or Spanish reply was then checked against the English-only rules,
