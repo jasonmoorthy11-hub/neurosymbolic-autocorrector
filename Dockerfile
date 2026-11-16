@@ -8,8 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files first (cache layer)
-COPY pyproject.toml .
+# Copy dependency files first (cache layer). README.md is the package's `readme`:
+# without it the build backend cannot produce the metadata and the install fails.
+COPY pyproject.toml README.md ./
 COPY src/ src/
 
 # Install the package with all dependencies. A slow route to PyPI must not fail

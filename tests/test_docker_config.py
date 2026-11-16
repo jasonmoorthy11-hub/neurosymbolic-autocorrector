@@ -92,6 +92,20 @@ def test_dockerignore_keeps_local_builds_out_of_the_context():
     assert ".env*" in ignored  # a local VITE_* .env must not be baked into the bundle
 
 
+def test_dockerfile_copies_what_the_package_metadata_reads_before_installing():
+    """`readme = "README.md"` makes the build backend open that file during pip install."""
+    import tomllib
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    before_install = dockerfile.split("pip install -e", 1)[0]
+    copied = " ".join(line for line in before_install.splitlines() if line.startswith("COPY "))
+    for needed in ("pyproject.toml", project["readme"], "src/"):
+        assert needed in copied, needed
+    ignored = (ROOT / ".dockerignore").read_text(encoding="utf-8").split()
+    assert project["readme"] not in ignored
+
+
 def test_root_dockerignore_keeps_private_and_local_state_out_of_the_image():
     ignored = (ROOT / ".dockerignore").read_text().split()
     for entry in (".env", ".private/", ".cache/", "*.db", ".git/", ".venv/"):
