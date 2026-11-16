@@ -88,6 +88,9 @@ path = "src/autocorrector/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autocorrector"]
+# The blind held-out set stays in the repository (and the sdist); see
+# scripts/check_wheel.py and evaluation/registry.py.
+exclude = ["src/autocorrector/evaluation/heldout.py"]
 
 [tool.ruff]
 target-version = "py312"

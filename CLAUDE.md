@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1794 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1799 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -33,6 +33,7 @@ python3 scripts/bench_real_turns.py --input turns.jsonl   # flag report for any 
 #   python3 scripts/bench_real_turns.py --flagged .private/abcd_flagged.jsonl
 python3 scripts/mutate_policy.py                      # mutation score of the golden set (about 70 s, not in CI)
 python3 scripts/audit_keywords.py --check             # dictionary words a rule keyword matches by accident
+python3 scripts/check_wheel.py dist/*.whl             # after `python3 -m build --wheel`: server in, held-out set out, extras optional
 
 # Replay data for the backend-free dashboard (refuses with an API key set or NeMo on)
 python3 scripts/record_replay.py           # writes dashboard/public/replay/replay.json
@@ -116,4 +117,4 @@ All settings via env vars with `AUTOCORRECTOR_` prefix or `.env` file. Key ones:
 - Mock external services (Neo4j, Anthropic, NeMo) — tests must pass offline
 - Golden dataset in `src/autocorrector/evaluation/dataset.py`
 - Test files mirror source: `test_pipeline.py` tests `orchestrator/pipeline.py`
-- CI (`.github/workflows/ci.yml`): pytest, ruff, replay `--check` on Python 3.12 + 3.14; dashboard build/lint/vitest + replay build; the Neo4j integration tests against a disposable service; a build of both Docker images. No secrets.
+- CI (`.github/workflows/ci.yml`): pytest, ruff, replay `--check` on Python 3.12 + 3.14; dashboard build/lint/vitest + replay build; the Neo4j integration tests against a disposable service; a build of both Docker images; the wheel built, checked and installed with no extras (`autocorrector --help`, the MCP client over stdio). No secrets.

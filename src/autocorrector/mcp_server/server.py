@@ -21,12 +21,12 @@ Prompt:
 
 from __future__ import annotations
 
+import functools
 import hmac
-import importlib.util
 import json
 import logging
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -105,22 +105,31 @@ def _get_resources(ctx: Context) -> tuple[KnowledgeGraphStore, IntentClassifier,
     return lifespan["kg"], lifespan["classifier"], lifespan["audit_store"]
 
 
-def _guardrails_installed() -> bool:
-    """Whether guardrails-ai (the ``[guardrails]`` extra) can be imported."""
-    return importlib.util.find_spec("guardrails") is not None
+@functools.cache
+def _pii_guard_builder() -> Callable[[], Any] | None:
+    """``build_pii_guard``, or None when guardrails-ai cannot be imported.
+
+    Decided once per process: the ``[guardrails]`` extra may be absent, or the name
+    may resolve to something that is not guardrails-ai and fail on import.
+    """
+    try:
+        from autocorrector.guardrails.telemetry import build_pii_guard
+    except ImportError as error:
+        logger.warning("guardrails-ai is not importable (%s); the PII patterns run directly", error)
+        return None
+    return build_pii_guard
 
 
 def _redact_pii(text: str) -> tuple[str, list[str]]:
     """Run the PII rail: return the redacted text and the PII types found.
 
-    With guardrails-ai installed the patterns run inside its guard; without it
+    With guardrails-ai importable the patterns run inside its guard; without it
     they run directly. The redacted text is the same either way.
     """
-    if not _guardrails_installed():
+    build_guard = _pii_guard_builder()
+    if build_guard is None:
         return redact_pii(text)
-    from autocorrector.guardrails.telemetry import build_pii_guard
-
-    result = build_pii_guard().validate(text)
+    result = build_guard().validate(text)
     if result.validated_output and result.validated_output != text:
         return result.validated_output, detect_pii_types(text)
     return text, []

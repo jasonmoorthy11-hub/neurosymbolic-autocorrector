@@ -122,3 +122,47 @@ jobs:
           test "$uid" = "10001"
       - name: Build the dashboard image
         run: docker build -t autocorrector-dashboard:ci dashboard
+
+  wheel:
+    name: Wheel (no extras)
+    runs-on: ubuntu-latest
+    env:
+      FTLANG_CACHE: ${{ github.workspace }}/.cache/fast_langdetect
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          pip install build
+          python -m build --wheel
+      - name: The wheel has the server and not the held-out set
+        run: python scripts/check_wheel.py dist/*.whl
+      - name: Install the wheel alone
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install dist/*.whl
+      - name: No optional package came with it
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" - <<'EOF'
+          import importlib.util
+          for name in ("guardrails", "langgraph", "neo4j", "nemoguardrails"):
+              assert importlib.util.find_spec(name) is None, name
+          from autocorrector.evaluation.registry import DATASETS
+          assert sorted(DATASETS) == ["golden"], sorted(DATASETS)
+          EOF
+      - name: The command line starts
+        run: |
+          "$RUNNER_TEMP/venv/bin/autocorrector" --help
+      - name: Language model cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/fast_langdetect
+          key: fast-langdetect-lid176
+      - name: MCP tools over stdio, from the installed wheel
+        # Run from a copy outside the checkout: in place, the script points the
+        # server at the repository's src/ instead of the installed package.
+        run: |
+          mkdir "$RUNNER_TEMP/client" && cp scripts/test_mcp_client.py "$RUNNER_TEMP/client/"
+          cd "$RUNNER_TEMP/client" && "$RUNNER_TEMP/venv/bin/python" test_mcp_client.py

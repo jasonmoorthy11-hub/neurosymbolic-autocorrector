@@ -130,10 +130,11 @@ python3 scripts/evaluate.py   # golden set
 `".[all,dev]"` adds the Neo4j driver. An Anthropic key in `AUTOCORRECTOR_ANTHROPIC_API_KEY`
 enables the LLM correction tier and translation; nothing below needs one.
 
-The first reply of four or more words makes `fast-langdetect` download its
-language model once (`lid.176.bin`, 131 MB, into `FTLANG_CACHE` or the system
-temp directory). Without a network that download fails and the reply is read
-as English.
+The first reply the language detector has to read (four or more words, or a
+shorter one with an accented letter or an amount) makes `fast-langdetect`
+download its model once (`lid.176.bin`, 131 MB, into `FTLANG_CACHE` or the
+system temp directory). Without a network that download fails, is tried again
+on each such reply, and the reply is read as English.
 
 The MCP server alone needs no extras: `pip install -e .` and `autocorrector
 --stdio`. It then runs the PII patterns directly instead of inside a Guardrails

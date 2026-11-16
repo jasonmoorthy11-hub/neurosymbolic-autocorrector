@@ -243,6 +243,11 @@ python3 scripts/evaluate.py --invariants --seeds 3      # the table, then the sa
 python3 scripts/evaluate.py --invariants --record-outputs   # after an intended change to the outputs
 ```
 
+`--invariants` needs a source checkout: the citation check reads the Markdown
+files in `policies/`, which are not part of the installed package. The held-out
+set is not in the wheel either, so an installed package offers `--dataset golden`
+only.
+
 The command exits 1 only when a hash-seed run gives different outputs; a failed
 check is listed under "Failures" and leaves the exit status at 0.
 

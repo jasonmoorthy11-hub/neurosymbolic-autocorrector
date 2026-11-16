@@ -7,17 +7,27 @@ the package metadata, the dashboard API and `/health` read.
 
 ## [Unreleased]
 
-- `pip install neurosymbolic-autocorrector` with no extras now gives a working
+- Installed with no extras (`pip install .`), the package now gives a working
   MCP server. `autocorrector --help` failed there with `ModuleNotFoundError:
   guardrails`, because the server imported the Guardrails AI wrapper at start.
   The PII patterns and span functions moved to `guardrails/pii.py`, which
   imports nothing outside the standard library; the server runs them inside a
   Guardrails AI guard when the `[guardrails]` extra is installed and directly
   when it is not. The redacted text is the same either way (checked on every
-  golden case). `guardrails/validators.py` still exports the old names.
+  golden case). `guardrails/validators.py` still exports the four public names
+  (`PII_TYPES`, `detect_pii_types`, `find_pii_spans`, `redact_spans`); the
+  pattern table itself is `pii._PII_PATTERNS`. A guardrails-ai that is present
+  but fails to import also falls back to the plain patterns, with one warning.
+- The wheel no longer contains the held-out set (`evaluation/heldout.py`); the
+  repository and the sdist still do. `evaluation/registry.py` offers the golden
+  set alone when the file is absent. `scripts/check_wheel.py` checks a built
+  wheel (server and entry point in, held-out set and tests out, no optional
+  package among the base requirements), and a CI job builds the wheel, installs
+  it with no extras and runs `autocorrector --help` and the MCP client against it.
 - Dashboard build and lint tooling updated within its current major versions
-  (vite 7.3.8 and the packages `npm audit fix` moves); `npm audit` then reports
-  no high-severity finding. Seven moderate ones remain in the linter's
+  (vite 7.3.8 and the packages `npm audit fix` moves, among them esbuild 0.27
+  to 0.28 and one new development package, `@humanfs/types`); `npm audit` then
+  reports no high-severity finding. Seven moderate ones remain in the linter's
   dependency chain (minimatch under typescript-eslint).
 
 ## [1.6] - 2026-11-11
