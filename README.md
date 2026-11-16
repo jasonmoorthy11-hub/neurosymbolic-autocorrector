@@ -140,8 +140,8 @@ again on each such reply. A reply is then read as English only if it is plain
 ASCII, carries two or more of 45 common English words, and those words
 are at least a fifth of it; any other reply is marked `und` (undetermined) and
 escalated. That is strict on purpose: while the model is missing, 193 of the
-517 golden replies (37%) are held, ordinary English among them ("Your package
-is out for delivery."), and no foreign reply is checked against the English
+517 golden replies (37%) are held, ordinary English among them ("Your previous
+refund has already been completed."), and no foreign reply is checked against the English
 rules beyond the cases listed under Limitations.
 
 The MCP server alone needs no extras: `pip install -e .` and `autocorrector
@@ -150,7 +150,8 @@ AI guard, with the same redacted text. The other parts are extras: `[langgraph]`
 for the pipeline, `[dashboard]` for the dashboard API, `[llm]` for the Anthropic
 correction tier and translation (a key without it is ignored with a warning),
 `[guardrails]`, `[neo4j]`. `[dev]` includes `[dashboard]` and `[llm]`, so the
-command above installs everything the scripts, tests and dashboard use.
+command above installs what the tests, the dashboard and the scripts use, apart
+from `scripts/seed_neo4j.py` (`[neo4j]`) and the Presidio comparison (`[bench]`).
 
 ## Evaluation
 

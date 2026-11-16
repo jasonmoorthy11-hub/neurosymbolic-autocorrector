@@ -8,12 +8,14 @@ server (`wheel` in .github/workflows/ci.yml).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
 import sys
 import textwrap
 import tomllib
+import types
 import zipfile
 from pathlib import Path
 
@@ -26,7 +28,7 @@ from autocorrector.mcp_server import server
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from check_wheel import ENTRY_POINT, REQUIRED, problems  # noqa: E402
+from check_wheel import ENTRY_POINTS, REQUIRED, problems  # noqa: E402
 
 OPTIONAL = (
     "guardrails",
@@ -142,16 +144,29 @@ def test_packaging_server_json_fits_the_registry_rules():
     assert f"<!-- mcp-name: {meta['name']} -->" in readme
 
 
+_DECLARED = "\n".join(f"{name} = {target}" for name, target in ENTRY_POINTS.items())
+_UNDECLARED = [f"entry point not declared: {n} = {t}" for n, t in ENTRY_POINTS.items()]
+
+
+def test_packaging_both_command_names_start_the_server():
+    """`uvx neurosymbolic-autocorrector` (server.json) looks for a command of that name."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["scripts"] == ENTRY_POINTS
+    assert set(ENTRY_POINTS) == {"autocorrector", project["name"]}
+    assert len(set(ENTRY_POINTS.values())) == 1
+
+
 def _fake_wheel(
-    path: Path, names: list[str], requires: list[str] | None, entry_point: str = ENTRY_POINT
+    path: Path,
+    names: list[str],
+    requires: list[str] | None,
+    entry_points: str = f"[console_scripts]\n{_DECLARED}\n",
 ) -> Path:
     with zipfile.ZipFile(path, "w") as archive:
         for name in names:
             archive.writestr(name, "")
-        if entry_point:
-            archive.writestr(
-                "x-1.dist-info/entry_points.txt", f"[console_scripts]\n{entry_point}\n"
-            )
+        if entry_points:
+            archive.writestr("x-1.dist-info/entry_points.txt", entry_points)
         if requires is not None:
             archive.writestr(
                 "x-1.dist-info/METADATA", "".join(f"Requires-Dist: {r}\n" for r in requires)
@@ -179,7 +194,8 @@ def test_packaging_check_wheel_names_what_is_wrong(tmp_path):
             "scripts/x.py",
         ],
         ["guardrails_ai>=0.9", "Presidio.Analyzer<3", "(bad)"],
-        entry_point=f"# {ENTRY_POINT}",
+        entry_points="[console_scripts]\n"
+        + "".join(f"# {line}\n" for line in _DECLARED.splitlines()),
     )
     assert problems(wheel) == [
         f"missing: {REQUIRED[0]}",
@@ -187,7 +203,7 @@ def test_packaging_check_wheel_names_what_is_wrong(tmp_path):
         "must not ship: autocorrector/evaluation/heldout.py",
         "not package code: scripts/x.py",
         "not package code: tests/test_x.py",
-        f"entry point not declared: {ENTRY_POINT}",
+        *_UNDECLARED,
         "optional package is a base requirement: guardrails_ai>=0.9",
         "optional package is a base requirement: Presidio.Analyzer<3",
         "unreadable requirement: (bad)",
@@ -195,8 +211,109 @@ def test_packaging_check_wheel_names_what_is_wrong(tmp_path):
 
 
 def test_packaging_check_wheel_reports_missing_metadata_files(tmp_path):
-    wheel = _fake_wheel(tmp_path / "bare.whl", list(REQUIRED), None, entry_point="")
-    assert problems(wheel) == [f"entry point not declared: {ENTRY_POINT}", "no METADATA file"]
+    wheel = _fake_wheel(tmp_path / "bare.whl", list(REQUIRED), None, entry_points="")
+    assert problems(wheel) == [*_UNDECLARED, "no METADATA file"]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "autocorrector/evaluation/HeldOut.py",
+        "autocorrector/evaluation/held_out.py",
+        "autocorrector/evaluation/held-out.json",
+    ],
+)
+def test_packaging_check_wheel_catches_other_spellings_of_the_blind_set(tmp_path, name):
+    wheel = _fake_wheel(tmp_path / "w.whl", [*REQUIRED, name], [])
+    assert problems(wheel) == [f"must not ship: {name}"]
+
+
+def test_packaging_check_wheel_rejects_code_under_a_nested_dist_info(tmp_path):
+    wheel = _fake_wheel(tmp_path / "w.whl", [*REQUIRED, "evil/x.dist-info/payload.py"], [])
+    assert problems(wheel) == ["not package code: evil/x.dist-info/payload.py"]
+
+
+def test_packaging_check_wheel_rejects_a_second_dist_info(tmp_path):
+    wheel = _fake_wheel(tmp_path / "w.whl", [*REQUIRED, "y-2.dist-info/METADATA"], [])
+    assert problems(wheel) == ["more than one .dist-info directory: x-1.dist-info, y-2.dist-info"]
+
+
+def test_packaging_check_wheel_wants_console_scripts(tmp_path):
+    wheel = _fake_wheel(
+        tmp_path / "w.whl", list(REQUIRED), [], entry_points=f"[gui_scripts]\n{_DECLARED}\n"
+    )
+    assert problems(wheel) == _UNDECLARED
+
+
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        "anthropic; python_version > '3' or extra == 'llm'",
+        "openai>=1; extra == 'llm' or sys_platform == 'linux'",
+    ],
+)
+def test_packaging_check_wheel_rejects_an_extra_marker_that_is_optional(tmp_path, requirement):
+    wheel = _fake_wheel(tmp_path / "w.whl", list(REQUIRED), [requirement])
+    assert problems(wheel) == [f"optional package is a base requirement: {requirement}"]
+
+
+def test_packaging_check_wheel_accepts_an_extra_marker_joined_with_and(tmp_path):
+    wheel = _fake_wheel(
+        tmp_path / "w.whl",
+        list(REQUIRED),
+        ["guardrails-ai>=0.9; python_version < '3.14' and extra == 'guardrails'"],
+    )
+    assert problems(wheel) == []
+
+
+class _RaisesOnImport(types.ModuleType):
+    """Stands in for `guardrails/telemetry.py`: `from … import name` raises `error`."""
+
+    def __init__(self, error: Exception) -> None:
+        super().__init__("autocorrector.guardrails.telemetry")
+        self.__dict__["_error"] = error
+
+    def __getattr__(self, name: str):
+        raise self.__dict__["_error"]
+
+
+@pytest.mark.parametrize(
+    ("error", "level"),
+    [
+        (ModuleNotFoundError("No module named 'guardrails'", name="guardrails"), logging.INFO),
+        (
+            ModuleNotFoundError("No module named 'opentelemetry'", name="opentelemetry"),
+            logging.WARNING,
+        ),
+        (ImportError("cannot import name 'Guard'"), logging.WARNING),
+        (RuntimeError("broken on import"), logging.WARNING),
+    ],
+)
+def test_packaging_guard_builder_says_absent_quietly_and_broken_loudly(
+    monkeypatch, caplog, error, level
+):
+    monkeypatch.setitem(sys.modules, "autocorrector.guardrails.telemetry", _RaisesOnImport(error))
+    uncached = server._pii_guard_builder.__wrapped__  # leave the process-wide answer alone
+    with caplog.at_level(logging.INFO, logger=server.logger.name):
+        assert uncached() is None
+    assert [r.levelno for r in caplog.records] == [level]
+    assert "guardrails-ai is not importable" in caplog.records[0].getMessage()
+
+
+def test_packaging_publish_workflow_is_manual_and_builds_the_tag():
+    workflow = (ROOT / ".github" / "workflows" / "publish.yml").read_text(encoding="utf-8")
+    triggers = workflow.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert re.findall(r"^  (\w+):", triggers, flags=re.M) == ["workflow_dispatch"]
+    assert "ref: refs/tags/${{ inputs.tag }}" in workflow  # a tag, never a branch or a sha
+    # No expression is pasted into a shell line: inputs reach scripts as environment values
+    in_run = False
+    for line in workflow.splitlines():
+        if re.match(r"\s+(- )?run:", line):
+            in_run = True
+        elif re.match(r"\s+(- )?(uses|name|with|env|if):", line):
+            in_run = False
+        assert not (in_run and "${{" in line), line
+    assert re.search(r"pypa/gh-action-pypi-publish@[0-9a-f]{40} # v", workflow)
 
 
 def test_packaging_redaction_is_the_same_with_and_without_guardrails():

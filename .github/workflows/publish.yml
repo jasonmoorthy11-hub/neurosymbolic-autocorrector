@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag }}
+          ref: refs/tags/${{ inputs.tag }} # a tag, never a branch or a commit
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -31,12 +31,25 @@ jobs:
         run: |
           pip install build
           python -m build
-      - name: The version is a release, not a development version
+      - name: The version is a final release and is the one the tag names
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
           ls dist
-          if ls dist | grep -q '\.dev'; then echo "development version: not published"; exit 1; fi
+          python - <<'EOF'
+          import os, pathlib, re, sys
+          wheel, = pathlib.Path("dist").glob("*.whl")
+          version = wheel.name.split("-")[1]
+          if not re.fullmatch(r"\d+(\.\d+)*", version):
+              sys.exit(f"{version}: a development or pre-release version is not published")
+          tag = os.environ["TAG"].removeprefix("v")
+          if version not in (tag, f"{tag}.0"):
+              sys.exit(f"tag {os.environ['TAG']} does not name version {version}")
+          EOF
       - name: The wheel has the server and not the held-out set
         run: python scripts/check_wheel.py dist/*.whl
+      # Both files in dist/ are uploaded. The sdist is the repository as tagged,
+      # held-out set included, on purpose: only the wheel leaves it out.
       - uses: actions/upload-artifact@v7
         with:
           name: dist

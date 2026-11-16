@@ -98,6 +98,8 @@ all = [
 
 [project.scripts]
 autocorrector = "autocorrector.mcp_server.server:main"
+# The project name too: `uvx neurosymbolic-autocorrector` runs the command of that name
+neurosymbolic-autocorrector = "autocorrector.mcp_server.server:main"
 
 [tool.hatch.version]
 path = "src/autocorrector/__init__.py"

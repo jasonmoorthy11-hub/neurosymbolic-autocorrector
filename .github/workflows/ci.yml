@@ -155,6 +155,7 @@ jobs:
       - name: The command line starts
         run: |
           "$RUNNER_TEMP/venv/bin/autocorrector" --help
+          "$RUNNER_TEMP/venv/bin/neurosymbolic-autocorrector" --help
       - name: Language model cache
         uses: actions/cache@v6
         with:

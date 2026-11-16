@@ -103,7 +103,25 @@ def test_dockerfile_copies_what_the_package_metadata_reads_before_installing():
     for needed in ("pyproject.toml", project["readme"], "src/"):
         assert needed in copied, needed
     ignored = (ROOT / ".dockerignore").read_text(encoding="utf-8").split()
-    assert project["readme"] not in ignored
+    assert not _ignored(project["readme"], ignored)
+
+
+def _ignored(path: str, patterns: list[str]) -> bool:
+    """Whether a top-level file matches a .dockerignore line (later `!` lines re-include)."""
+    from fnmatch import fnmatch
+
+    out = False
+    for pattern in patterns:
+        if fnmatch(path, pattern.lstrip("!").strip("/")):
+            out = not pattern.startswith("!")
+    return out
+
+
+def test_dockerignore_matching_reads_patterns_not_just_names():
+    assert _ignored("README.md", ["*.md"])
+    assert _ignored("README.md", ["README.*"])
+    assert not _ignored("README.md", ["*.md", "!README.md"])
+    assert not _ignored("README.md", ["*.db", "dist/"])
 
 
 def test_root_dockerignore_keeps_private_and_local_state_out_of_the_image():

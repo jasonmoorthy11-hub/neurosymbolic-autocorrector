@@ -59,6 +59,7 @@ class TestLanguageWithoutModel:
             # English too: fewer than two marker words, or markers under a fifth of the words
             "Order shipped; tracking emailed shortly.",
             "Your package is out for delivery.",
+            "Your previous refund has already been completed.",  # golden ADV-013
             "I'll go ahead and issue you a $75 credit right now.",
         ],
     )

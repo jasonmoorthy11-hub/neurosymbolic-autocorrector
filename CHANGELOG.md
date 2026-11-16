@@ -16,8 +16,8 @@ the package metadata, the dashboard API and `/health` read.
   MCP tools: escalate). One warning is logged. Nothing changes when the model
   returns a result. The cost, while the model is missing: 193 of the 517 golden
   replies are held (162 of them should be allowed or corrected), for example
-  "Your package is out for delivery." The MCP `validate_action` tool now
-  detects the language once per call, not twice.
+  "Your previous refund has already been completed." The MCP `validate_action`
+  tool now detects the language once per call, not twice.
 - Installed with no extras (`pip install .`), the package now gives a working
   MCP server. `autocorrector --help` failed there with `ModuleNotFoundError:
   guardrails`, because the server imported the Guardrails AI wrapper at start.
@@ -30,8 +30,8 @@ the package metadata, the dashboard API and `/health` read.
   pattern table itself is `pii._PII_PATTERNS`. A guardrails-ai that is present
   but fails on import, whatever it raises, also falls back to the plain
   patterns, with one warning.
-- The base install is what the MCP server needs (43 packages on Python 3.14,
-  down from 64). FastAPI, slowapi and `uvicorn[standard]` moved to a new
+- The base install is what the MCP server needs (41 packages on Python 3.14,
+  pip included, down from 62). FastAPI, slowapi and `uvicorn[standard]` moved to a new
   `[dashboard]` extra, and the Anthropic and OpenAI clients to a new `[llm]`
   extra. `[dev]` and `[all]` include both, so `pip install -e
   ".[dev,langgraph,guardrails]"` and the Docker image install what they did
@@ -48,7 +48,10 @@ the package metadata, the dashboard API and `/health` read.
   fictional company"), the `mcp-name` marker in the README, `readme` and
   project URLs in the package metadata, and `.github/workflows/publish.yml`,
   which runs only when started by hand and can upload only once a PyPI trusted
-  publisher is registered for it.
+  publisher is registered for it. It builds a tag only, and stops unless the
+  built version is a final release that the tag names. The command also
+  installs under the project name (`neurosymbolic-autocorrector`), which is the
+  name `uvx neurosymbolic-autocorrector` looks for.
 - Dashboard build and lint tooling updated within its current major versions
   (vite 7.3.8 and the packages `npm audit fix` moves, among them esbuild 0.27
   to 0.28 and one new development package, `@humanfs/types`); `npm audit` then

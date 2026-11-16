@@ -346,6 +346,40 @@ class TestTranslationGuard:
         assert "translation-unavailable" in result.guardrails_applied
         client_cls.assert_not_called()  # no key: no API client, no network call
 
+    async def test_pipeline_key_without_anthropic_package_escalates(self, monkeypatch, caplog):
+        """A key with no `[llm]` extra: nothing is translated, so the reply is held."""
+        import logging
+        import sys
+
+        from autocorrector.models import CorrectionAction
+        from autocorrector.orchestrator import pipeline
+
+        monkeypatch.setitem(sys.modules, "anthropic", None)  # importing it now fails
+        with (
+            patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")),
+            caplog.at_level(logging.WARNING, logger=pipeline.__name__),
+        ):
+            result = await pipeline.run_autocorrection(SPANISH_CREDIT, NEW_CUSTOMER)
+
+        assert result.detected_language == "es"
+        assert result.action_taken == CorrectionAction.ESCALATE
+        assert "translation-unavailable" in result.guardrails_applied
+        assert [r.getMessage() for r in caplog.records if "anthropic" in r.getMessage()] == [
+            "anthropic is not installed; install the [llm] extra to translate"
+        ]
+
+    async def test_pipeline_output_stays_english_without_anthropic_package(self, monkeypatch):
+        import sys
+
+        from autocorrector.orchestrator import pipeline
+
+        monkeypatch.setitem(sys.modules, "anthropic", None)
+        with patch("autocorrector.orchestrator.pipeline.get_settings", return_value=_settings("k")):
+            out = await pipeline._translate_output_if_needed(
+                "English text", {"detected_language": "fr"}
+            )
+        assert out == "English text"
+
     async def test_pipeline_spanish_translation_failure_escalates(self):
         from autocorrector.models import CorrectionAction
         from autocorrector.orchestrator.pipeline import run_autocorrection
