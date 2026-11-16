@@ -115,7 +115,13 @@ def _pii_guard_builder() -> Callable[[], Any] | None:
     try:
         from autocorrector.guardrails.telemetry import build_pii_guard
     except Exception as error:  # absent, shadowed, or broken on import: same answer
-        logger.warning("guardrails-ai is not importable (%r); the PII patterns run directly", error)
+        absent = isinstance(error, ModuleNotFoundError) and error.name == "guardrails"
+        # Absent is the plain no-extras install; anything else is worth a warning
+        logger.log(
+            logging.INFO if absent else logging.WARNING,
+            "guardrails-ai is not importable (%r); the PII patterns run directly",
+            error,
+        )
         return None
     return build_pii_guard
 

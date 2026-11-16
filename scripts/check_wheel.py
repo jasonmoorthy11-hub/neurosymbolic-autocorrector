@@ -26,7 +26,17 @@ REQUIRED = (
 )
 ENTRY_POINT = "autocorrector = autocorrector.mcp_server.server:main"
 # Extras stay extras: none of these may be a requirement without an `extra ==` marker.
-OPTIONAL_PACKAGES = ("guardrails-ai", "langgraph", "neo4j", "nemoguardrails", "presidio-analyzer")
+OPTIONAL_PACKAGES = (
+    "guardrails-ai",
+    "langgraph",
+    "neo4j",
+    "nemoguardrails",
+    "presidio-analyzer",
+    "fastapi",
+    "slowapi",
+    "anthropic",
+    "openai",
+)
 
 
 def _normalised(name: str) -> str:

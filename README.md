@@ -146,7 +146,11 @@ rules beyond the cases listed under Limitations.
 
 The MCP server alone needs no extras: `pip install -e .` and `autocorrector
 --stdio`. It then runs the PII patterns directly instead of inside a Guardrails
-AI guard, with the same redacted text.
+AI guard, with the same redacted text. The other parts are extras: `[langgraph]`
+for the pipeline, `[dashboard]` for the dashboard API, `[llm]` for the Anthropic
+correction tier and translation (a key without it is ignored with a warning),
+`[guardrails]`, `[neo4j]`. `[dev]` includes `[dashboard]` and `[llm]`, so the
+command above installs everything the scripts, tests and dashboard use.
 
 ## Evaluation
 

@@ -147,7 +147,7 @@ jobs:
         run: |
           "$RUNNER_TEMP/venv/bin/python" - <<'EOF'
           import importlib.util
-          for name in ("guardrails", "langgraph", "neo4j", "nemoguardrails"):
+          for name in ("guardrails", "langgraph", "neo4j", "nemoguardrails", "fastapi", "slowapi", "anthropic", "openai"):
               assert importlib.util.find_spec(name) is None, name
           from autocorrector.evaluation.registry import DATASETS
           assert sorted(DATASETS) == ["golden"], sorted(DATASETS)

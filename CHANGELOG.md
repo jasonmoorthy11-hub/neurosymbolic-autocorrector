@@ -30,6 +30,13 @@ the package metadata, the dashboard API and `/health` read.
   pattern table itself is `pii._PII_PATTERNS`. A guardrails-ai that is present
   but fails on import, whatever it raises, also falls back to the plain
   patterns, with one warning.
+- The base install is what the MCP server needs (43 packages on Python 3.14,
+  down from 64). FastAPI, slowapi and `uvicorn[standard]` moved to a new
+  `[dashboard]` extra, and the Anthropic and OpenAI clients to a new `[llm]`
+  extra. `[dev]` and `[all]` include both, so `pip install -e
+  ".[dev,langgraph,guardrails]"` and the Docker image install what they did
+  before. An Anthropic key without `[llm]` is ignored with a warning: the LLM
+  tier and translation are skipped, and a foreign reply is escalated.
 - The wheel no longer contains the held-out set (`evaluation/heldout.py`); the
   repository and the sdist still do. `evaluation/registry.py` offers the golden
   set alone when the file is absent. `scripts/check_wheel.py` checks a built

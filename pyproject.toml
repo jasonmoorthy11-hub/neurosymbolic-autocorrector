@@ -14,15 +14,13 @@ authors = [
     { name = "Jason Moorthy", email = "jasonmoorthy11@gmail.com" },
 ]
 
+# What the MCP server needs (`autocorrector`, stdio or HTTP). The dashboard API,
+# the LLM clients and the LangGraph pipeline are extras; `[dev]` pulls in the
+# first two, so the documented `.[dev,langgraph,guardrails]` install has them all.
 dependencies = [
     # MCP Server
     "mcp>=1.25,<2",
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-
-    # LLM Clients
-    "anthropic>=2.4,<3",
-    "openai>=1.60",
+    "uvicorn>=0.34",
 
     # Data & Validation
     "pydantic>=2.10",
@@ -34,7 +32,6 @@ dependencies = [
     # Infrastructure
     "aiosqlite>=0.20",
     "cachetools>=5.5",
-    "slowapi>=0.1.9",
     "python-dotenv>=1.0",  # scripts/seed_neo4j.py; also a pydantic-settings dependency
 ]
 
@@ -44,7 +41,20 @@ Demo = "https://jasonmoorthy11-hub.github.io/neurosymbolic-autocorrector/"
 Changelog = "https://github.com/jasonmoorthy11-hub/neurosymbolic-autocorrector/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+# The dashboard API (FastAPI + WebSocket); it runs the pipeline, so add [langgraph]
+dashboard = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "slowapi>=0.1.9",
+]
+# The LLM correction tier, translation and the LLM judge (Anthropic); OpenAI
+# embeddings for the experimental vector indexes
+llm = [
+    "anthropic>=2.4,<3",
+    "openai>=1.60",
+]
 dev = [
+    "neurosymbolic-autocorrector[dashboard,llm]",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "httpx>=0.28",  # the dashboard tests drive the app through httpx's ASGI transport
@@ -83,7 +93,7 @@ bench = [
     "presidio-analyzer>=2.2,<3",
 ]
 all = [
-    "neurosymbolic-autocorrector[neo4j,langgraph,guardrails]",
+    "neurosymbolic-autocorrector[dashboard,llm,neo4j,langgraph,guardrails]",
 ]
 
 [project.scripts]

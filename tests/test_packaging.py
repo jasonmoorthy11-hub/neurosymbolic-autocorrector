@@ -28,7 +28,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from check_wheel import ENTRY_POINT, REQUIRED, problems  # noqa: E402
 
-OPTIONAL = ("guardrails", "langgraph", "neo4j", "nemoguardrails", "presidio_analyzer")
+OPTIONAL = (
+    "guardrails",
+    "langgraph",
+    "neo4j",
+    "nemoguardrails",
+    "presidio_analyzer",
+    "fastapi",
+    "slowapi",
+    "anthropic",
+    "openai",
+)
 
 # Runs in a fresh interpreter where importing an optional package fails, as it
 # does in an environment installed without extras.

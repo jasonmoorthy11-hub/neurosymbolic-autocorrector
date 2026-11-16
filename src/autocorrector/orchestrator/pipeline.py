@@ -115,16 +115,19 @@ async def detect_and_translate_node(state: PipelineState) -> dict[str, Any]:
         settings = get_settings()
         translated = None
         if lang in settings.supported_languages and settings.anthropic_api_key:
-            from anthropic import AsyncAnthropic
+            try:
+                from anthropic import AsyncAnthropic
+            except ImportError:  # a key without the [llm] extra: no translation
+                logger.warning("anthropic is not installed; install the [llm] extra to translate")
+            else:
+                from autocorrector.multilingual import translator
 
-            from autocorrector.multilingual import translator
-
-            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            result = await translator.translate_to_english_checked(
-                text, lang, client, settings.default_llm
-            )
-            if result.ok:
-                translated = result.text
+                client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+                result = await translator.translate_to_english_checked(
+                    text, lang, client, settings.default_llm
+                )
+                if result.ok:
+                    translated = result.text
 
         if translated is not None:
             updates["agent_text"] = translated
@@ -415,7 +418,10 @@ async def _translate_output_if_needed(text: str, state: PipelineState) -> str:
     if lang not in settings.supported_languages:
         return text
 
-    from anthropic import AsyncAnthropic
+    try:
+        from anthropic import AsyncAnthropic
+    except ImportError:  # a key without the [llm] extra: the English text stands
+        return text
 
     from autocorrector.multilingual.translator import translate_from_english
 
