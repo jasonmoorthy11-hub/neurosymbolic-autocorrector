@@ -133,8 +133,11 @@ enables the LLM correction tier and translation; nothing below needs one.
 The first reply the language detector has to read (four or more words, or a
 shorter one with an accented letter or an amount) makes `fast-langdetect`
 download its model once (`lid.176.bin`, 131 MB, into `FTLANG_CACHE` or the
-system temp directory). Without a network that download fails, is tried again
-on each such reply, and the reply is read as English.
+system temp directory). Without a network that download fails and is tried
+again on each such reply. A reply is then read as English only if it is plain
+ASCII and carries two or more common English words; any other reply is marked
+`und` (undetermined) and escalated, so a first run offline holds foreign and
+unusual replies instead of checking them against the English rules.
 
 The MCP server alone needs no extras: `pip install -e .` and `autocorrector
 --stdio`. It then runs the PII patterns directly instead of inside a Guardrails
@@ -285,7 +288,9 @@ Known, measured, or found by the held-out run:
   and fewer than two function words of Spanish, French, Portuguese, German,
   Italian or Dutch ("Garantiert: your new Erstattung today"). Function words of
   other languages are not known at all, so an unaccented Indonesian or Tagalog
-  line with two English words in it passes as English.
+  line with two English words in it passes as English. Without the model
+  (first run offline) the same word test is all there is: English without two
+  of those common words ("Order shipped; tracking emailed shortly.") is escalated.
 - The credit rules need a credit word ("credit", "compensation", "discount", ...).
   A payment that is not called one ("As an apology I'm sending $600 to your
   credit card") is not seen; before v1.6 it was caught by accident, because

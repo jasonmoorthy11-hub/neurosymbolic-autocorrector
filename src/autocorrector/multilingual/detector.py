@@ -14,6 +14,11 @@ try:
 except ImportError:
     _HAS_FAST_LANGDETECT = False
 
+# ISO 639-2 "undetermined": the model could not be used and the text does not show
+# itself to be English. It is not "en", so every caller escalates it.
+UNDETERMINED = "und"
+_warned_model_unavailable = False
+
 
 # Below this many words the detector is unreliable ("OK." -> pl at 0.99, a
 # five-character order code -> zh at 0.99), and a non-English result escalates the
@@ -126,8 +131,32 @@ def _reads_as_english(text: str) -> bool:
     )
 
 
+def _without_model(text: str, reason: str) -> str:
+    """The answer when the model cannot be used: English only if the text shows it.
+
+    Reading everything as English would send a foreign reply through the
+    English-only rules, which pass it. Plain-ASCII text with the common English
+    words is English; anything else is undetermined, and callers escalate it.
+    """
+    global _warned_model_unavailable
+    if not _warned_model_unavailable:
+        _warned_model_unavailable = True
+        logger.warning(
+            "The language model is unavailable (%s); replies that do not read as "
+            "English are escalated as undetermined",
+            reason,
+        )
+    if _plain_ascii(text) and _reads_as_english(text):
+        return "en"
+    return UNDETERMINED
+
+
 def detect_language(text: str) -> str:
-    """Detect language from text. Returns ISO 639-1 code. Falls back to 'en'."""
+    """Detect language from text. Returns an ISO 639-1 code.
+
+    Text too short or too ambiguous to tell is "en". When the model itself cannot
+    be loaded the result is "en" or ``UNDETERMINED`` (see ``_without_model``).
+    """
     if not text or not _LETTER.search(text):
         return "en"  # nothing to read: empty, or digits and symbols only
 
@@ -135,10 +164,15 @@ def detect_language(text: str) -> str:
         return "en"
 
     if not _HAS_FAST_LANGDETECT:
-        return "en"
+        return _without_model(text, "fast-langdetect is not installed")
 
     try:
         result = _ft_detect(text)
+    except Exception as error:
+        # A first run downloads the model; offline, or with a broken cache, that fails
+        return _without_model(text, f"{type(error).__name__}: {error}")
+
+    try:
         lang = result[0]["lang"] if isinstance(result, list) else result["lang"]
         score = result[0]["score"] if isinstance(result, list) else result["score"]
         if score < 0.3:
@@ -150,6 +184,5 @@ def detect_language(text: str) -> str:
         ):
             return "en"
         return lang
-    except Exception:
-        logger.debug("Language detection failed, defaulting to English")
-        return "en"
+    except (KeyError, IndexError, TypeError):
+        return _without_model(text, "the detector returned no usable result")

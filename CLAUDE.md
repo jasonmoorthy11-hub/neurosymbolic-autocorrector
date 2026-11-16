@@ -5,7 +5,7 @@ AI quality assurance system that **corrects** (not blocks) agent outputs in real
 ## Commands
 
 ```bash
-# Tests (1799 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
+# Tests (1832 passing offline; the 16 Neo4j integration tests are skipped without the opt-in below)
 python3 -m pytest
 python3 -m pytest --ignore=tests/test_neo4j_integration.py  # skip Neo4j tests
 # Neo4j integration tests: they DELETE EVERY NODE, so a disposable server only (e.g. the compose one)
@@ -77,7 +77,7 @@ Agent Output → Language Detection → Translate to English → NeMo Input Rail
 
 - **Correct, don't block** — Never break conversation flow. Corrections must be seamless.
 - **4-tier correction fallback** — Neo4j template (connected only) → LLM (key only) → span rewrite of the offending sentences (cited edits) → whole-message template
-- **Fail-open guardrails, fail-closed validation** — NeMo/Guardrails failures pass through rather than block; a policy or fact check that raises escalates (`validation-unavailable`), never allows
+- **Fail-open guardrails, fail-closed validation** — NeMo/Guardrails failures pass through rather than block; a policy or fact check that raises escalates (`validation-unavailable`), never allows; with no language model a reply that does not read as English is `und` and escalates
 - **Async everywhere** — All I/O is async (aiosqlite, the Anthropic async client, the Neo4j async driver)
 - **Immutable events** — `correction_events` table is append-only; decisions go in separate table
 

@@ -7,6 +7,15 @@ the package metadata, the dashboard API and `/health` read.
 
 ## [Unreleased]
 
+- Language detection without its model no longer reads everything as English.
+  On a first run with no network the 131 MB model cannot be downloaded, and a
+  French or Spanish reply was then checked against the English-only rules,
+  which pass it. Now a reply is English only if it is plain ASCII and carries
+  two or more common English words; anything else is `und` and is escalated
+  (pipeline: `translation-unavailable`; MCP tools: escalate). One warning is
+  logged. Nothing changes when the model loads. The cost: English without two
+  of those words ("Order shipped; tracking emailed shortly.") is escalated on
+  a machine with no model.
 - Installed with no extras (`pip install .`), the package now gives a working
   MCP server. `autocorrector --help` failed there with `ModuleNotFoundError:
   guardrails`, because the server imported the Guardrails AI wrapper at start.
