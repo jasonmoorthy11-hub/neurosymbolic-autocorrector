@@ -5,7 +5,7 @@ under a release is that tag's own message.
 The version number lives in `src/autocorrector/__init__.py` (`__version__`), which
 the package metadata, the dashboard API and `/health` read.
 
-## [Unreleased]
+## [1.7] - 2026-11-16
 
 - The replay demo has a "Try it" panel: a typed reply is checked in the browser
   tab by the rule core running as Python under WebAssembly (Pyodide 314.0.8,
