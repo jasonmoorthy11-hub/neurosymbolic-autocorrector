@@ -138,6 +138,9 @@ async def test_runner_matches_the_pipeline_on_patched_stores(patch, action, mark
     assert plain.action_taken == action
     assert [m for m in plain.guardrails_applied if m != "pii-detection"] == marks
     assert "123-45-6789" not in plain.corrected_text
+    # and the patch took effect: an unpatched store rewrites the credit to $50
+    assert "$75" in plain.corrected_text
+    assert plain.was_modified is bool(pii)
 
 
 def test_runner_defaults_are_the_settings_defaults():

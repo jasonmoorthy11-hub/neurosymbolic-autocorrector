@@ -2,6 +2,7 @@
 // same-origin, under <base>/tryit/ (scripts/build-tryit.mjs); nothing typed into
 // the panel leaves this worker.
 import { LOAD_STEPS, type TryItMessage, type TryItRequest } from "./protocol";
+import { wasmFailure, type WasmApi } from "./wasmFailure";
 
 type Check = (text: string, context: string) => Promise<string>;
 
@@ -32,7 +33,9 @@ async function load(): Promise<void> {
   const runtime = (await import(/* @vite-ignore */ `${base}pyodide.mjs`)) as {
     loadPyodide(options: { indexURL: string }): Promise<Pyodide>;
   };
-  const pyodide = await runtime.loadPyodide({ indexURL: base });
+  // loadPyodide never settles if its WebAssembly module cannot be fetched or compiled
+  const failed = wasmFailure(WebAssembly as unknown as WasmApi);
+  const pyodide = await Promise.race([runtime.loadPyodide({ indexURL: base }), failed]);
   progress(2);
   await pyodide.loadPackage([...PACKAGES], { messageCallback: () => {} });
   // loadPackage resolves even when a wheel could not be fetched or failed its hash

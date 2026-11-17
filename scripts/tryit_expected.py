@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""What the browser panel must give: every golden case and replay scenario through
-``run_deterministic(assume_english=True)``, as JSON on stdout.
+"""What the browser panel must give: every golden case, the 15 demo scenarios and
+three replies from other scripts through ``run_deterministic(assume_english=True)``,
+as JSON on stdout.
 
     python3 scripts/tryit_expected.py > expected.json
     cd dashboard && node scripts/tryit-parity.mjs ../expected.json

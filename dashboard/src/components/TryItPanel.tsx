@@ -50,17 +50,29 @@ export function TryItPanel({ createWorker }: Props) {
 
   const loading = state.status === "loading";
   const loaded = state.status === "ready" || state.status === "checking";
-  const error = formError ?? state.error;
+  const checking = state.status === "checking";
+  // A form error belongs to the form: once the form is gone, the checker's own error shows
+  const error = (loaded ? formError : null) ?? state.error;
   const run = state.run;
 
-  // The start button leaves when the form arrives (and comes back after a failed
-  // load): move keyboard focus with it instead of dropping it to the page.
-  const wasLoading = useRef(false);
+  // The start button leaves when the form arrives, and the form leaves if the
+  // checker stops. Keyboard focus follows the control that left, and only if it
+  // was on that control: a visitor who moved on during the download is left alone.
+  const startHeldFocus = useRef(false);
+  const formHeldFocus = useRef(false);
+  const statusBefore = useRef(state.status);
   useEffect(() => {
-    if (wasLoading.current && state.status === "ready") replyField.current?.focus();
-    if (wasLoading.current && state.status === "error") startButton.current?.focus();
-    wasLoading.current = loading;
-  }, [state.status, loading]);
+    const before = statusBefore.current;
+    statusBefore.current = state.status;
+    if (before === "loading" && state.status === "ready") {
+      if (startHeldFocus.current) replyField.current?.focus();
+      startHeldFocus.current = false;
+    }
+    if ((before === "ready" || before === "checking") && state.status === "error") {
+      if (formHeldFocus.current) startButton.current?.focus();
+      formHeldFocus.current = false;
+    }
+  }, [state.status]);
 
   const start = () => {
     if (loading) return;
@@ -70,6 +82,7 @@ export function TryItPanel({ createWorker }: Props) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (checking) return;
     const request = toRequest(form);
     if ("error" in request) {
       setFormError(request.error);
@@ -94,8 +107,8 @@ export function TryItPanel({ createWorker }: Props) {
       {/* One short status per change, for screen readers */}
       <p className="sr-only" aria-live="polite">
         {loading && "Loading the checker."}
-        {state.status === "ready" && !run && "The checker is ready."}
-        {state.status === "ready" && run && `Checked: ${run.result.action}.`}
+        {state.status === "ready" && !state.error && !run && "The checker is ready."}
+        {state.status === "ready" && !state.error && run && `Checked: ${run.result.action}.`}
       </p>
 
       {!loaded && (
@@ -106,6 +119,8 @@ export function TryItPanel({ createWorker }: Props) {
             type="button"
             className="btn btn-secondary"
             onClick={start}
+            onFocus={() => (startHeldFocus.current = true)}
+            onBlur={() => (startHeldFocus.current = false)}
             aria-disabled={loading}
           >
             {loading ? "Loading…" : state.status === "error" ? "Try loading again" : "Load the checker"}
@@ -124,7 +139,13 @@ export function TryItPanel({ createWorker }: Props) {
       )}
 
       {loaded && (
-        <form className="tryit-form" onSubmit={submit} noValidate>
+        <form
+          className="tryit-form"
+          onSubmit={submit}
+          onFocus={() => (formHeldFocus.current = true)}
+          onBlur={() => (formHeldFocus.current = false)}
+          noValidate
+        >
           <div className="tryit-field tryit-field--reply">
             <label htmlFor={ids.text}>Agent reply</label>
             <textarea
@@ -171,8 +192,9 @@ export function TryItPanel({ createWorker }: Props) {
             </select>
           </div>
           <div className="tryit-actions">
-            <button type="submit" className="btn btn-start" disabled={state.status === "checking"}>
-              {state.status === "checking" ? "Checking…" : "Check reply"}
+            {/* aria-disabled, not disabled: a disabled button would drop keyboard focus */}
+            <button type="submit" className="btn btn-start" aria-disabled={checking}>
+              {checking ? "Checking…" : "Check reply"}
             </button>
             <span id={ids.hint} className="tryit-examples">
               Examples:{" "}

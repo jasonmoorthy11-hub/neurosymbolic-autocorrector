@@ -76,9 +76,10 @@ export function useTryIt(createWorker: () => TryItWorker = startWorker) {
           run: { input: asked.input, context: asked.context, result: { ...data.result, latency_ms: data.ms } },
         }));
       } else if (pending.current) {
-        // A failed check: the checker itself is still loaded
+        // A failed check: the checker itself is still loaded. The answer to the
+        // reply before goes, so it is not read as the answer to this one.
         pending.current = null;
-        setState((s) => ({ ...s, status: "ready", error: data.message }));
+        setState((s) => ({ ...s, status: "ready", run: null, error: data.message }));
       } else {
         fail(data.message);
       }

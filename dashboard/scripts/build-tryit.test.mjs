@@ -32,10 +32,30 @@ describe("wheel", () => {
     expect(await wheel(entry, "1", { fetchImpl: serving(good), cache })).toEqual(good);
   });
 
+  const never = async () => {
+    throw new Error("must not fetch");
+  };
+
+  it("returns a cached file with the right bytes without fetching", async () => {
+    fs.writeFileSync(path.join(cache, entry.file_name), good);
+    expect(await wheel(entry, "1", { fetchImpl: never, cache })).toEqual(good);
+  });
+
+  it("stops on a failed download and caches nothing", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 404 });
+    await expect(wheel(entry, "1", { fetchImpl, cache })).rejects.toThrow("HTTP 404");
+    expect(fs.readdirSync(cache)).toEqual([]);
+  });
+
+  it("refuses a name that is not a plain wheel file name", async () => {
+    for (const file_name of ["", ".", "..", "x.whl?y", "x.whl#f", "a/x.whl", "x.tar.gz"]) {
+      await expect(wheel({ ...entry, file_name }, "1", { fetchImpl: never, cache }), file_name).rejects.toThrow(
+        "not a file name",
+      );
+    }
+  });
+
   it("refuses an entry with no hash or with a path for a name", async () => {
-    const never = async () => {
-      throw new Error("must not fetch");
-    };
     await expect(wheel({ ...entry, sha256: undefined }, "1", { fetchImpl: never, cache })).rejects.toThrow("no sha256");
     await expect(wheel({ ...entry, file_name: "../x.whl" }, "1", { fetchImpl: never, cache })).rejects.toThrow(
       "not a file name",

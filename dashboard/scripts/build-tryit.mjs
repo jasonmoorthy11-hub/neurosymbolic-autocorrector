@@ -56,10 +56,11 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 /** One wheel's bytes, from the cache or the CDN, only if they match the lockfile's sha256. */
 export async function wheel(entry, version, { fetchImpl = fetch, cache = cacheDir } = {}) {
   if (!/^[0-9a-f]{64}$/.test(entry.sha256 ?? "")) throw new Error(`${entry.file_name}: no sha256 in the lockfile`);
-  if (path.basename(entry.file_name) !== entry.file_name) throw new Error(`${entry.file_name}: not a file name`);
+  if (!/^[\w+-][\w.+-]*\.whl$/.test(entry.file_name ?? "")) throw new Error(`${entry.file_name}: not a file name`);
   const cached = path.join(cache, entry.file_name);
-  if (fs.existsSync(cached) && sha256(fs.readFileSync(cached)) === entry.sha256) {
-    return fs.readFileSync(cached);
+  if (fs.existsSync(cached)) {
+    const kept = fs.readFileSync(cached);
+    if (sha256(kept) === entry.sha256) return kept;
   }
   const url = `https://cdn.jsdelivr.net/pyodide/v${version}/full/${entry.file_name}`;
   const response = await fetchImpl(url);
